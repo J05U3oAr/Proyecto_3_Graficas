@@ -1,0 +1,12 @@
+# Materials recreated because the supplied OBJ references an MTL file that was not included.
+newmtl Hull_Negro
+Kd 0.15 0.19 0.25
+
+newmtl Cristal_Rojo
+Kd 0.82 0.12 0.17
+
+newmtl Panel_Solar
+Kd 0.12 0.27 0.52
+
+newmtl Gris_Canon
+Kd 0.58 0.61 0.65
