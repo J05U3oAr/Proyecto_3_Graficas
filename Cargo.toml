@@ -1,0 +1,12 @@
+[package]
+name = "proyecto-graficas"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+image = { version = "0.25", default-features = false, features = ["png"] }
+minifb = "0.26"
+nalgebra-glm = "0.18"
+
+[profile.dev]
+opt-level = 3
