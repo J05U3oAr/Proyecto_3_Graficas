@@ -66,10 +66,13 @@ nave y los planetas, y sigue animándose aunque estés detenido. Las tormentas y
 rotación de los planetas se pausan al inspeccionar la nave o perder el foco; la
 pausa de las vistas previas del hangar no afecta al tiempo del vuelo.
 
-El espacio profundo conserva un agujero negro con disco naranja como decoración
-lejana, visible al despegar arriba a la derecha. Es una imagen emisiva estática
-anclada al mundo, con sombra y profundidad. Puedes ver
-[capturas, posición y procedencia](assets/deep-space/README.md).
+El agujero negro es un objeto tridimensional alcanzable, visible arriba a la
+derecha al despegar. Puedes rodear su centro esférico y su disco naranja animado.
+Al entrar a menos de 320 unidades empieza a atraer la nave, incluso sin pulsar
+WASD. La fuerza aumenta al acercarte: usa WASD y `SHIFT` para intentar escapar.
+Si cruzas su horizonte, la nave es absorbida y reaparece en el punto inicial.
+El HUD muestra la distancia y avisa de la atracción. Puedes ver
+[capturas y parámetros](assets/deep-space/README.md).
 
 ## Controles de inspección
 

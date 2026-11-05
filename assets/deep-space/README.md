@@ -1,25 +1,45 @@
-# Agujero negro decorativo
+# Agujero negro con atracción
 
-El único escenario del espacio profundo es el agujero negro con disco naranja.
-Está en la posición (12420, 2610, −20560), lejos de los planetas, y se ve arriba
-a la derecha al despegar. Su ancho es de 11200 unidades del mundo.
+El agujero negro está en (420, 95, −800), a unas 909 unidades del inicio.
+Es visible arriba a la derecha al despegar y puedes alcanzarlo con la nave.
+El centro es una esfera y el disco es un anillo inclinado en el mundo: se
+renderizan mediante intersecciones de rayos, con profundidad, desde cualquier
+ángulo. Los filamentos naranjas del disco se animan con el reloj del vuelo.
 
-Es una imagen emisiva orientada a la cámara y anclada al mundo. Su proyección
-cambia al girar o desplazarse; la profundidad permite que la nave y los planetas
-pasen por delante. Los bordes se desvanecen sobre el cielo y la sombra central
-oculta el fondo. Es decoración estática, sin gravedad ni colisiones.
+## Comportamiento
 
-`textures/accretion.png` es una ilustración generada con ImageGen para este
-proyecto a partir de la referencia del usuario: disco naranja inclinado, arco
-luminoso, centro oscuro y un pequeño cuerpo oscuro. El efecto de lente está
-representado en la imagen; no es una simulación física.
+- Radio del horizonte: 44 unidades. Cruzarlo absorbe la nave.
+- Radio exterior del disco: 195 unidades.
+- Radio de atracción: 320 unidades, con entrada suave y fuerza creciente.
+- La atracción también actúa cuando sueltas WASD o usas el freno.
+- Puedes intentar escapar de la zona exterior orientándote hacia fuera y usando
+  WASD + SHIFT. Cerca del horizonte la atracción domina.
+- Tras ser absorbida, la nave reaparece en el origen después de 1.4 segundos.
+  Se eliminan los impulsos de caída y aparece un aviso de recuperación.
+- El HUD muestra distancia, advertencia de atracción y estado de captura.
+- La física y la animación se detienen al inspeccionar o perder el foco.
 
-![Agujero negro al despegar](previews/en-vuelo.png)
+Es una mecánica de juego con fuerzas acotadas y un anillo luminoso estilizado;
+no intenta simular relatividad general. El campo y la geometría comparten los
+parámetros de `src/black_hole.rs`, para que el volumen visible y el horizonte de
+captura coincidan. La colisión comprueba el trayecto entre pasos, incluso con
+velocidades altas.
 
-Para exportar una vista cercana con el mismo renderizador del juego:
+![Vista desde el inicio](previews/en-vuelo.png)
+![Atracción al acercarse](previews/atraccion.png)
+
+## Exportar vistas
 
 ```powershell
 cargo run --release -- --render-landmark output/agujero.png
+cargo run --release -- --render-flight output/atraccion.png --near-black-hole --time 1
+cargo run --release -- --render-flight output/captura.png --near-black-hole --time 4.5
 ```
 
-La captura cercana está en `previews/accretion.png`.
+`--near-black-hole` inicia únicamente la exportación a 250 unidades del centro.
+No teletransporta la nave en el juego interactivo. `--time` mantiene W durante
+la simulación, con las mismas fuerzas y captura de la aplicación.
+
+`textures/accretion.png` conserva la ilustración generada con ImageGen a partir
+de la referencia del usuario como referencia artística. El juego ahora dibuja
+geometría procedural; ya no utiliza esa imagen como cartel orientado a la cámara.
