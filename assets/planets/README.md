@@ -2,8 +2,8 @@
 
 Dos planetas originales creados en Blender. Los archivos `.blend` son editables y no
 dependen de imágenes externas: sus superficies, colores y relieves se generan con
-mallas y materiales procedurales. Esta primera entrega contiene los modelos para
-revisar su aspecto antes de incorporarlos al vuelo.
+mallas y materiales procedurales. Ambos planetas están incorporados al modo de vuelo:
+Siroco aparece a la izquierda al despegar y Oquedad a la derecha.
 
 | Planeta | Características | Archivo editable | Exportación para Rust |
 | --- | --- | --- | --- |

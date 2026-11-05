@@ -1,6 +1,6 @@
 # Proyecto de gráficas - naves espaciales
 
-Hangar interactivo en Rust con vistas previas 360° para las tres naves y un modo de vuelo libre por un campo estelar sin planetas.
+Hangar interactivo en Rust con vistas previas 360° para las tres naves y vuelo libre por un campo estelar con los planetas Siroco y Oquedad.
 
 Los modelos se cargan desde archivos OBJ; el programa transforma y rasteriza los triángulos en un framebuffer propio con búfer de profundidad. `minifb` se usa para la ventana y la entrada, no para dibujar modelos 3D. El menú también se dibuja en la CPU, incluidos textos, tarjetas, estrellas y plataformas luminosas.
 
@@ -49,7 +49,12 @@ El mouse dirige la nave sin mantener clic. La posición del cursor respecto al c
 
 La cámara está detrás y ligeramente por encima de la nave, mirando de la cola hacia la proa. Sigue los cambios de dirección con suavidad y la nave inclina las alas al girar. Las tres naves se dibujan en perspectiva y las estrellas se desplazan según la posición y velocidad reales, con estelas al avanzar. El HUD muestra posición y velocidad. El vuelo se pausa mientras inspeccionas la nave o la ventana pierde el foco.
 
+Al despegar, Siroco aparece a la izquierda y Oquedad a la derecha. Ocupan posiciones
+fijas en el espacio: puedes acercarte, rodearlos y observar los túneles de Oquedad.
+Sus modelos originales y escenas editables están en [assets/planets](assets/planets/README.md).
+
 ## Controles de inspección
+
 
 | Tecla | Acción |
 | --- | --- |

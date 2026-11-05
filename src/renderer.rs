@@ -77,6 +77,159 @@ pub fn draw_model(
 }
 
 pub const FLIGHT_FOCAL: f32 = 660.0;
+const NEAR_PLANE: f32 = 0.25;
+
+#[derive(Clone, Copy)]
+pub struct WorldTransform {
+    pub position: Vec3,
+    pub radius: f32,
+    pub yaw: f32,
+}
+
+pub struct FlightView {
+    eye: Vec3,
+    right: Vec3,
+    up: Vec3,
+    forward: Vec3,
+    width: f32,
+    height: f32,
+}
+
+impl FlightView {
+    pub fn new(flight: &Flight, width: usize, height: usize) -> Self {
+        let (right, up, forward) = flight.camera.basis();
+        Self {
+            eye: flight.camera_position(),
+            right,
+            up,
+            forward,
+            width: width as f32,
+            height: height as f32,
+        }
+    }
+
+    pub fn view_point(&self, world: Vec3) -> Vec3 {
+        let relative = world - self.eye;
+        Vec3::new(
+            relative.dot(&self.right),
+            relative.dot(&self.up),
+            -relative.dot(&self.forward),
+        )
+    }
+
+    pub fn project_view(&self, point: Vec3) -> Option<Vec3> {
+        let depth = -point.z;
+        (depth >= NEAR_PLANE).then(|| {
+            Vec3::new(
+                self.width * 0.5 + point.x * FLIGHT_FOCAL / depth,
+                self.height * 0.5 - point.y * FLIGHT_FOCAL / depth,
+                1.0 / depth,
+            )
+        })
+    }
+
+    pub fn project(&self, world: Vec3) -> Option<Vec3> {
+        self.project_view(self.view_point(world))
+    }
+
+    pub fn sphere_visible(&self, center: Vec3, radius: f32) -> bool {
+        let point = self.view_point(center);
+        let depth = -point.z;
+        let horizontal = self.width * 0.5 / FLIGHT_FOCAL;
+        let vertical = self.height * 0.5 / FLIGHT_FOCAL;
+        depth + radius >= NEAR_PLANE
+            && point.x.abs() <= depth * horizontal + radius * (1.0 + horizontal * horizontal).sqrt()
+            && point.y.abs() <= depth * vertical + radius * (1.0 + vertical * vertical).sqrt()
+    }
+}
+
+/// Opaque world objects and the ship share reciprocal depth in the framebuffer.
+pub fn draw_world_model(
+    fb: &mut Framebuffer,
+    model: &Model,
+    camera: &FlightView,
+    transform: WorldTransform,
+) {
+    if !camera.sphere_visible(transform.position, transform.radius) {
+        return;
+    }
+    let (sin, cos) = transform.yaw.sin_cos();
+    let vertices: Vec<Vec3> = model
+        .vertices
+        .iter()
+        .map(|vertex| {
+            let p = (vertex - model.center) * (transform.radius / model.radius);
+            let rotated = Vec3::new(p.x * cos + p.z * sin, p.y, p.z * cos - p.x * sin);
+            camera.view_point(transform.position + rotated)
+        })
+        .collect();
+    let light = Vec3::new(-0.4, 0.8, 1.0).normalize();
+    let half = (light + Vec3::new(0.0, 0.0, 1.0)).normalize();
+    for face in &model.faces {
+        let [i, j, k] = face.indices;
+        let [a, b, c] = [vertices[i], vertices[j], vertices[k]];
+        let Some(color) = lit_color((b - a).cross(&(c - a)), face.color, &light, &half) else {
+            continue;
+        };
+        let (polygon, count) = clip_near([a, b, c]);
+        for index in 1..count.saturating_sub(1) {
+            // Clipping guarantees positive depth; clamp roundoff at the near plane.
+            let project = |mut p: Vec3| {
+                p.z = p.z.min(-NEAR_PLANE);
+                camera.project_view(p).unwrap()
+            };
+            triangle::fill(
+                fb,
+                &project(polygon[0]),
+                &project(polygon[index]),
+                &project(polygon[index + 1]),
+                color,
+            );
+        }
+    }
+}
+
+fn clip_near(triangle: [Vec3; 3]) -> ([Vec3; 4], usize) {
+    let mut output = [Vec3::zeros(); 4];
+    let mut count = 0;
+    let mut previous = triangle[2];
+    for current in triangle {
+        let was_inside = previous.z <= -NEAR_PLANE;
+        let inside = current.z <= -NEAR_PLANE;
+        if was_inside != inside {
+            let t = (-NEAR_PLANE - previous.z) / (current.z - previous.z);
+            output[count] = previous + (current - previous) * t;
+            output[count].z = -NEAR_PLANE;
+            count += 1;
+        }
+        if inside {
+            output[count] = current;
+            count += 1;
+        }
+        previous = current;
+    }
+    (output, count)
+}
+
+fn lit_color(normal: Vec3, base: Color, light: &Vec3, half: &Vec3) -> Option<Color> {
+    if normal.norm_squared() < f32::EPSILON {
+        return None;
+    }
+    let mut normal = normal.normalize();
+    if normal.z < 0.0 {
+        normal = -normal;
+    }
+    let diffuse = normal.dot(light).max(0.0);
+    let highlight = normal.dot(half).max(0.0).powf(28.0) * 0.30;
+    let surface = base.shaded(0.40 + 0.85 * diffuse);
+    let rim = (1.0 - normal.z).powf(3.0) * 0.10;
+    let lift = |channel: u8| (channel as f32 + 255.0 * (highlight + rim)).min(255.0) as u8;
+    Some(Color::new(
+        lift(surface.r),
+        lift(surface.g),
+        lift(surface.b),
+    ))
+}
 
 /// Render the actual ship orientation in the same perspective as the star field.
 pub fn draw_flight_model(
@@ -139,28 +292,15 @@ fn rasterize(
         let [i, j, k] = face.indices;
         let [a, b, c] = [screen[i], screen[j], screen[k]];
         if mode == RenderMode::Solid {
-            let normal = (view[j] - view[i]).cross(&(view[k] - view[i]));
-            if normal.norm_squared() < f32::EPSILON {
-                continue;
-            }
-            let mut normal = normal.normalize();
-            if normal.z < 0.0 {
-                normal = -normal;
-            }
-            let diffuse = normal.dot(&light).max(0.0);
-            let highlight = normal.dot(&half).max(0.0).powf(28.0) * 0.30;
             let base = fallback_color.unwrap_or(face.color);
-            let intensity = 0.40 + 0.85 * diffuse;
-            let surface = base.shaded(intensity);
-            let rim = (1.0 - normal.z).powf(3.0) * 0.10;
-            let lift = |channel: u8| (channel as f32 + 255.0 * (highlight + rim)).min(255.0) as u8;
-            triangle::fill(
-                framebuffer,
-                &a,
-                &b,
-                &c,
-                Color::new(lift(surface.r), lift(surface.g), lift(surface.b)),
-            );
+            if let Some(color) = lit_color(
+                (view[j] - view[i]).cross(&(view[k] - view[i])),
+                base,
+                &light,
+                &half,
+            ) {
+                triangle::fill(framebuffer, &a, &b, &c, color);
+            }
         } else {
             let color = if mode == RenderMode::Hologram {
                 0x60e6ef
@@ -178,6 +318,22 @@ fn rasterize(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn triangles_crossing_the_camera_are_clipped_before_projection() {
+        let (polygon, count) = clip_near([
+            Vec3::new(-1.0, 0.0, 0.1),
+            Vec3::new(1.0, 0.0, -1.0),
+            Vec3::new(0.0, 1.0, -1.0),
+        ]);
+        assert_eq!(count, 4);
+        assert!(
+            polygon[..count]
+                .iter()
+                .all(|p| p.z <= -NEAR_PLANE && p.iter().all(|v| v.is_finite()))
+        );
+        assert_eq!(clip_near([Vec3::new(0.0, 0.0, 1.0); 3]).1, 0);
+    }
 
     #[test]
     fn all_ships_stay_visible_below_the_reticle_during_turns() {

@@ -5,6 +5,7 @@ mod flight;
 mod framebuffer;
 mod model;
 mod renderer;
+mod space;
 mod triangle;
 mod ui;
 

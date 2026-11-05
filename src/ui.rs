@@ -153,6 +153,7 @@ pub struct Ui {
     fonts: Fonts,
     background: Vec<u32>,
     stars: Vec<Star>,
+    space: crate::space::Space,
 }
 
 struct Star {
@@ -225,6 +226,7 @@ impl Ui {
             fonts: Fonts::load()?,
             background: background.pixels,
             stars,
+            space: crate::space::Space::load()?,
         })
     }
 
@@ -517,7 +519,20 @@ impl Ui {
             }
         }
 
+        self.space.draw(fb, flight, seconds);
         renderer::draw_flight_model(fb, &ship.model, flight, ship.finish);
+
+        let view = renderer::FlightView::new(flight, WIDTH, HEIGHT);
+        for planet in &self.space.planets {
+            if let Some(point) = view.project(planet.transform.position) {
+                let y = point.y + planet.transform.radius * renderer::FLIGHT_FOCAL * point.z + 14.0;
+                if (80.0..WIDTH as f32 - 80.0).contains(&point.x) && (145.0..730.0).contains(&y) {
+                    let x = point.x - self.fonts.width(14, planet.name) * 0.5;
+                    self.fonts
+                        .text(fb, 14, x as i32, y as i32, planet.name, MUTED);
+                }
+            }
+        }
 
         rounded(fb, Rect::new(34, 25, 285, 66), 12, 0x101d2c, 0x304154);
         self.fonts.text(fb, 14, 54, 37, "VUELO LIBRE", TEAL);
