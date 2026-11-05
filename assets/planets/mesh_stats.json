@@ -14,5 +14,11 @@
     "triangles": 16128,
     "materials": 1,
     "texture": "textures/jovara-clouds.png"
+  },
+  "boreal": {
+    "vertices": 8066,
+    "triangles": 16128,
+    "materials": 1,
+    "texture": "textures/boreal-clouds.png"
   }
 }

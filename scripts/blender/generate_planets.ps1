@@ -1,6 +1,6 @@
 param(
     [string] $BlenderPath,
-    [ValidateSet('siroco', 'oquedad', 'jovara')] [string] $Planet,
+    [ValidateSet('siroco', 'oquedad', 'jovara', 'boreal')] [string] $Planet,
     [switch] $Overwrite,
     [ValidateRange(1, 1024)] [int] $Samples = 64,
     [ValidateRange(128, 4096)] [int] $Size = 960
@@ -31,14 +31,18 @@ if (-not $BlenderPath -or -not (Test-Path -LiteralPath $BlenderPath -PathType Le
     throw 'No se encontro Blender. Indica su ejecutable mediante -BlenderPath.'
 }
 
-$scriptName = if ($Planet -eq 'jovara') { 'create_jovara.py' } else { 'create_planets.py' }
+$scriptName = switch ($Planet) {
+    'jovara' { 'create_jovara.py' }
+    'boreal' { 'create_boreal.py' }
+    default { 'create_planets.py' }
+}
 $generator = Join-Path $PSScriptRoot $scriptName
 $arguments = @('--background', '--factory-startup', '--python-exit-code', '1',
     '--python', $generator, '--', '--samples', $Samples, '--size', $Size)
 if ($Overwrite) {
     $arguments += '--overwrite'
 }
-if ($Planet -and $Planet -ne 'jovara') {
+if ($Planet -in @('siroco', 'oquedad')) {
     $arguments += @('--only', $Planet)
 }
 

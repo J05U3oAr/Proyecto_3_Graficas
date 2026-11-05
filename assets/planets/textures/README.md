@@ -1,4 +1,18 @@
-# Superficie de Jovara
+# Texturas de los planetas
+
+## Boreal: gigante helado
+
+`boreal-clouds.png` es un atlas equirectangular generado con la herramienta
+integrada ImageGen, guiado por la imagen aportada por el usuario. Conserva la
+paleta turquesa, las bandas blancas de aspecto helado y los vórtices azul oscuro.
+Es una recreación artística para el juego, no una fotografía ni un mapa
+científico de Urano. El prompt completo se conserva en `boreal-prompt.txt`.
+
+La textura cubre toda la esfera con UV estándar, sin sombras direccionales
+dibujadas: Blender y el juego iluminan la geometría. Está empaquetada dentro de
+`blender/boreal.blend` y se conserva también aquí para el material OBJ/MTL.
+
+## Jovara
 
 `jovara-clouds.png` es una conversión a PNG de la imagen **Southern Storms,
 PIA21641**. Se conservan los colores y el detalle de la fotografía: no se generaron
