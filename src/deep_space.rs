@@ -12,8 +12,7 @@ use std::{
     sync::{Arc, OnceLock},
 };
 
-const IDS: [&str; 5] = ["helix", "southern-ring", "binary", "accretion", "spiral"];
-static TEXTURES: OnceLock<Result<Arc<Vec<Texture>>, String>> = OnceLock::new();
+static TEXTURE: OnceLock<Result<Arc<Texture>, String>> = OnceLock::new();
 
 struct Landmark {
     position: Vec3,
@@ -21,8 +20,8 @@ struct Landmark {
 }
 
 pub struct DeepSpace {
-    textures: Arc<Vec<Texture>>,
-    objects: [Landmark; 5],
+    texture: Arc<Texture>,
+    object: Landmark,
 }
 
 fn smooth(value: f32) -> f32 {
@@ -37,80 +36,46 @@ fn edge_fade(u: f32, v: f32) -> f32 {
 }
 
 /// Coordinates use image rows, with y increasing downward.
-fn shadow(index: usize, u: f32, v: f32) -> f32 {
+fn shadow(u: f32, v: f32) -> f32 {
     let ellipse = |x: f32, y: f32, rx: f32, ry: f32| {
         let radius = (((u - x) / rx).powi(2) + ((v - y) / ry).powi(2)).sqrt();
         smooth((1.03 - radius) / 0.06)
     };
-    match index {
-        2 => ellipse(0.536, 0.440, 0.047, 0.083).max(ellipse(0.455, 0.574, 0.038, 0.067)),
-        3 => ellipse(0.670, 0.530, 0.153, 0.237).max(ellipse(0.118, 0.668, 0.017, 0.030)),
-        _ => 0.0,
-    }
+    ellipse(0.670, 0.530, 0.153, 0.237).max(ellipse(0.118, 0.668, 0.017, 0.030))
 }
 
 impl DeepSpace {
     pub fn load() -> Result<Self, Box<dyn Error>> {
-        let textures = TEXTURES
+        let texture = TEXTURE
             .get_or_init(|| {
-                IDS.iter()
-                    .map(|id| {
-                        Texture::load(format!("assets/deep-space/textures/{id}.png"))
-                            .map_err(|e| format!("Escenario {id}: {e}"))
-                    })
-                    .collect::<Result<Vec<_>, _>>()
+                Texture::load("assets/deep-space/textures/accretion.png")
+                    .map_err(|e| format!("Agujero negro: {e}"))
                     .map(Arc::new)
             })
             .as_ref()
             .map(Arc::clone)
             .map_err(Clone::clone)?;
         Ok(Self {
-            textures,
-            objects: [
-                Landmark {
-                    position: Vec3::new(-9650.0, 920.0, -13250.0),
-                    width: 6500.0,
-                },
-                Landmark {
-                    position: Vec3::new(11150.0, -3670.0, -15630.0),
-                    width: 7000.0,
-                },
-                Landmark {
-                    position: Vec3::new(3545.0, -9664.0, -16808.0),
-                    width: 9000.0,
-                },
-                Landmark {
-                    position: Vec3::new(12420.0, 2610.0, -20560.0),
-                    width: 11200.0,
-                },
-                Landmark {
-                    position: Vec3::new(-12330.0, -9670.0, -20850.0),
-                    width: 11000.0,
-                },
-            ],
+            texture,
+            object: Landmark {
+                position: Vec3::new(12420.0, 2610.0, -20560.0),
+                width: 11200.0,
+            },
         })
     }
 
     pub fn draw(&self, fb: &mut Framebuffer, flight: &Flight) {
         let view = FlightView::new(flight, fb.width, fb.height);
-        let mut order = [0, 1, 2, 3, 4];
-        order.sort_by(|a, b| {
-            view.view_point(self.objects[*a].position)
-                .z
-                .total_cmp(&view.view_point(self.objects[*b].position).z)
-        });
-        for index in order {
-            self.draw_object(fb, &view, index);
-        }
+        self.draw_object(fb, &view);
     }
 
-    fn draw_object(&self, fb: &mut Framebuffer, view: &FlightView, index: usize) {
-        let object = &self.objects[index];
+    fn draw_object(&self, fb: &mut Framebuffer, view: &FlightView) {
+        let object = &self.object;
         let Some(center) = view.project(object.position) else {
             return;
         };
         let width = object.width * FLIGHT_FOCAL * center.z;
-        let height = width / self.textures[index].aspect_ratio();
+        let height = width / self.texture.aspect_ratio();
         let (left, top) = (center.x - width * 0.5, center.y - height * 0.5);
         let x0 = left.max(0.0).min(fb.width as f32) as usize;
         let y0 = top.max(0.0).min(fb.height as f32) as usize;
@@ -124,29 +89,27 @@ impl DeepSpace {
                 if fade <= 0.0 {
                     continue;
                 }
-                let color = self.textures[index].sample(Vec2::new(u, 1.0 - v)).to_hex();
-                fb.emission_depth((x, y), center.z, color, fade, shadow(index, u, v) * fade);
+                let color = self.texture.sample(Vec2::new(u, 1.0 - v)).to_hex();
+                fb.emission_depth((x, y), center.z, color, fade, shadow(u, v) * fade);
             }
         }
     }
 
     /// A close view uses the same world projection and compositor as gameplay.
     pub fn preview(&self, fb: &mut Framebuffer, id: &str) -> Result<(), Box<dyn Error>> {
-        let index = IDS
-            .iter()
-            .position(|candidate| *candidate == id)
-            .ok_or_else(|| format!("Escenario desconocido: {id}. Opciones: {}", IDS.join(", ")))?;
-        let object = &self.objects[index];
+        if id != "accretion" {
+            return Err(format!("Escenario desconocido: {id}. Opcion: accretion").into());
+        }
+        let object = &self.object;
         let distance = (object.width * FLIGHT_FOCAL / (fb.width as f32 * 0.90)).max(
-            object.width / self.textures[index].aspect_ratio() * FLIGHT_FOCAL
-                / (fb.height as f32 * 0.90),
+            object.width / self.texture.aspect_ratio() * FLIGHT_FOCAL / (fb.height as f32 * 0.90),
         );
         let mut flight = Flight::new();
         flight.camera.pitch = 0.0;
         flight.position = object.position + Vec3::new(0.0, -1.6, distance - 8.0);
         fb.clear();
         fb.pixels.fill(0x010207);
-        self.draw_object(fb, &FlightView::new(&flight, fb.width, fb.height), index);
+        self.draw_object(fb, &FlightView::new(&flight, fb.width, fb.height));
         Ok(())
     }
 }
@@ -161,10 +124,9 @@ mod tests {
             assert_eq!(edge_fade(u, v), 0.0);
         }
         assert_eq!(edge_fade(0.5, 0.5), 1.0);
-        assert_eq!(shadow(2, 0.536, 0.440), 1.0);
-        assert_eq!(shadow(2, 0.455, 0.574), 1.0);
-        assert_eq!(shadow(3, 0.670, 0.530), 1.0);
-        assert_eq!(shadow(0, 0.5, 0.5), 0.0);
+        assert_eq!(shadow(0.670, 0.530), 1.0);
+        assert_eq!(shadow(0.118, 0.668), 1.0);
+        assert_eq!(shadow(0.5, 0.1), 0.0);
     }
 
     #[test]
@@ -172,7 +134,8 @@ mod tests {
         let space = DeepSpace::load().unwrap();
         let flight = Flight::new();
         let view = FlightView::new(&flight, 1280, 840);
-        for object in &space.objects {
+        {
+            let object = &space.object;
             assert!(object.position.norm() > 15000.0);
             let center = view.project(object.position).unwrap();
             assert!((0.0..1280.0).contains(&center.x));

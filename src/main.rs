@@ -53,7 +53,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut selected = 0usize;
         let mut export_screen = Screen::Menu;
         let mut landmark = false;
-        let mut target = "helix";
+        let mut target = "accretion";
         let mut mouse_target = (0.0f32, 0.0f32);
         let mut args = args.iter();
         while let Some(argument) = args.next() {
@@ -99,7 +99,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 "--help" => {
                     println!(
-                        "cargo run --release\ncargo run --release -- --render-menu salida.png [--time 4] [--ship 2]\ncargo run --release -- --render-inspector salida.png [--ship 3]\ncargo run --release -- --render-flight salida.png [--ship 1] [--time 2] [--mouse 0.5 -0.3]\ncargo run --release -- --render-landmark salida.png --target helix|southern-ring|binary|accretion|spiral"
+                        "cargo run --release\ncargo run --release -- --render-menu salida.png [--time 4] [--ship 2]\ncargo run --release -- --render-inspector salida.png [--ship 3]\ncargo run --release -- --render-flight salida.png [--ship 1] [--time 2] [--mouse 0.5 -0.3]\ncargo run --release -- --render-landmark salida.png [--target accretion]"
                     );
                     return Ok(());
                 }
