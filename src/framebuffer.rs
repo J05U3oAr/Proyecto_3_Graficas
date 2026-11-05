@@ -7,6 +7,7 @@ pub struct Framebuffer {
     pub height: usize,
     pub pixels: Vec<u32>,
     depth: Vec<f32>,
+    clip: (usize, usize, usize, usize),
 }
 
 impl Framebuffer {
@@ -16,6 +17,7 @@ impl Framebuffer {
             height,
             pixels: vec![BACKGROUND; width * height],
             depth: vec![f32::NEG_INFINITY; width * height],
+            clip: (0, 0, width, height),
         }
     }
 
@@ -24,8 +26,26 @@ impl Framebuffer {
         self.depth.fill(f32::NEG_INFINITY);
     }
 
+    pub fn set_clip(&mut self, x: usize, y: usize, width: usize, height: usize) {
+        self.clip = (
+            x,
+            y,
+            (x + width).min(self.width),
+            (y + height).min(self.height),
+        );
+    }
+
+    pub fn reset_clip(&mut self) {
+        self.clip = (0, 0, self.width, self.height);
+    }
+
     pub fn point(&mut self, x: i32, y: i32, z: f32, color: u32, depth_test: bool) {
         if x < 0 || y < 0 || x as usize >= self.width || y as usize >= self.height {
+            return;
+        }
+        let (left, top, right, bottom) = self.clip;
+        if (x as usize) < left || (y as usize) < top || x as usize >= right || y as usize >= bottom
+        {
             return;
         }
         let index = y as usize * self.width + x as usize;
