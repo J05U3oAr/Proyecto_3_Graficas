@@ -16,3 +16,37 @@ El script `scripts/fetch_deep_space_sources.py` permite volver a descargarlas
 Las nebulosas Helix y Southern Ring son nubes de gas. El sistema binario y el
 disco de acreción representan agujeros negros. Estos recursos sirven como
 escenografía distante; no constituyen una simulación de relatividad general.
+
+## Integración y vistas
+
+Los cinco objetos están entre 16,400 y 26,100 unidades del origen, mucho más
+lejos que los planetas iniciales. Son imágenes emisivas orientadas a la cámara,
+ancladas a posiciones del mundo: girar cambia su proyección y desplazarse produce
+paralaje. La profundidad permite que los planetas y la nave pasen por delante.
+Los bordes se desvanecen sobre el cielo; las sombras de los agujeros negros
+ocultan las estrellas. El detalle de lente gravitacional está en las imágenes.
+Son escenarios visuales estáticos; no tienen gravedad, colisiones ni superficie
+recorrible. Este enfoque conserva los filamentos de las referencias a distancia.
+
+| Identificador | Posición (X, Y, Z) | Ubicación al despegar |
+| --- | --- | --- |
+| `helix` | −9650, 920, −13250 | Izquierda de Siroco |
+| `southern-ring` | 11150, −3670, −15630 | Derecha, debajo de Oquedad |
+| `binary` | 3545, −9664, −16808 | Abajo, a la derecha de la nave |
+| `accretion` | 12420, 2610, −20560 | Arriba a la derecha |
+| `spiral` | −12330, −9670, −20850 | Abajo a la izquierda |
+
+![Escenarios al despegar](previews/en-vuelo.png)
+
+Para revisar cada recurso con el mismo proyector y compositor del vuelo:
+
+```powershell
+cargo run --release -- --render-landmark output/helix.png --target helix
+cargo run --release -- --render-landmark output/anillo.png --target southern-ring
+cargo run --release -- --render-landmark output/binario.png --target binary
+cargo run --release -- --render-landmark output/agujero.png --target accretion
+cargo run --release -- --render-landmark output/galaxia.png --target spiral
+```
+
+Las capturas verificadas se conservan en `previews/`. Los PNG originales están
+en `textures/`; las vistas exportadas incluyen la mezcla de luz y el desvanecido.

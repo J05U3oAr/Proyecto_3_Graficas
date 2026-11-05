@@ -99,15 +99,16 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 "--help" => {
                     println!(
-                        "cargo run --release\ncargo run --release -- --render-menu salida.png [--time 4] [--ship 2]\ncargo run --release -- --render-inspector salida.png [--ship 3]\ncargo run --release -- --render-flight salida.png [--ship 1] [--time 2] [--mouse 0.5 -0.3]"
+                        "cargo run --release\ncargo run --release -- --render-menu salida.png [--time 4] [--ship 2]\ncargo run --release -- --render-inspector salida.png [--ship 3]\ncargo run --release -- --render-flight salida.png [--ship 1] [--time 2] [--mouse 0.5 -0.3]\ncargo run --release -- --render-landmark salida.png --target helix|southern-ring|binary|accretion|spiral"
                     );
                     return Ok(());
                 }
                 _ => return Err(format!("Argumento desconocido: {argument}").into()),
             }
         }
-        let output =
-            output.ok_or("Especifica --render-menu, --render-inspector o --render-flight")?;
+        let output = output.ok_or(
+            "Especifica --render-menu, --render-inspector, --render-flight o --render-landmark",
+        )?;
         if landmark {
             ui.landmark_preview(&mut framebuffer, target)?;
         } else if export_screen == Screen::Flight {

@@ -66,6 +66,12 @@ nave y los planetas, y sigue animándose aunque estés detenido. Las tormentas y
 rotación de los planetas se pausan al inspeccionar la nave o perder el foco; la
 pausa de las vistas previas del hangar no afecta al tiempo del vuelo.
 
+El espacio profundo incluye dos nebulosas, una galaxia espiral, un sistema binario
+de agujeros negros y un agujero negro con disco naranja. Están anclados lejos de
+los planetas y son visibles al despegar. Conservan detalles de imágenes de alta
+resolución mediante escenografía emisiva, con sombras y profundidad; son vistas
+artísticas estáticas. Puedes ver [capturas, posiciones y créditos](assets/deep-space/README.md).
+
 ## Controles de inspección
 
 

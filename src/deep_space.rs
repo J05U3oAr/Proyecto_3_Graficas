@@ -180,7 +180,9 @@ mod tests {
             assert!(center.z < 0.0001);
             let mut moved = Flight::new();
             moved.position.x = 3000.0;
-            let shifted = FlightView::new(&moved, 1280, 840).project(object.position).unwrap();
+            let shifted = FlightView::new(&moved, 1280, 840)
+                .project(object.position)
+                .unwrap();
             assert!((shifted.x - center.x).abs() > 50.0);
         }
         let mut fb = Framebuffer::new(1280, 840);
