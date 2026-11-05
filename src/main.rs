@@ -7,6 +7,7 @@ mod framebuffer;
 mod model;
 mod renderer;
 mod space;
+mod texture;
 mod triangle;
 mod ui;
 

@@ -1,7 +1,7 @@
 use crate::{
     camera::Camera, color::Color, flight::Flight, framebuffer::Framebuffer, model::Model, triangle,
 };
-use nalgebra_glm::Vec3;
+use nalgebra_glm::{Vec2, Vec3};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum RenderMode {
@@ -72,7 +72,15 @@ pub fn draw_model(
             )
         })
         .collect();
-    rasterize(framebuffer, model, &view, &screen, mode, fallback_color);
+    rasterize(
+        framebuffer,
+        model,
+        &view,
+        &screen,
+        mode,
+        fallback_color,
+        false,
+    );
     framebuffer.reset_clip();
 }
 
@@ -171,6 +179,34 @@ pub fn draw_world_model(
     for face in &model.faces {
         let [i, j, k] = face.indices;
         let [a, b, c] = [vertices[i], vertices[j], vertices[k]];
+        if let (Some(texture), Some(uv)) = (face.texture, face.uv) {
+            let points = [a, b, c];
+            let (polygon, count) = clip_near_textured(std::array::from_fn(|i| ClipVertex {
+                point: points[i],
+                uv: uv[i],
+            }));
+            let intensity = texture_intensity((b - a).cross(&(c - a)), face.unlit);
+            for index in 1..count.saturating_sub(1) {
+                let projected = [polygon[0], polygon[index], polygon[index + 1]].map(|vertex| {
+                    let mut point = vertex.point;
+                    point.z = point.z.min(-NEAR_PLANE);
+                    let screen = camera.project_view(point).unwrap();
+                    triangle::TextureVertex {
+                        screen,
+                        uv: vertex.uv,
+                        inverse_w: screen.z,
+                    }
+                });
+                triangle::fill_textured(
+                    fb,
+                    projected,
+                    &model.textures[texture],
+                    face.color,
+                    intensity,
+                );
+            }
+            continue;
+        }
         let Some(color) = lit_color((b - a).cross(&(c - a)), face.color, &light, &half) else {
             continue;
         };
@@ -193,16 +229,36 @@ pub fn draw_world_model(
 }
 
 fn clip_near(triangle: [Vec3; 3]) -> ([Vec3; 4], usize) {
-    let mut output = [Vec3::zeros(); 4];
+    let (polygon, count) = clip_near_textured(triangle.map(|point| ClipVertex {
+        point,
+        uv: Vec2::zeros(),
+    }));
+    (polygon.map(|v| v.point), count)
+}
+
+#[derive(Clone, Copy)]
+struct ClipVertex {
+    point: Vec3,
+    uv: Vec2,
+}
+
+fn clip_near_textured(triangle: [ClipVertex; 3]) -> ([ClipVertex; 4], usize) {
+    let mut output = [ClipVertex {
+        point: Vec3::zeros(),
+        uv: Vec2::zeros(),
+    }; 4];
     let mut count = 0;
     let mut previous = triangle[2];
     for current in triangle {
-        let was_inside = previous.z <= -NEAR_PLANE;
-        let inside = current.z <= -NEAR_PLANE;
+        let was_inside = previous.point.z <= -NEAR_PLANE;
+        let inside = current.point.z <= -NEAR_PLANE;
         if was_inside != inside {
-            let t = (-NEAR_PLANE - previous.z) / (current.z - previous.z);
-            output[count] = previous + (current - previous) * t;
-            output[count].z = -NEAR_PLANE;
+            let t = (-NEAR_PLANE - previous.point.z) / (current.point.z - previous.point.z);
+            output[count] = ClipVertex {
+                point: previous.point + (current.point - previous.point) * t,
+                uv: previous.uv + (current.uv - previous.uv) * t,
+            };
+            output[count].point.z = -NEAR_PLANE;
             count += 1;
         }
         if inside {
@@ -212,6 +268,20 @@ fn clip_near(triangle: [Vec3; 3]) -> ([Vec3; 4], usize) {
         previous = current;
     }
     (output, count)
+}
+
+fn texture_intensity(normal: Vec3, unlit: bool) -> f32 {
+    if unlit {
+        return 1.0;
+    }
+    if normal.norm_squared() < f32::EPSILON {
+        return 0.4;
+    }
+    let mut normal = normal.normalize();
+    if normal.z < 0.0 {
+        normal = -normal;
+    }
+    0.4 + 0.85 * normal.dot(&Vec3::new(-0.4, 0.8, 1.0).normalize()).max(0.0)
 }
 
 fn lit_color(normal: Vec3, base: Color, light: &Vec3, half: &Vec3) -> Option<Color> {
@@ -278,6 +348,7 @@ pub fn draw_flight_model(
         &screen,
         RenderMode::Solid,
         fallback_color,
+        true,
     );
 }
 
@@ -288,6 +359,7 @@ fn rasterize(
     screen: &[Vec3],
     mode: RenderMode,
     fallback_color: Option<Color>,
+    perspective: bool,
 ) {
     let light = Vec3::new(-0.4, 0.8, 1.0).normalize();
     let half = (light + Vec3::new(0.0, 0.0, 1.0)).normalize();
@@ -295,6 +367,26 @@ fn rasterize(
         let [i, j, k] = face.indices;
         let [a, b, c] = [screen[i], screen[j], screen[k]];
         if mode == RenderMode::Solid {
+            if fallback_color.is_none()
+                && let (Some(texture), Some(uv)) = (face.texture, face.uv)
+            {
+                let points = [a, b, c];
+                let vertices = std::array::from_fn(|index| triangle::TextureVertex {
+                    screen: points[index],
+                    uv: uv[index],
+                    inverse_w: if perspective { points[index].z } else { 1.0 },
+                });
+                let intensity =
+                    texture_intensity((view[j] - view[i]).cross(&(view[k] - view[i])), face.unlit);
+                triangle::fill_textured(
+                    framebuffer,
+                    vertices,
+                    &model.textures[texture],
+                    face.color,
+                    intensity,
+                );
+                continue;
+            }
             let base = fallback_color.unwrap_or(face.color);
             if let Some(color) = lit_color(
                 (view[j] - view[i]).cross(&(view[k] - view[i])),
@@ -321,6 +413,27 @@ fn rasterize(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn near_plane_clipping_preserves_uvs_at_new_vertices() {
+        let (polygon, count) = clip_near_textured([
+            ClipVertex {
+                point: Vec3::new(0.0, 0.0, -0.5),
+                uv: Vec2::new(0.0, 0.0),
+            },
+            ClipVertex {
+                point: Vec3::new(1.0, 0.0, 0.5),
+                uv: Vec2::new(1.0, 0.0),
+            },
+            ClipVertex {
+                point: Vec3::new(0.0, 1.0, -0.5),
+                uv: Vec2::new(0.0, 1.0),
+            },
+        ]);
+        assert_eq!(count, 4);
+        assert_eq!(polygon[1].uv, Vec2::new(0.25, 0.0));
+        assert_eq!(polygon[2].uv, Vec2::new(0.25, 0.75));
+    }
 
     #[test]
     fn triangles_crossing_the_camera_are_clipped_before_projection() {
