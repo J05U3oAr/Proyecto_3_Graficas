@@ -1,0 +1,12 @@
+{
+  "siroco": {
+    "vertices": 3869,
+    "triangles": 7734,
+    "materials": 49
+  },
+  "oquedad": {
+    "vertices": 3073,
+    "triangles": 6178,
+    "materials": 61
+  }
+}
