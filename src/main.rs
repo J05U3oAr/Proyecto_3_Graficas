@@ -41,18 +41,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut ships = fleet::load()?;
     let ui = ui::Ui::new()?;
     let mut framebuffer = Framebuffer::new(WIDTH, HEIGHT);
-    // Deterministic exports let us inspect the CPU-rendered menu without a window.
+    // Deterministic exports let us inspect the CPU renderer without a window.
     let args: Vec<String> = std::env::args().skip(1).collect();
     if !args.is_empty() {
         let mut output = None;
         let mut seconds = 0.0f32;
         let mut selected = 0usize;
-        let mut inspector = false;
+        let mut export_screen = Screen::Menu;
+        let mut mouse_target = (0.0f32, 0.0f32);
         let mut args = args.iter();
         while let Some(argument) = args.next() {
             match argument.as_str() {
-                "--render-menu" | "--render-inspector" => {
-                    inspector = argument == "--render-inspector";
+                "--render-menu" | "--render-inspector" | "--render-flight" => {
+                    export_screen = match argument.as_str() {
+                        "--render-flight" => Screen::Flight,
+                        "--render-inspector" => Screen::Inspector,
+                        _ => Screen::Menu,
+                    };
                     output = Some(args.next().ok_or("Falta el archivo PNG de salida")?);
                 }
                 "--time" => {
@@ -68,17 +73,43 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                     selected = number - 1;
                 }
+                "--mouse" => {
+                    mouse_target.0 = args
+                        .next()
+                        .ok_or("Falta la dirección horizontal")?
+                        .parse()?;
+                    mouse_target.1 = args.next().ok_or("Falta la dirección vertical")?.parse()?;
+                    if ![mouse_target.0, mouse_target.1]
+                        .iter()
+                        .all(|v| v.is_finite() && v.abs() <= 1.0)
+                    {
+                        return Err("La dirección del mouse debe estar entre -1 y 1".into());
+                    }
+                }
                 "--help" => {
                     println!(
-                        "cargo run --release\ncargo run --release -- --render-menu salida.png [--time 4] [--ship 2]\ncargo run --release -- --render-inspector salida.png [--ship 3]"
+                        "cargo run --release\ncargo run --release -- --render-menu salida.png [--time 4] [--ship 2]\ncargo run --release -- --render-inspector salida.png [--ship 3]\ncargo run --release -- --render-flight salida.png [--ship 1] [--time 2] [--mouse 0.5 -0.3]"
                     );
                     return Ok(());
                 }
                 _ => return Err(format!("Argumento desconocido: {argument}").into()),
             }
         }
-        let output = output.ok_or("Especifica --render-menu o --render-inspector")?;
-        if inspector {
+        let output =
+            output.ok_or("Especifica --render-menu, --render-inspector o --render-flight")?;
+        if export_screen == Screen::Flight {
+            if seconds > 600.0 {
+                return Err("La exportación de vuelo admite hasta 600 segundos".into());
+            }
+            let mut flight = flight::Flight::new();
+            flight.move_with_mouse(Some(mouse_target));
+            for frame in 0..(seconds * 60.0).ceil() as u32 {
+                let dt = (seconds - frame as f32 / 60.0).min(1.0 / 60.0);
+                // Flight exports simulate holding W for the requested duration.
+                flight.advance(dt, (1.0, 0.0), false, false);
+            }
+            ui.flight(&mut framebuffer, &ships[selected], &flight, seconds);
+        } else if export_screen == Screen::Inspector {
             ships[selected].camera = ui::preview_camera(selected, seconds);
             ui.inspector(&mut framebuffer, &ships[selected], RenderMode::Solid, false);
         } else {
@@ -120,7 +151,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut screen = Screen::Menu;
     let mut selected = 0usize;
     let mut mode = RenderMode::Solid;
-    let mut flight = flight::Flight::new(ships[0].camera);
+    let mut flight = flight::Flight::new();
     let mut clock = AnimationClock::default();
     let mut previous = Instant::now();
     let mut mouse_was_down = false;
@@ -135,7 +166,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 Screen::Menu => break,
                 Screen::Flight => screen = Screen::Menu,
                 Screen::Inspector => {
-                    flight.reset_mouse_anchor();
+                    flight.reset_steering();
                     screen = Screen::Flight;
                 }
             }
@@ -192,12 +223,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                 *value += (target - *value) * (1.0 - (-dt * 12.0).exp());
             }
             if window.is_key_pressed(Key::Enter, KeyRepeat::No) || (clicked && hover_button) {
-                flight = flight::Flight::new(ui::preview_camera(selected, 0.0));
+                flight = flight::Flight::new();
                 screen = Screen::Flight;
             }
         } else if screen == Screen::Inspector {
             if clicked && hover_back {
-                flight.reset_mouse_anchor();
+                flight.reset_steering();
                 screen = Screen::Flight;
             }
             let camera = &mut ships[selected].camera;
@@ -215,18 +246,27 @@ fn main() -> Result<(), Box<dyn Error>> {
                 mode = mode.next();
             }
         } else {
-            flight.move_with_mouse(mouse);
-            let thrust = (
-                i32::from(window.is_key_down(Key::W)) - i32::from(window.is_key_down(Key::S)),
-                0,
-                0,
-            );
-            flight.advance(
-                dt,
-                (thrust.0 as f32, thrust.1 as f32, thrust.2 as f32),
-                window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift),
-                window.is_key_down(Key::Space),
-            );
+            if window.is_active() {
+                flight.move_with_mouse(mouse.map(|(x, y)| {
+                    (
+                        x / (WIDTH as f32 * 0.5) - 1.0,
+                        y / (HEIGHT as f32 * 0.5) - 1.0,
+                    )
+                }));
+                let movement = (
+                    i32::from(window.is_key_down(Key::W)) - i32::from(window.is_key_down(Key::S)),
+                    i32::from(window.is_key_down(Key::D)) - i32::from(window.is_key_down(Key::A)),
+                );
+                flight.advance(
+                    dt,
+                    (movement.0 as f32, movement.1 as f32),
+                    window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift),
+                    window.is_key_down(Key::Space),
+                );
+                clock.advance(dt);
+            } else {
+                flight.reset_steering();
+            }
             if window.is_key_pressed(Key::Key1, KeyRepeat::No) {
                 selected = 0;
             } else if window.is_key_pressed(Key::Key2, KeyRepeat::No) {
@@ -247,7 +287,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         } else {
             false
         };
-        window.set_cursor_style(if actionable {
+        window.set_cursor_style(if screen == Screen::Flight {
+            CursorStyle::Crosshair
+        } else if actionable {
             CursorStyle::OpenHand
         } else {
             CursorStyle::Arrow

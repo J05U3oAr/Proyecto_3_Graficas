@@ -475,10 +475,12 @@ impl Ui {
         }
 
         let (right, up, forward) = flight.camera.basis();
-        let focal = 660.0;
+        let focal = renderer::FLIGHT_FOCAL;
+        let eye = flight.camera_position();
         let speed = flight.velocity.norm();
         for star in &self.stars {
-            let relative = star.position;
+            // Recycle a world-space volume around the camera for endless travel.
+            let relative = (star.position - eye).map(|v| (v + 280.0).rem_euclid(560.0) - 280.0);
             let depth = relative.dot(&forward);
             if !(3.0..280.0).contains(&depth) {
                 continue;
@@ -492,8 +494,18 @@ impl Ui {
             let color = mix(0x26364a, star.color, twinkle);
             let point = (x.round() as i32, y.round() as i32);
             if speed > 14.0 {
-                let vx = flight.velocity.dot(&right) * focal / depth * 0.035;
-                let vy = -flight.velocity.dot(&up) * focal / depth * 0.035;
+                let forward_speed = flight.velocity.dot(&forward);
+                let vx = (relative.dot(&right) * forward_speed / depth
+                    - flight.velocity.dot(&right))
+                    * focal
+                    / depth
+                    * 0.045;
+                let vy = (-relative.dot(&up) * forward_speed / depth + flight.velocity.dot(&up))
+                    * focal
+                    / depth
+                    * 0.045;
+                let vx = vx.clamp(-24.0, 24.0);
+                let vy = vy.clamp(-24.0, 24.0);
                 rule(
                     fb,
                     (point.0, point.1),
@@ -505,22 +517,7 @@ impl Ui {
             }
         }
 
-        let mut flight_camera = flight.camera;
-        flight_camera.zoom = 0.81;
-        renderer::draw_model_offset(
-            fb,
-            &ship.model,
-            &flight_camera,
-            RenderMode::Solid,
-            Viewport {
-                x: 0,
-                y: 0,
-                width: WIDTH,
-                height: HEIGHT,
-            },
-            ship.finish,
-            flight.screen_offset,
-        );
+        renderer::draw_flight_model(fb, &ship.model, flight, ship.finish);
 
         rounded(fb, Rect::new(34, 25, 285, 66), 12, 0x101d2c, 0x304154);
         self.fonts.text(fb, 14, 54, 37, "VUELO LIBRE", TEAL);
@@ -578,7 +575,7 @@ impl Ui {
             14,
             52,
             784,
-            "Mouse Mover  ·  W/S Impulso  ·  SHIFT Turbo  ·  ESPACIO Frenar  ·  I Vista  ·  ESC Hangar",
+            "W/S Avanzar/Retroceder  ·  A/D Lateral  ·  Mouse Dirigir  ·  SHIFT Turbo  ·  ESPACIO Freno  ·  I Vista  ·  ESC Hangar",
             MUTED,
         );
     }
@@ -681,6 +678,25 @@ fn arrow(fb: &mut Framebuffer, x: i32, y: i32, color: u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn moving_through_space_changes_the_visible_star_field() {
+        let ships = crate::fleet::load().unwrap();
+        let ui = Ui::new().unwrap();
+        let mut flight = Flight::new();
+        let mut before = Framebuffer::new(WIDTH, HEIGHT);
+        let mut after = Framebuffer::new(WIDTH, HEIGHT);
+        ui.flight(&mut before, &ships[0], &flight, 0.0);
+        flight.position += flight.camera.basis().2 * 40.0;
+        ui.flight(&mut after, &ships[0], &flight, 0.0);
+        let changed = (140..740)
+            .flat_map(|y| (0..WIDTH).map(move |x| y * WIDTH + x))
+            .filter(|&index| before.pixels[index] != after.pixels[index])
+            .count();
+        assert!(
+            changed > 100,
+            "Forward flight must move the stars: {changed}"
+        );
+    }
     #[test]
     fn mouse_mapping_respects_letterboxing_and_card_gaps() {
         assert!(canvas_mouse((10.0, 10.0), (1600, 840)).is_none());

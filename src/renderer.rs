@@ -1,4 +1,6 @@
-use crate::{camera::Camera, color::Color, framebuffer::Framebuffer, model::Model, triangle};
+use crate::{
+    camera::Camera, color::Color, flight::Flight, framebuffer::Framebuffer, model::Model, triangle,
+};
 use nalgebra_glm::Vec3;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -43,26 +45,6 @@ pub fn draw_model(
     viewport: Viewport,
     fallback_color: Option<Color>,
 ) {
-    draw_model_offset(
-        framebuffer,
-        model,
-        camera,
-        mode,
-        viewport,
-        fallback_color,
-        (0.0, 0.0),
-    );
-}
-
-pub fn draw_model_offset(
-    framebuffer: &mut Framebuffer,
-    model: &Model,
-    camera: &Camera,
-    mode: RenderMode,
-    viewport: Viewport,
-    fallback_color: Option<Color>,
-    screen_offset: (f32, f32),
-) {
     framebuffer.set_clip(viewport.x, viewport.y, viewport.width, viewport.height);
     let (right, up, forward) = camera.basis();
     let scale =
@@ -84,12 +66,73 @@ pub fn draw_model_offset(
         .iter()
         .map(|v| {
             Vec3::new(
-                viewport.x as f32 + viewport.width as f32 * 0.5 + v.x * scale + screen_offset.0,
-                viewport.y as f32 + viewport.height as f32 * 0.5 - v.y * scale + screen_offset.1,
+                viewport.x as f32 + viewport.width as f32 * 0.5 + v.x * scale,
+                viewport.y as f32 + viewport.height as f32 * 0.5 - v.y * scale,
                 v.z,
             )
         })
         .collect();
+    rasterize(framebuffer, model, &view, &screen, mode, fallback_color);
+    framebuffer.reset_clip();
+}
+
+pub const FLIGHT_FOCAL: f32 = 660.0;
+
+/// Render the actual ship orientation in the same perspective as the star field.
+pub fn draw_flight_model(
+    framebuffer: &mut Framebuffer,
+    model: &Model,
+    flight: &Flight,
+    fallback_color: Option<Color>,
+) {
+    // All three source OBJs have their nose along +Z and their roof along +Y.
+    let model_forward = Vec3::new(0.0, 0.0, 1.0);
+    let model_up = Vec3::new(0.0, 1.0, 0.0);
+    let model_right = model_forward.cross(&model_up).normalize();
+    let (ship_right, ship_up, ship_forward) = flight.ship_basis();
+    let (right, up, forward) = flight.camera.basis();
+    let eye_to_ship = flight.position - flight.camera_position();
+    let view: Vec<Vec3> = model
+        .vertices
+        .iter()
+        .map(|vertex| {
+            let local = (vertex - model.center) * (1.7 / model.radius);
+            let world = eye_to_ship
+                + ship_right * local.dot(&model_right)
+                + ship_up * local.dot(&model_up)
+                + ship_forward * local.dot(&model_forward);
+            Vec3::new(world.dot(&right), world.dot(&up), -world.dot(&forward))
+        })
+        .collect();
+    let screen: Vec<Vec3> = view
+        .iter()
+        .map(|v| {
+            let depth = -v.z;
+            Vec3::new(
+                framebuffer.width as f32 * 0.5 + v.x * FLIGHT_FOCAL / depth,
+                framebuffer.height as f32 * 0.5 - v.y * FLIGHT_FOCAL / depth,
+                1.0 / depth,
+            )
+        })
+        .collect();
+    rasterize(
+        framebuffer,
+        model,
+        &view,
+        &screen,
+        RenderMode::Solid,
+        fallback_color,
+    );
+}
+
+fn rasterize(
+    framebuffer: &mut Framebuffer,
+    model: &Model,
+    view: &[Vec3],
+    screen: &[Vec3],
+    mode: RenderMode,
+    fallback_color: Option<Color>,
+) {
     let light = Vec3::new(-0.4, 0.8, 1.0).normalize();
     let half = (light + Vec3::new(0.0, 0.0, 1.0)).normalize();
     for face in &model.faces {
@@ -130,5 +173,40 @@ pub fn draw_model_offset(
             triangle::line(framebuffer, &c, &a, color, depth);
         }
     }
-    framebuffer.reset_clip();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn all_ships_stay_visible_below_the_reticle_during_turns() {
+        let ships = crate::fleet::load().unwrap();
+        let mut flight = Flight::new();
+        let mut fb = Framebuffer::new(1280, 840);
+        flight.move_with_mouse(Some((1.0, -1.0)));
+        for frame in 0..600 {
+            flight.advance(1.0 / 60.0, (1.0, 0.0), false, false);
+            if frame % 60 != 0 {
+                continue;
+            }
+            for ship in &ships {
+                fb.clear();
+                draw_flight_model(&mut fb, &ship.model, &flight, ship.finish);
+                let mut visible = 0;
+                for (index, &pixel) in fb.pixels.iter().enumerate() {
+                    if pixel != crate::framebuffer::BACKGROUND {
+                        let (x, y) = (index % fb.width, index / fb.width);
+                        assert!(
+                            (350..930).contains(&x) && (440..730).contains(&y),
+                            "{} left the chase view at frame {frame}: ({x}, {y})",
+                            ship.name
+                        );
+                        visible += 1;
+                    }
+                }
+                assert!(visible > 500, "{} disappeared at frame {frame}", ship.name);
+            }
+        }
+    }
 }
