@@ -1,4 +1,5 @@
 use crate::{
+    collision::{CollisionWorld, PlanetCollider},
     dust::DustStorm,
     flight::Flight,
     framebuffer::Framebuffer,
@@ -6,7 +7,7 @@ use crate::{
     renderer::{self, FlightView, WorldTransform},
 };
 use nalgebra_glm::Vec3;
-use std::{error::Error, path::PathBuf};
+use std::{error::Error, path::PathBuf, sync::Arc};
 
 pub struct Planet {
     pub name: &'static str,
@@ -18,65 +19,88 @@ pub struct Planet {
 
 pub struct Space {
     pub planets: Vec<Planet>,
+    collisions: Arc<CollisionWorld>,
 }
 
 impl Space {
     pub fn load() -> Result<Self, Box<dyn Error>> {
         let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/planets");
+        let planets = vec![
+            Planet {
+                name: "Siroco",
+                model: Model::load(assets.join("siroco.obj"))?,
+                transform: WorldTransform {
+                    position: Vec3::new(-36.0, 7.0, -105.0),
+                    radius: 22.0,
+                    yaw: 0.15,
+                },
+                rotation_speed: 0.018,
+                dust: Some(DustStorm::new()),
+            },
+            Planet {
+                name: "Oquedad",
+                model: Model::load(assets.join("oquedad.obj"))?,
+                transform: WorldTransform {
+                    position: Vec3::new(42.0, 3.0, -135.0),
+                    radius: 25.0,
+                    yaw: -0.45,
+                },
+                rotation_speed: 0.035,
+                dust: None,
+            },
+            Planet {
+                name: "Jovara",
+                model: Model::load(assets.join("jovara.obj"))?,
+                transform: WorldTransform {
+                    position: Vec3::new(0.0, 57.0, -215.0),
+                    radius: 35.0,
+                    yaw: 0.0,
+                },
+                rotation_speed: 0.006,
+                dust: None,
+            },
+            Planet {
+                name: "Boreal",
+                model: {
+                    let mut model = Model::load(assets.join("boreal.obj"))?;
+                    for texture in &mut model.textures {
+                        texture.blend_longitude_seam(0.035);
+                    }
+                    model
+                },
+                transform: WorldTransform {
+                    position: Vec3::new(-145.0, -85.0, -235.0),
+                    radius: 42.0,
+                    yaw: 0.35,
+                },
+                rotation_speed: 0.012,
+                dust: None,
+            },
+        ];
+        let collisions = Arc::new(CollisionWorld::new(
+            planets
+                .iter()
+                .map(|p| PlanetCollider::new(p.name, &p.model, p.transform, p.rotation_speed))
+                .collect(),
+        ));
         Ok(Self {
-            planets: vec![
-                Planet {
-                    name: "Siroco",
-                    model: Model::load(assets.join("siroco.obj"))?,
-                    transform: WorldTransform {
-                        position: Vec3::new(-36.0, 7.0, -105.0),
-                        radius: 22.0,
-                        yaw: 0.15,
-                    },
-                    rotation_speed: 0.018,
-                    dust: Some(DustStorm::new()),
-                },
-                Planet {
-                    name: "Oquedad",
-                    model: Model::load(assets.join("oquedad.obj"))?,
-                    transform: WorldTransform {
-                        position: Vec3::new(42.0, 3.0, -135.0),
-                        radius: 25.0,
-                        yaw: -0.45,
-                    },
-                    rotation_speed: 0.035,
-                    dust: None,
-                },
-                Planet {
-                    name: "Jovara",
-                    model: Model::load(assets.join("jovara.obj"))?,
-                    transform: WorldTransform {
-                        position: Vec3::new(0.0, 57.0, -215.0),
-                        radius: 35.0,
-                        yaw: 0.0,
-                    },
-                    rotation_speed: 0.006,
-                    dust: None,
-                },
-                Planet {
-                    name: "Boreal",
-                    model: {
-                        let mut model = Model::load(assets.join("boreal.obj"))?;
-                        for texture in &mut model.textures {
-                            texture.blend_longitude_seam(0.035);
-                        }
-                        model
-                    },
-                    transform: WorldTransform {
-                        position: Vec3::new(-145.0, -85.0, -235.0),
-                        radius: 42.0,
-                        yaw: 0.35,
-                    },
-                    rotation_speed: 0.012,
-                    dust: None,
-                },
-            ],
+            planets,
+            collisions,
         })
+    }
+
+    pub fn new_flight(&self) -> Flight {
+        Flight::with_collisions(Arc::clone(&self.collisions))
+    }
+
+    pub fn approach(&self, flight: &mut Flight, name: &str) -> Result<(), Box<dyn Error>> {
+        let planet = self
+            .planets
+            .iter()
+            .find(|p| p.name.eq_ignore_ascii_case(name))
+            .ok_or_else(|| format!("Planeta desconocido: {name}"))?;
+        flight.position = planet.transform.position + Vec3::z() * (planet.transform.radius + 24.0);
+        Ok(())
     }
 
     pub fn draw(&self, fb: &mut Framebuffer, flight: &Flight, seconds: f32) {
@@ -134,6 +158,135 @@ impl Space {
 mod tests {
     use super::*;
     use crate::framebuffer::BACKGROUND;
+
+    #[test]
+    fn all_solid_planets_block_a_ship_swept_across_the_whole_world() {
+        let space = Space::load().unwrap();
+        for planet in space.planets.iter().filter(|p| p.name != "Oquedad") {
+            let world = CollisionWorld::new(vec![PlanetCollider::new(
+                planet.name,
+                &planet.model,
+                planet.transform,
+                planet.rotation_speed,
+            )]);
+            let r = planet.transform.radius;
+            let result = world.move_ship(
+                planet.transform.position + Vec3::z() * r * 3.0,
+                -Vec3::z() * r * 6.0,
+                12.0,
+                0.0,
+            );
+            assert!(
+                !result.contacts.is_empty(),
+                "{} must block high speed motion",
+                planet.name
+            );
+            assert!(result.position.z > planet.transform.position.z);
+        }
+    }
+
+    #[test]
+    fn oquedad_preserves_its_real_tunnel_and_collides_with_its_walls_after_rotation() {
+        let space = Space::load().unwrap();
+        let p = space.planets.iter().find(|p| p.name == "Oquedad").unwrap();
+        let world = CollisionWorld::new(vec![PlanetCollider::new(
+            p.name,
+            &p.model,
+            p.transform,
+            p.rotation_speed,
+        )]);
+        for time in [0.0, 15.0, 80.0] {
+            let angle = p.transform.yaw + time * p.rotation_speed;
+            let rotate = |v: Vec3| {
+                Vec3::new(
+                    v.x * angle.cos() + v.z * angle.sin(),
+                    v.y,
+                    -v.x * angle.sin() + v.z * angle.cos(),
+                )
+            };
+            let center = p.transform.position
+                + rotate(
+                    (Vec3::new(0.0, 0.1, 0.0) - p.model.center)
+                        * (p.transform.radius / p.model.radius),
+                );
+            let axis = rotate(Vec3::new(0.16, 0.20, 1.0).normalize());
+            let through = world.move_ship(center + axis * 45.0, -axis * 90.0, time, 0.0);
+            assert!(
+                through.contacts.is_empty(),
+                "The central passage must stay open at time {time}"
+            );
+            assert!((through.position - (center - axis * 45.0)).norm() < 0.001);
+            let wall = world.move_ship(
+                center,
+                rotate(Vec3::new(1.0, 1.0, 0.0).normalize()) * 35.0,
+                time,
+                0.0,
+            );
+            assert!(
+                !wall.contacts.is_empty(),
+                "Tunnel walls must collide at time {time}"
+            );
+        }
+    }
+
+    #[test]
+    fn slow_contact_stops_inward_motion_but_fast_impact_explodes_and_respawns() {
+        let space = Space::load().unwrap();
+        let p = &space.planets[0];
+        let probe = space.collisions.move_ship(
+            p.transform.position + Vec3::z() * 60.0,
+            -Vec3::z() * 60.0,
+            0.0,
+            0.0,
+        );
+        let normal = probe.contacts[0].normal;
+        let start = probe.position + normal * 0.05;
+        let mut slow = space.new_flight();
+        slow.position = start;
+        slow.velocity = -normal * 10.0;
+        slow.advance(1.0 / 30.0, (0.0, 0.0), false, false);
+        assert!(slow.crash.is_none());
+        assert!(slow.contact_notice > 0.0);
+        assert!(slow.velocity.dot(&normal) > -0.5);
+        let mut fast = space.new_flight();
+        fast.position = start;
+        fast.velocity = -normal * 62.0;
+        fast.advance(1.0 / 60.0, (0.0, 0.0), true, false);
+        assert_eq!(fast.crash.as_ref().unwrap().planet, "Siroco");
+        assert_eq!(fast.velocity, Vec3::zeros());
+        fast.advance(0.0, (1.0, 0.0), true, false);
+        assert_eq!(fast.crash.as_ref().unwrap().age, 0.0);
+        for _ in 0..125 {
+            fast.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+        }
+        assert!(fast.crash.is_none() && fast.respawn_notice > 0.0);
+        assert_eq!(fast.position, Vec3::zeros());
+        fast.position = start;
+        fast.velocity = -normal * 62.0;
+        fast.advance(1.0 / 60.0, (0.0, 0.0), true, false);
+        assert!(
+            fast.crash.is_some(),
+            "Respawning must retain the collision world"
+        );
+    }
+
+    #[test]
+    fn fast_planet_impacts_are_consistent_at_ten_and_sixty_frames_per_second() {
+        let space = Space::load().unwrap();
+        let simulate = |fps: usize| {
+            let mut flight = space.new_flight();
+            space.approach(&mut flight, "Boreal").unwrap();
+            for _ in 0..fps * 3 {
+                flight.advance(1.0 / fps as f32, (1.0, 0.0), true, false);
+                if flight.crash.is_some() {
+                    break;
+                }
+            }
+            assert_eq!(flight.crash.as_ref().unwrap().planet, "Boreal");
+            flight.position
+        };
+        assert!((simulate(10) - simulate(60)).norm() < 0.05);
+    }
 
     #[test]
     fn boreal_has_a_lit_cloud_map_and_is_visible_below_the_launch_planets() {

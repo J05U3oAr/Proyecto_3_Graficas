@@ -322,7 +322,7 @@ pub fn draw_flight_model(
         .vertices
         .iter()
         .map(|vertex| {
-            let local = (vertex - model.center) * (1.7 / model.radius);
+            let local = (vertex - model.center) * (crate::collision::SHIP_RADIUS / model.radius);
             let world = eye_to_ship
                 + ship_right * local.dot(&model_right)
                 + ship_up * local.dot(&model_up)

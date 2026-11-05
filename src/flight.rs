@@ -1,6 +1,17 @@
 use crate::camera::Camera;
+use crate::collision::CollisionWorld;
 use nalgebra_glm::Vec3;
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
+use std::sync::Arc;
+
+pub const CRASH_SPEED: f32 = 28.0;
+
+pub struct Crash {
+    pub position: Vec3,
+    pub normal: Vec3,
+    pub age: f32,
+    pub planet: &'static str,
+}
 
 /// Arcade flight with a mouse steering target and a camera following from behind.
 pub struct Flight {
@@ -13,6 +24,9 @@ pub struct Flight {
     gravity_velocity: Vec3,
     captured_for: Option<f32>,
     pub respawn_notice: f32,
+    pub crash: Option<Crash>,
+    pub contact_notice: f32,
+    collisions: Option<Arc<CollisionWorld>>,
     steering: (f32, f32),
     mouse_target: (f32, f32),
 }
@@ -37,9 +51,28 @@ impl Flight {
             gravity_velocity: Vec3::zeros(),
             captured_for: None,
             respawn_notice: 0.0,
+            crash: None,
+            contact_notice: 0.0,
+            collisions: None,
             steering: (0.0, 0.0),
             mouse_target: (0.0, 0.0),
         }
+    }
+
+    pub fn with_collisions(world: Arc<CollisionWorld>) -> Self {
+        Self {
+            collisions: Some(world),
+            ..Self::new()
+        }
+    }
+
+    fn respawn(&mut self) {
+        let seconds = self.seconds;
+        let collisions = self.collisions.take();
+        *self = Self::new();
+        self.seconds = seconds;
+        self.collisions = collisions;
+        self.respawn_notice = 3.5;
     }
 
     /// Normalized canvas coordinates: center = (0, 0), right/bottom = (1, 1).
@@ -88,19 +121,24 @@ impl Flight {
         let dt = dt.min(0.1);
         self.seconds += dt;
         self.respawn_notice = (self.respawn_notice - dt).max(0.0);
+        self.contact_notice = (self.contact_notice - dt).max(0.0);
+        if let Some(crash) = self.crash.as_mut() {
+            crash.age += dt;
+            if crash.age >= 2.0 {
+                self.respawn();
+            }
+            return;
+        }
         if let Some(time) = self.captured_for.as_mut() {
             *time += dt;
             if *time >= 1.4 {
-                let seconds = self.seconds;
-                *self = Self::new();
-                self.seconds = seconds;
-                self.respawn_notice = 3.5;
+                self.respawn();
             }
             return;
         }
         let steps = (dt * 120.0).ceil() as usize;
         let dt = dt / steps as f32;
-        for _ in 0..steps {
+        for step in 0..steps {
             let response = 1.0 - (-8.0 * dt).exp();
             self.steering.0 += (self.mouse_target.0 - self.steering.0) * response;
             self.steering.1 += (self.mouse_target.1 - self.steering.1) * response;
@@ -137,7 +175,37 @@ impl Flight {
                 self.gravity_velocity *= 320.0 / drift_speed;
             }
             self.velocity = controlled + self.gravity_velocity;
-            let next = self.position + self.velocity * dt;
+            let mut next = self.position + self.velocity * dt;
+            if let Some(world) = &self.collisions {
+                let time = self.seconds - (steps - step) as f32 * dt;
+                let motion = world.move_ship(self.position, self.velocity * dt, time, dt);
+                next = motion.position;
+                for contact in &motion.contacts {
+                    let impact = -(self.velocity - contact.surface_velocity).dot(&contact.normal);
+                    if impact >= CRASH_SPEED {
+                        self.crash = Some(Crash {
+                            position: next,
+                            normal: contact.normal,
+                            age: 0.0,
+                            planet: contact.planet,
+                        });
+                        self.velocity = Vec3::zeros();
+                        self.gravity_velocity = Vec3::zeros();
+                        self.position = next;
+                        break;
+                    }
+                    let inward = (self.velocity - contact.surface_velocity)
+                        .dot(&contact.normal)
+                        .min(0.0);
+                    self.velocity -= contact.normal * inward;
+                    let gravity_inward = self.gravity_velocity.dot(&contact.normal).min(0.0);
+                    self.gravity_velocity -= contact.normal * gravity_inward;
+                    self.contact_notice = 0.7;
+                }
+                if self.crash.is_some() {
+                    break;
+                }
+            }
             if crate::black_hole::BLACK_HOLE.captures(self.position, next) {
                 self.captured_for = Some(0.0);
                 self.velocity = Vec3::zeros();

@@ -474,6 +474,14 @@ impl Ui {
         self.deep_space.preview(fb, id)
     }
 
+    pub fn new_flight(&self) -> Flight {
+        self.space.new_flight()
+    }
+
+    pub fn approach_planet(&self, flight: &mut Flight, name: &str) -> Result<(), Box<dyn Error>> {
+        self.space.approach(flight, name)
+    }
+
     pub fn planet_preview(
         &self,
         fb: &mut Framebuffer,
@@ -535,9 +543,14 @@ impl Ui {
         }
 
         self.space.draw(fb, flight, seconds);
-        renderer::draw_flight_model(fb, &ship.model, flight, ship.finish);
+        if flight.crash.is_none() {
+            renderer::draw_flight_model(fb, &ship.model, flight, ship.finish);
+        }
         self.deep_space.draw(fb, flight);
         self.space.draw_atmospheres(fb, flight, seconds);
+        if let Some(crash) = &flight.crash {
+            crate::explosion::draw(fb, &renderer::FlightView::new(flight, WIDTH, HEIGHT), crash);
+        }
 
         if flight.is_captured() {
             let fade = 0.35 + flight.capture_progress() * 0.65;
@@ -627,10 +640,21 @@ impl Ui {
             0x7892a8,
         );
 
-        let warning = if flight.is_captured() {
+        let crash_detail = flight
+            .crash
+            .as_ref()
+            .map(|crash| format!("Impacto contra {}. Regresando al inicio...", crash.planet));
+        let warning = if let Some(detail) = crash_detail.as_deref() {
+            Some(("NAVE DESTRUIDA", detail))
+        } else if flight.is_captured() {
             Some(("NAVE ABSORBIDA", "Regresando al punto de partida..."))
         } else if flight.respawn_notice > 0.0 {
             Some(("NAVE RECUPERADA", "Has regresado al punto de partida."))
+        } else if flight.contact_notice > 0.0 {
+            Some((
+                "CONTACTO CON LA SUPERFICIE",
+                "Retrocede o gira para separarte del planeta.",
+            ))
         } else if hole.strength(flight.position) > 0.001 {
             Some((
                 "ATRACCION GRAVITACIONAL",

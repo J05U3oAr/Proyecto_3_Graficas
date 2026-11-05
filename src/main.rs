@@ -1,8 +1,10 @@
 mod black_hole;
 mod camera;
+mod collision;
 mod color;
 mod deep_space;
 mod dust;
+mod explosion;
 mod fleet;
 mod flight;
 mod framebuffer;
@@ -57,6 +59,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut planet = false;
         let mut target = None;
         let mut near_black_hole = false;
+        let mut near_planet = None;
         let mut mouse_target = (0.0f32, 0.0f32);
         let mut args = args.iter();
         while let Some(argument) = args.next() {
@@ -82,6 +85,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                     target = Some(args.next().ok_or("Falta el nombre del escenario")?.as_str());
                 }
                 "--near-black-hole" => near_black_hole = true,
+                "--near-planet" => {
+                    near_planet = Some(args.next().ok_or("Falta el nombre del planeta")?)
+                }
                 "--ship" => {
                     let number: usize = args.next().ok_or("Falta el número de nave")?.parse()?;
                     if !(1..=3).contains(&number) {
@@ -122,7 +128,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             if seconds > 600.0 {
                 return Err("La exportación de vuelo admite hasta 600 segundos".into());
             }
-            let mut flight = flight::Flight::new();
+            let mut flight = ui.new_flight();
+            if let Some(name) = near_planet {
+                if near_black_hole {
+                    return Err("Elige --near-planet o --near-black-hole".into());
+                }
+                ui.approach_planet(&mut flight, name)?;
+            }
             if near_black_hole {
                 flight.position =
                     black_hole::BLACK_HOLE.position + nalgebra_glm::Vec3::new(0.0, 0.0, 250.0);
@@ -176,7 +188,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut screen = Screen::Menu;
     let mut selected = 0usize;
     let mut mode = RenderMode::Solid;
-    let mut flight = flight::Flight::new();
+    let mut flight = ui.new_flight();
     let mut clock = AnimationClock::default();
     let mut previous = Instant::now();
     let mut mouse_was_down = false;
