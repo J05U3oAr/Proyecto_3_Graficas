@@ -1,6 +1,6 @@
 # Proyecto de gráficas - naves espaciales
 
-Hangar interactivo en Rust con vistas previas 360° para las tres naves. Un giro completo tarda 18 segundos; selecciona una nave para abrir su inspección.
+Hangar interactivo en Rust con vistas previas 360° para las tres naves y un modo de vuelo libre por un campo estelar sin planetas.
 
 Los modelos se cargan desde archivos OBJ; el programa transforma y rasteriza los triángulos en un framebuffer propio con búfer de profundidad. `minifb` se usa para la ventana y la entrada, no para dibujar modelos 3D. El menú también se dibuja en la CPU, incluidos textos, tarjetas, estrellas y plataformas luminosas.
 
@@ -16,18 +16,34 @@ El primer inicio compila las dependencias declaradas en `Cargo.toml`.
 
 ## Controles del hangar
 
-Haz clic en una tarjeta y pulsa **Abrir nave** para inspeccionarla.
+Haz clic en una tarjeta y pulsa **Volar** para entrar al espacio.
 
 | Tecla | Acción |
 | --- | --- |
 | `1`, `2`, `3` | Seleccionar Guardgalaxy, Galactwar o Lightflash |
 | `Tab` / `Shift+Tab` o flechas | Cambiar de selección |
-| `Enter` | Abrir la nave seleccionada |
+| `Enter` | Volar con la nave seleccionada |
 | `Espacio` o botón de pausa | Pausar / reanudar los tres giros |
 | `P` | Guardar una captura del menú en `render.png` |
 | `Esc` | Salir |
 
 La animación usa tiempo transcurrido y se pausa cuando la ventana pierde el foco. Se puede redimensionar la ventana: la interfaz conserva sus proporciones y la selección con ratón se ajusta a su tamaño.
+
+## Controles de vuelo
+
+| Tecla | Acción |
+| --- | --- |
+| `W` / `S` | Avanzar / retroceder |
+| `A` / `D` | Desplazarse a los lados |
+| `R` / `F` | Subir / bajar |
+| Flechas | Orientar la nave |
+| `Shift` | Aumentar el impulso y la velocidad máxima |
+| `Espacio` | Frenar |
+| `1`, `2`, `3` | Cambiar de nave |
+| `I` | Inspeccionar la nave actual |
+| `Esc` | Volver al hangar |
+
+El campo estelar envuelve sus coordenadas para permitir volar continuamente. La velocidad añade estelas a las estrellas; el HUD muestra velocidad y posición.
 
 ## Controles de inspección
 
@@ -39,7 +55,7 @@ La animación usa tiempo transcurrido y se pausa cuando la ventana pierde el foc
 | `M` | Cambiar entre sólido, malla y holograma |
 | `R` | Reiniciar la vista de la nave seleccionada |
 | `P` | Guardar `render.png` |
-| `Esc` o botón de volver | Regresar al hangar |
+| `Esc` o botón de volver | Regresar al vuelo |
 
 ## Exportar vistas sin abrir una ventana
 
@@ -53,6 +69,7 @@ cargo run --release -- --render-inspector output/lightflash.png --ship 3
 ## Organización
 
 - `src/fleet.rs`: modelos, nombres y acabados de las naves.
+- `src/flight.rs`: posición, velocidad, impulso y controles de vuelo.
 - `src/renderer.rs`: pipeline compartido por tarjetas e inspección.
 - `src/ui.rs`: composición, tipografía, interacción con las tarjetas y mapeo del ratón.
 - `src/main.rs`: navegación, entradas y reloj de animación.

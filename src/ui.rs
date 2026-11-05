@@ -1,6 +1,7 @@
 use crate::{
     camera::Camera,
     fleet::Ship,
+    flight::Flight,
     framebuffer::Framebuffer,
     renderer::{self, RenderMode, Viewport},
     triangle,
@@ -151,6 +152,13 @@ impl Fonts {
 pub struct Ui {
     fonts: Fonts,
     background: Vec<u32>,
+    stars: Vec<Star>,
+}
+
+struct Star {
+    position: Vec3,
+    phase: f32,
+    color: u32,
 }
 impl Ui {
     pub fn new() -> Result<Self, Box<dyn Error>> {
@@ -192,9 +200,31 @@ impl Ui {
                 rule(&mut background, (x, y - 2), (x, y + 2), 0x52677e);
             }
         }
+        let mut stars = Vec::with_capacity(900);
+        for index in 0..900 {
+            let mut random = (index as u32 + 71).wrapping_mul(747_796_405);
+            let mut next = || {
+                random = random
+                    .wrapping_mul(2_891_336_453)
+                    .wrapping_add(3_037_000_493);
+                let bits = ((random >> ((random >> 28) + 4)) ^ random).wrapping_mul(277_803_737);
+                let bits = (bits >> 22) ^ bits;
+                bits as f32 / u32::MAX as f32
+            };
+            stars.push(Star {
+                position: Vec3::new(
+                    (next() * 2.0 - 1.0) * 280.0,
+                    (next() * 2.0 - 1.0) * 280.0,
+                    (next() * 2.0 - 1.0) * 280.0,
+                ),
+                phase: next() * TAU,
+                color: [0x8db8e8, 0xc2d7f0, 0xf1e8d8][index % 3],
+            });
+        }
         Ok(Self {
             fonts: Fonts::load()?,
             background: background.pixels,
+            stars,
         })
     }
 
@@ -359,7 +389,7 @@ impl Ui {
         self.fonts.text(fb, 22, 54, 762, ships[selected].name, TEXT);
         let cta = if hover_button { 0xadffe9 } else { TEAL };
         rounded(fb, LAUNCH, 12, cta, cta);
-        let label = "ABRIR NAVE";
+        let label = "VOLAR";
         let label_x = LAUNCH.x + (LAUNCH.w - self.fonts.width(18, label).round() as i32 - 20) / 2;
         self.fonts.text(fb, 18, label_x, 749, label, 0x0c2829);
         arrow(fb, LAUNCH.x + LAUNCH.w - 28, 755, 0x0c2829);
@@ -368,7 +398,7 @@ impl Ui {
             14,
             54,
             805,
-            "1–3 Elegir  ·  TAB Recorrer  ·  ENTER Abrir  ·  ESPACIO Pausar  ·  ESC Salir",
+            "1–3 Elegir  ·  TAB Recorrer  ·  ENTER Volar  ·  ESPACIO Pausar  ·  ESC Salir",
             MUTED,
         );
     }
@@ -385,7 +415,7 @@ impl Ui {
         rule(fb, (67, 131), (80, 131), TEXT);
         rule(fb, (67, 131), (72, 126), TEXT);
         rule(fb, (67, 131), (72, 136), TEXT);
-        self.fonts.text(fb, 16, 89, 119, "Volver al hangar", TEXT);
+        self.fonts.text(fb, 16, 89, 119, "Volver al vuelo", TEXT);
         self.fonts.text(fb, 52, 50, 162, ship.name, TEXT);
         glow(fb, (478.0, 602.0), (380.0, 180.0), ship.accent, 0.13);
         ellipse(
@@ -434,7 +464,127 @@ impl Ui {
             MUTED,
         );
         self.fonts
-            .text(fb, 16, 1000, 774, "ESC  Volver al hangar", MUTED);
+            .text(fb, 16, 1000, 774, "ESC  Volver al vuelo", MUTED);
+    }
+    pub fn flight(&self, fb: &mut Framebuffer, ship: &Ship, flight: &Flight, seconds: f32) {
+        fb.clear();
+        for y in 0..HEIGHT {
+            let t = y as f32 / HEIGHT as f32;
+            let color = mix(0x0d1725, 0x03060c, t);
+            fb.pixels[y * WIDTH..(y + 1) * WIDTH].fill(color);
+        }
+
+        let (right, up, forward) = flight.camera.basis();
+        let half_extent = 280.0;
+        let focal = 660.0;
+        let speed = flight.velocity.norm();
+        for star in &self.stars {
+            let wrap =
+                |delta: f32| (delta + half_extent).rem_euclid(half_extent * 2.0) - half_extent;
+            let relative = Vec3::new(
+                wrap(star.position.x - flight.position.x),
+                wrap(star.position.y - flight.position.y),
+                wrap(star.position.z - flight.position.z),
+            );
+            let depth = relative.dot(&forward);
+            if !(3.0..280.0).contains(&depth) {
+                continue;
+            }
+            let x = WIDTH as f32 * 0.5 + relative.dot(&right) * focal / depth;
+            let y = HEIGHT as f32 * 0.5 - relative.dot(&up) * focal / depth;
+            if x < 1.0 || y < 1.0 || x >= WIDTH as f32 - 1.0 || y >= HEIGHT as f32 - 1.0 {
+                continue;
+            }
+            let twinkle = 0.65 + ((seconds * 1.7 + star.phase).sin() + 1.0) * 0.16;
+            let color = mix(0x26364a, star.color, twinkle);
+            let point = (x.round() as i32, y.round() as i32);
+            if speed > 14.0 {
+                let vx = flight.velocity.dot(&right) * focal / depth * 0.035;
+                let vy = -flight.velocity.dot(&up) * focal / depth * 0.035;
+                rule(
+                    fb,
+                    (point.0, point.1),
+                    ((x - vx).round() as i32, (y - vy).round() as i32),
+                    color,
+                );
+            } else {
+                blend_pixel(fb, point.0, point.1, color, 0.8);
+            }
+        }
+
+        renderer::draw_model(
+            fb,
+            &ship.model,
+            &flight.camera,
+            RenderMode::Solid,
+            Viewport {
+                x: 250,
+                y: 105,
+                width: 780,
+                height: 630,
+            },
+            ship.finish,
+        );
+
+        rounded(fb, Rect::new(34, 25, 285, 66), 12, 0x101d2c, 0x304154);
+        self.fonts.text(fb, 14, 54, 37, "VUELO LIBRE", TEAL);
+        self.fonts.text(fb, 22, 54, 56, ship.name, TEXT);
+        rounded(fb, Rect::new(970, 25, 276, 92), 12, 0x101d2c, 0x304154);
+        self.fonts.text(
+            fb,
+            14,
+            992,
+            38,
+            &format!("VELOCIDAD  {:05.1}", speed),
+            ship.accent,
+        );
+        self.fonts.text(
+            fb,
+            14,
+            992,
+            67,
+            &format!(
+                "X {:>6.0}  Y {:>6.0}  Z {:>6.0}",
+                flight.position.x, flight.position.y, flight.position.z
+            ),
+            TEXT,
+        );
+
+        let center = (WIDTH as i32 / 2, HEIGHT as i32 / 2);
+        rule(
+            fb,
+            (center.0 - 15, center.1),
+            (center.0 - 6, center.1),
+            0x7892a8,
+        );
+        rule(
+            fb,
+            (center.0 + 6, center.1),
+            (center.0 + 15, center.1),
+            0x7892a8,
+        );
+        rule(
+            fb,
+            (center.0, center.1 - 15),
+            (center.0, center.1 - 6),
+            0x7892a8,
+        );
+        rule(
+            fb,
+            (center.0, center.1 + 6),
+            (center.0, center.1 + 15),
+            0x7892a8,
+        );
+
+        rounded(fb, Rect::new(34, 770, 1212, 43), 10, 0x101d2c, 0x304154);
+        self.fonts.text(
+            fb,
+            14,
+            52,
+            784,
+            "W/S Impulso  ·  A/D Lateral  ·  R/F Vertical  ·  Flechas Orientar  ·  SHIFT Turbo  ·  ESPACIO Frenar  ·  I Vista  ·  ESC Hangar",
+            MUTED,
+        );
     }
 }
 

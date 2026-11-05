@@ -1,6 +1,7 @@
 mod camera;
 mod color;
 mod fleet;
+mod flight;
 mod framebuffer;
 mod model;
 mod renderer;
@@ -20,6 +21,7 @@ use ui::{HEIGHT, WIDTH};
 enum Screen {
     Menu,
     Inspector,
+    Flight,
 }
 
 #[derive(Default)]
@@ -118,6 +120,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut screen = Screen::Menu;
     let mut selected = 0usize;
     let mut mode = RenderMode::Solid;
+    let mut flight = flight::Flight::new(ships[0].camera);
     let mut clock = AnimationClock::default();
     let mut previous = Instant::now();
     let mut mouse_was_down = false;
@@ -128,10 +131,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         let dt = (now - previous).as_secs_f32().min(0.1);
         previous = now;
         if window.is_key_pressed(Key::Escape, KeyRepeat::No) {
-            if screen == Screen::Menu {
-                break;
+            match screen {
+                Screen::Menu => break,
+                Screen::Flight => screen = Screen::Menu,
+                Screen::Inspector => {
+                    flight.camera = ships[selected].camera;
+                    screen = Screen::Flight;
+                }
             }
-            screen = Screen::Menu;
         }
         for (index, key) in [Key::Key1, Key::Key2, Key::Key3].into_iter().enumerate() {
             if window.is_key_pressed(key, KeyRepeat::No) {
@@ -185,12 +192,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                 *value += (target - *value) * (1.0 - (-dt * 12.0).exp());
             }
             if window.is_key_pressed(Key::Enter, KeyRepeat::No) || (clicked && hover_button) {
-                ships[selected].camera = ui::preview_camera(selected, clock.seconds);
-                screen = Screen::Inspector;
+                flight = flight::Flight::new(ui::preview_camera(selected, clock.seconds));
+                screen = Screen::Flight;
             }
-        } else {
+        } else if screen == Screen::Inspector {
             if clicked && hover_back {
-                screen = Screen::Menu;
+                flight.camera = ships[selected].camera;
+                screen = Screen::Flight;
             }
             let camera = &mut ships[selected].camera;
             let held = |a, b| window.is_key_down(a) || window.is_key_down(b);
@@ -206,12 +214,43 @@ fn main() -> Result<(), Box<dyn Error>> {
             if window.is_key_pressed(Key::M, KeyRepeat::No) {
                 mode = mode.next();
             }
+        } else {
+            let turn = (
+                i32::from(window.is_key_down(Key::Right))
+                    - i32::from(window.is_key_down(Key::Left)),
+                i32::from(window.is_key_down(Key::Up)) - i32::from(window.is_key_down(Key::Down)),
+            );
+            let thrust = (
+                i32::from(window.is_key_down(Key::W)) - i32::from(window.is_key_down(Key::S)),
+                i32::from(window.is_key_down(Key::D)) - i32::from(window.is_key_down(Key::A)),
+                i32::from(window.is_key_down(Key::R)) - i32::from(window.is_key_down(Key::F)),
+            );
+            flight.advance(
+                dt,
+                (turn.0 as f32, turn.1 as f32),
+                (thrust.0 as f32, thrust.1 as f32, thrust.2 as f32),
+                window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift),
+                window.is_key_down(Key::Space),
+            );
+            if window.is_key_pressed(Key::Key1, KeyRepeat::No) {
+                selected = 0;
+            } else if window.is_key_pressed(Key::Key2, KeyRepeat::No) {
+                selected = 1;
+            } else if window.is_key_pressed(Key::Key3, KeyRepeat::No) {
+                selected = 2;
+            }
+            if window.is_key_pressed(Key::I, KeyRepeat::No) {
+                ships[selected].camera = flight.camera;
+                screen = Screen::Inspector;
+            }
         }
 
         let actionable = if screen == Screen::Menu {
             hover.is_some() || hover_button || hover_pause
-        } else {
+        } else if screen == Screen::Inspector {
             hover_back
+        } else {
+            false
         };
         window.set_cursor_style(if actionable {
             CursorStyle::OpenHand
@@ -233,6 +272,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 },
             ),
             Screen::Inspector => ui.inspector(&mut framebuffer, &ships[selected], mode, hover_back),
+            Screen::Flight => ui.flight(&mut framebuffer, &ships[selected], &flight, clock.seconds),
         }
         if window.is_key_pressed(Key::P, KeyRepeat::No) {
             framebuffer.save_png("render.png")?;
