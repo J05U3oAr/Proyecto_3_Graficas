@@ -1,5 +1,6 @@
 param(
     [string] $BlenderPath,
+    [ValidateSet('siroco', 'oquedad', 'jovara')] [string] $Planet,
     [switch] $Overwrite,
     [ValidateRange(1, 1024)] [int] $Samples = 64,
     [ValidateRange(128, 4096)] [int] $Size = 960
@@ -30,11 +31,15 @@ if (-not $BlenderPath -or -not (Test-Path -LiteralPath $BlenderPath -PathType Le
     throw 'No se encontro Blender. Indica su ejecutable mediante -BlenderPath.'
 }
 
-$generator = Join-Path $PSScriptRoot 'create_planets.py'
+$scriptName = if ($Planet -eq 'jovara') { 'create_jovara.py' } else { 'create_planets.py' }
+$generator = Join-Path $PSScriptRoot $scriptName
 $arguments = @('--background', '--factory-startup', '--python-exit-code', '1',
     '--python', $generator, '--', '--samples', $Samples, '--size', $Size)
 if ($Overwrite) {
     $arguments += '--overwrite'
+}
+if ($Planet -and $Planet -ne 'jovara') {
+    $arguments += @('--only', $Planet)
 }
 
 # Keep generator caches within the project; settings are scoped to this process.

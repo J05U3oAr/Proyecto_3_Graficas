@@ -1,0 +1,5 @@
+# The photograph already contains lighting: retain its enhanced colors.
+newmtl PolarClouds
+Kd 1 1 1
+illum 0
+map_Kd textures/jovara-clouds.png

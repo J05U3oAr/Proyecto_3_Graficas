@@ -1,8 +1,8 @@
 # Primeros planetas de la galaxia
 
-Dos planetas originales creados en Blender. Los archivos `.blend` son editables y no
-dependen de imágenes externas: sus superficies, colores y relieves se generan con
-mallas y materiales procedurales. Ambos planetas están incorporados al modo de vuelo:
+Los archivos `.blend` son editables y contienen todos sus recursos. Siroco y Oquedad
+usan mallas y materiales procedurales. Jovara reproduce la referencia polar con una
+textura fotográfica empaquetada dentro de su escena. Siroco y Oquedad están incorporados al modo de vuelo:
 Siroco aparece a la izquierda al despegar y Oquedad a la derecha.
 
 [Vista de los planetas dentro del juego](previews/en-vuelo.png).
@@ -11,6 +11,7 @@ Siroco aparece a la izquierda al despegar y Oquedad a la derecha.
 | --- | --- | --- | --- |
 | **Siroco** | Planeta desértico cubierto por una tormenta global. Gran ciclón, corrientes de arena y dos capas de polvo animadas a distintas velocidades. | `blender/siroco.blend` | `siroco.obj` + `siroco.mtl` |
 | **Oquedad** | Mundo rocoso con cinco túneles conectados. Las aberturas son geometría real; sus bordes son irregulares y las paredes interiores tienen vetas turquesa. | `blender/oquedad.blend` | `oquedad.obj` + `oquedad.mtl` |
+| **Jovara** | Centro azul petróleo, ciclones blancos y nubes beige. Recreación de la referencia de Júpiter mediante textura UV, conservando su detalle. | `blender/jovara.blend` | `jovara.obj` + `jovara.mtl` + `textures/jovara-clouds.png` |
 
 ## Abrir y editar en Blender
 
@@ -30,8 +31,9 @@ originales de los cinco cortes para poder regenerarlos.
 
 ## Compatibilidad con el juego
 
-Las exportaciones usan triángulos y materiales de color difuso `Kd`, que ya reconoce
-`src/model.rs`. El eje vertical se convierte de Z en Blender a Y en el juego. Los
+Las exportaciones usan triángulos y materiales de color difuso `Kd`. Jovara añade
+coordenadas UV y un mapa PNG mediante `map_Kd`; su material `illum 0` conserva la
+iluminación que ya contiene la fotografía. El eje vertical se convierte de Z en Blender a Y en el juego. Los
 modelos están centrados cerca del origen y tienen un radio aproximado de una unidad.
 
 El OBJ contiene únicamente el planeta: las luces, cámara, estrellas de estudio y
@@ -44,13 +46,25 @@ Las capas de Blender siguen siendo editables como referencia visual. OBJ/MTL
 conserva la malla y los colores estáticos; la emisión de las vetas de Oquedad
 se mantiene en el material de Blender.
 
-Los OBJ tienen menor detalle que las mallas editables para reducir el trabajo del
-rasterizador CPU. `mesh_stats.json` registra los recuentos generados.
+Los OBJ de Siroco y Oquedad tienen menor detalle que las mallas editables para reducir
+el trabajo del rasterizador CPU. Jovara utiliza una esfera de 16,128 triángulos con
+textura UV para conservar los pequeños ciclones. `mesh_stats.json` registra los recuentos generados.
 
-Se comprobó que los dos OBJ se cargan con `Model::load` y se dibujan con el
+Se comprobó que los tres OBJ se cargan con `Model::load` y se dibujan con el
 renderizador Rust actual. Las capturas `previews/siroco-cpu.png` y
 `previews/oquedad-cpu.png` muestran esa versión de colores estáticos. La abertura
 central de Oquedad también deja ver el fondo en ese renderizador.
+
+## Jovara y la referencia
+
+La superficie reproduce la fotografía **Southern Storms (PIA21641)** del polo sur
+de Júpiter. Conserva la región central azul petróleo, las tormentas claras y las
+nubes beige exteriores. [Ver modelo renderizado en Blender](previews/jovara.png)
+o [con el rasterizador Rust](previews/jovara-cpu.png).
+
+La imagen está empaquetada en el `.blend` y su copia PNG queda en `textures/` para
+el juego. La cara posterior es una continuación artística de la referencia, que
+solo muestra una vista polar. Créditos y procedencia en [textures/README.md](textures/README.md).
 
 ## Regenerar los modelos
 
@@ -80,5 +94,15 @@ Opciones del generador Python después de `--`: `--only siroco`, `--only oquedad
 `--samples 64`, `--size 960`, `--no-render` y `--output assets/planets`.
 Sin `--overwrite`, el generador se detiene si ya existen modelos con esos nombres.
 
+Para recrear Jovara con la textura incluida, usa su generador específico:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/blender/generate_planets.ps1 -Planet jovara -Overwrite
+```
+
+También puedes ejecutar `scripts/blender/create_jovara.py` directamente con Blender.
+La opción `-Planet` del script PowerShell permite seleccionar `siroco`, `oquedad`
+o `jovara`; al omitirla, se generan los dos modelos procedurales originales.
+
 Los nombres y parámetros son propuestas iniciales. La colección puede ampliarse
-con los otros ocho planetas una vez definido el aspecto de estos dos.
+con los otros siete planetas para completar la primera colección de diez.
