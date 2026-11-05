@@ -1,5 +1,6 @@
 mod camera;
 mod color;
+mod dust;
 mod fleet;
 mod flight;
 mod framebuffer;
@@ -310,7 +311,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 },
             ),
             Screen::Inspector => ui.inspector(&mut framebuffer, &ships[selected], mode, hover_back),
-            Screen::Flight => ui.flight(&mut framebuffer, &ships[selected], &flight, clock.seconds),
+            Screen::Flight => {
+                ui.flight(&mut framebuffer, &ships[selected], &flight, flight.seconds)
+            }
         }
         if window.is_key_pressed(Key::P, KeyRepeat::No) {
             framebuffer.save_png("render.png")?;

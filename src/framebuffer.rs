@@ -57,6 +57,26 @@ impl Framebuffer {
         }
     }
 
+    /// Transparent layers test opaque depth without hiding later transparent layers.
+    pub fn blend_depth(&mut self, x: usize, y: usize, depth: f32, color: u32, alpha: f32) {
+        let (left, top, right, bottom) = self.clip;
+        if x < left || y < top || x >= right || y >= bottom {
+            return;
+        }
+        let index = y * self.width + x;
+        if depth <= self.depth[index] {
+            return;
+        }
+        let alpha = alpha.clamp(0.0, 1.0);
+        let background = self.pixels[index];
+        let channel = |shift: u32| {
+            let from = ((background >> shift) & 255) as f32;
+            let to = ((color >> shift) & 255) as f32;
+            (from + (to - from) * alpha).round() as u32
+        };
+        self.pixels[index] = channel(16) << 16 | channel(8) << 8 | channel(0);
+    }
+
     pub fn save_png(&self, path: &str) -> Result<(), image::ImageError> {
         let mut image = ImageBuffer::<Rgb<u8>, Vec<u8>>::new(self.width as u32, self.height as u32);
         for (index, pixel) in self.pixels.iter().enumerate() {

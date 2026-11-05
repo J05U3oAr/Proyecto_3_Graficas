@@ -109,7 +109,10 @@ impl FlightView {
     }
 
     pub fn view_point(&self, world: Vec3) -> Vec3 {
-        let relative = world - self.eye;
+        self.view_direction(world - self.eye)
+    }
+
+    pub fn view_direction(&self, relative: Vec3) -> Vec3 {
         Vec3::new(
             relative.dot(&self.right),
             relative.dot(&self.up),

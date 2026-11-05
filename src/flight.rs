@@ -9,6 +9,7 @@ pub struct Flight {
     pub camera: Camera,
     pub heading: Camera,
     pub bank: f32,
+    pub seconds: f32,
     steering: (f32, f32),
     mouse_target: (f32, f32),
 }
@@ -29,6 +30,7 @@ impl Flight {
             },
             heading,
             bank: 0.0,
+            seconds: 0.0,
             steering: (0.0, 0.0),
             mouse_target: (0.0, 0.0),
         }
@@ -69,6 +71,7 @@ impl Flight {
         }
         // Small physics steps keep steering and camera response consistent at low FPS.
         let dt = dt.min(0.1);
+        self.seconds += dt;
         let steps = (dt * 120.0).ceil() as usize;
         let dt = dt / steps as f32;
         for _ in 0..steps {

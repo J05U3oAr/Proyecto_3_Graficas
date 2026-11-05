@@ -53,6 +53,12 @@ Al despegar, Siroco aparece a la izquierda y Oquedad a la derecha. Ocupan posici
 fijas en el espacio: puedes acercarte, rodearlos y observar los túneles de Oquedad.
 Sus modelos originales y escenas editables están en [assets/planets](assets/planets/README.md).
 
+Siroco está envuelto por una nube de arena de 4,800 partículas: capas suaves de polvo
+y granos que circulan alrededor del planeta. La nube respeta la profundidad de la
+nave y los planetas, y sigue animándose aunque estés detenido. Las tormentas y la
+rotación de los planetas se pausan al inspeccionar la nave o perder el foco; la
+pausa de las vistas previas del hangar no afecta al tiempo del vuelo.
+
 ## Controles de inspección
 
 
@@ -81,12 +87,14 @@ cargo run --release -- --render-flight output/giro.png --ship 2 --time 2 --mouse
 
 - `src/fleet.rs`: modelos, nombres y acabados de las naves.
 - `src/flight.rs`: posición, velocidad, impulso y controles de vuelo.
+- `src/space.rs`: carga, posición y rotación de los planetas.
+- `src/dust.rs`: nube animada de arena de Siroco y partículas con transparencia.
 - `src/renderer.rs`: rasterizado compartido, vistas del hangar y perspectiva de vuelo.
 - `src/ui.rs`: composición, tipografía, interacción con las tarjetas y mapeo del ratón.
 - `src/main.rs`: navegación, entradas y reloj de animación.
 - `assets/ui/`: atlas de glifos integrado en el ejecutable; no requiere instalar fuentes.
 
-Las pruebas de `cargo test` comprueban los giros completos del hangar, pausa/reanudación, selección con ventana redimensionada y animación de los tres modelos sin salir de sus tarjetas. También verifican la dirección sostenida con mouse, el vuelo sin saltos, movimiento WASD sin avance automático ni ventaja diagonal, desaceleración al soltar las teclas, turbo/freno, respuesta a distintas tasas de cuadros, cámara trasera durante giros completos, visibilidad de las tres naves y desplazamiento del campo estelar.
+Las pruebas de `cargo test` comprueban los giros completos del hangar, pausa/reanudación, selección con ventana redimensionada y animación de los tres modelos sin salir de sus tarjetas. También verifican la dirección sostenida con mouse, el vuelo sin saltos, movimiento WASD sin avance automático ni ventaja diagonal, desaceleración al soltar las teclas, turbo/freno, respuesta a distintas tasas de cuadros, cámara trasera durante giros completos, visibilidad de las tres naves y desplazamiento del campo estelar. Los planetas tienen comprobaciones de visibilidad al despegar, profundidad independiente del orden de dibujo, recorte cerca de la cámara y movimiento de la nube sin desplazar la nave.
 
 ## Integración y procedencia
 

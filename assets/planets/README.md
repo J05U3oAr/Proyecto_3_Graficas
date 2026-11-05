@@ -5,6 +5,8 @@ dependen de imágenes externas: sus superficies, colores y relieves se generan c
 mallas y materiales procedurales. Ambos planetas están incorporados al modo de vuelo:
 Siroco aparece a la izquierda al despegar y Oquedad a la derecha.
 
+[Vista de los planetas dentro del juego](previews/en-vuelo.png).
+
 | Planeta | Características | Archivo editable | Exportación para Rust |
 | --- | --- | --- | --- |
 | **Siroco** | Planeta desértico cubierto por una tormenta global. Gran ciclón, corrientes de arena y dos capas de polvo animadas a distintas velocidades. | `blender/siroco.blend` | `siroco.obj` + `siroco.mtl` |
@@ -34,9 +36,13 @@ modelos están centrados cerca del origen y tienen un radio aproximado de una un
 
 El OBJ contiene únicamente el planeta: las luces, cámara, estrellas de estudio y
 capas transparentes de polvo se conservan en el `.blend`. Siroco mantiene el patrón
-de la tormenta mediante colores en su superficie exportada. La transparencia, la
-animación del polvo y la emisión de las vetas requieren soporte adicional en el
-renderizador del juego; OBJ/MTL conserva la malla y los colores estáticos.
+de la tormenta mediante colores en su superficie exportada. El juego añade su
+propia nube animada alrededor de Siroco con 4,800 partículas 3D y transparencia;
+sus capas de polvo giran y se mezclan respetando la profundidad de las superficies.
+La nube funciona con el tiempo de vuelo incluso si la nave está detenida.
+Las capas de Blender siguen siendo editables como referencia visual. OBJ/MTL
+conserva la malla y los colores estáticos; la emisión de las vetas de Oquedad
+se mantiene en el material de Blender.
 
 Los OBJ tienen menor detalle que las mallas editables para reducir el trabajo del
 rasterizador CPU. `mesh_stats.json` registra los recuentos generados.

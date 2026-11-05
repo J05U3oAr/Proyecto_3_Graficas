@@ -1,4 +1,5 @@
 use crate::{
+    dust::DustStorm,
     flight::Flight,
     framebuffer::Framebuffer,
     model::Model,
@@ -12,6 +13,7 @@ pub struct Planet {
     pub model: Model,
     pub transform: WorldTransform,
     pub rotation_speed: f32,
+    pub dust: Option<DustStorm>,
 }
 
 pub struct Space {
@@ -32,6 +34,7 @@ impl Space {
                         yaw: 0.15,
                     },
                     rotation_speed: 0.018,
+                    dust: Some(DustStorm::new()),
                 },
                 Planet {
                     name: "Oquedad",
@@ -42,6 +45,7 @@ impl Space {
                         yaw: -0.45,
                     },
                     rotation_speed: 0.035,
+                    dust: None,
                 },
             ],
         })
@@ -53,6 +57,17 @@ impl Space {
             let mut transform = planet.transform;
             transform.yaw += seconds * planet.rotation_speed;
             renderer::draw_world_model(fb, &planet.model, &view, transform);
+        }
+    }
+
+    pub fn draw_atmospheres(&self, fb: &mut Framebuffer, flight: &Flight, seconds: f32) {
+        let view = FlightView::new(flight, fb.width, fb.height);
+        for planet in &self.planets {
+            if let Some(dust) = &planet.dust {
+                let mut transform = planet.transform;
+                transform.yaw += seconds * planet.rotation_speed;
+                dust.draw(fb, &view, transform, seconds);
+            }
         }
     }
 }

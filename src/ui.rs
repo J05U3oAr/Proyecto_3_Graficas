@@ -521,11 +521,15 @@ impl Ui {
 
         self.space.draw(fb, flight, seconds);
         renderer::draw_flight_model(fb, &ship.model, flight, ship.finish);
+        self.space.draw_atmospheres(fb, flight, seconds);
 
         let view = renderer::FlightView::new(flight, WIDTH, HEIGHT);
         for planet in &self.space.planets {
             if let Some(point) = view.project(planet.transform.position) {
-                let y = point.y + planet.transform.radius * renderer::FLIGHT_FOCAL * point.z + 14.0;
+                let atmosphere = if planet.dust.is_some() { 1.22 } else { 1.0 };
+                let y = point.y
+                    + planet.transform.radius * atmosphere * renderer::FLIGHT_FOCAL * point.z
+                    + 14.0;
                 if (80.0..WIDTH as f32 - 80.0).contains(&point.x) && (145.0..730.0).contains(&y) {
                     let x = point.x - self.fonts.width(14, planet.name) * 0.5;
                     self.fonts
