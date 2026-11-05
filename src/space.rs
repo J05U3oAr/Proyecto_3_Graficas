@@ -47,6 +47,17 @@ impl Space {
                     rotation_speed: 0.035,
                     dust: None,
                 },
+                Planet {
+                    name: "Jovara",
+                    model: Model::load(assets.join("jovara.obj"))?,
+                    transform: WorldTransform {
+                        position: Vec3::new(0.0, 57.0, -215.0),
+                        radius: 35.0,
+                        yaw: 0.0,
+                    },
+                    rotation_speed: 0.006,
+                    dust: None,
+                },
             ],
         })
     }
@@ -76,6 +87,25 @@ impl Space {
 mod tests {
     use super::*;
     use crate::framebuffer::BACKGROUND;
+
+    #[test]
+    fn jovara_is_visible_above_the_launch_route_with_its_blue_polar_texture() {
+        let space = Space::load().unwrap();
+        let planet = space.planets.iter().find(|p| p.name == "Jovara").unwrap();
+        assert_eq!(planet.model.textures.len(), 1);
+        let flight = Flight::new();
+        let mut frame = Framebuffer::new(1280, 840);
+        space.draw(&mut frame, &flight, 0.0);
+        let view = FlightView::new(&flight, frame.width, frame.height);
+        let point = view.project(planet.transform.position).unwrap();
+        assert!((50.0..250.0).contains(&point.y));
+        let color = frame.pixels[point.y as usize * frame.width + point.x as usize];
+        let (r, g, b) = ((color >> 16) & 255, (color >> 8) & 255, color & 255);
+        assert!(
+            g > r && b > r,
+            "The polar center must retain the blue/teal reference colors"
+        );
+    }
 
     #[test]
     fn both_planets_are_visible_at_launch_and_move_with_the_camera() {

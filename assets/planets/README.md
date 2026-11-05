@@ -2,8 +2,9 @@
 
 Los archivos `.blend` son editables y contienen todos sus recursos. Siroco y Oquedad
 usan mallas y materiales procedurales. Jovara reproduce la referencia polar con una
-textura fotográfica empaquetada dentro de su escena. Siroco y Oquedad están incorporados al modo de vuelo:
-Siroco aparece a la izquierda al despegar y Oquedad a la derecha.
+textura fotográfica empaquetada dentro de su escena. Los tres están incorporados
+al modo de vuelo: Siroco aparece a la izquierda al despegar, Oquedad a la derecha
+y Jovara arriba, entre ellos.
 
 [Vista de los planetas dentro del juego](previews/en-vuelo.png).
 

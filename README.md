@@ -1,6 +1,6 @@
 # Proyecto de gráficas - naves espaciales
 
-Hangar interactivo en Rust con vistas previas 360° para las tres naves y vuelo libre por un campo estelar con los planetas Siroco y Oquedad.
+Hangar interactivo en Rust con vistas previas 360° para las tres naves y vuelo libre por un campo estelar con los planetas Siroco, Oquedad y Jovara.
 
 Los modelos se cargan desde archivos OBJ; el programa transforma y rasteriza los triángulos en un framebuffer propio con búfer de profundidad. `minifb` se usa para la ventana y la entrada, no para dibujar modelos 3D. El menú también se dibuja en la CPU, incluidos textos, tarjetas, estrellas y plataformas luminosas.
 
@@ -49,9 +49,16 @@ El mouse dirige la nave sin mantener clic. La posición del cursor respecto al c
 
 La cámara está detrás y ligeramente por encima de la nave, mirando de la cola hacia la proa. Sigue los cambios de dirección con suavidad y la nave inclina las alas al girar. Las tres naves se dibujan en perspectiva y las estrellas se desplazan según la posición y velocidad reales, con estelas al avanzar. El HUD muestra posición y velocidad. El vuelo se pausa mientras inspeccionas la nave o la ventana pierde el foco.
 
-Al despegar, Siroco aparece a la izquierda y Oquedad a la derecha. Ocupan posiciones
+Al despegar, Siroco aparece a la izquierda, Oquedad a la derecha y Jovara arriba,
+entre los dos. Ocupan posiciones
 fijas en el espacio: puedes acercarte, rodearlos y observar los túneles de Oquedad.
 Sus modelos originales y escenas editables están en [assets/planets](assets/planets/README.md).
+
+Jovara recrea la referencia del polo de Júpiter con su centro azul y ciclones claros.
+Utiliza una textura PNG sobre una esfera 3D, con filtrado bilineal e interpolación
+UV corregida por perspectiva para conservar los detalles al acercarte o rodearlo.
+Su `.blend` contiene la textura empaquetada y sus créditos de NASA/Juno están
+documentados junto al modelo.
 
 Siroco está envuelto por una nube de arena de 4,800 partículas: capas suaves de polvo
 y granos que circulan alrededor del planeta. La nube respeta la profundidad de la
@@ -89,6 +96,7 @@ cargo run --release -- --render-flight output/giro.png --ship 2 --time 2 --mouse
 - `src/flight.rs`: posición, velocidad, impulso y controles de vuelo.
 - `src/space.rs`: carga, posición y rotación de los planetas.
 - `src/dust.rs`: nube animada de arena de Siroco y partículas con transparencia.
+- `src/texture.rs`: carga y muestreo bilineal de mapas de color PNG.
 - `src/renderer.rs`: rasterizado compartido, vistas del hangar y perspectiva de vuelo.
 - `src/ui.rs`: composición, tipografía, interacción con las tarjetas y mapeo del ratón.
 - `src/main.rs`: navegación, entradas y reloj de animación.
