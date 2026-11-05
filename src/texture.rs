@@ -8,10 +8,6 @@ pub struct Texture {
 }
 
 impl Texture {
-    pub fn aspect_ratio(&self) -> f32 {
-        self.pixels.width() as f32 / self.pixels.height() as f32
-    }
-
     pub fn load(path: impl AsRef<Path>) -> Result<Self, image::ImageError> {
         Ok(Self {
             pixels: image::open(path)?.to_rgb8(),

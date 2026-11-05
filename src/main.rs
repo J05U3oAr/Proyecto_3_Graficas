@@ -1,3 +1,4 @@
+mod black_hole;
 mod camera;
 mod color;
 mod deep_space;
@@ -54,6 +55,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut export_screen = Screen::Menu;
         let mut landmark = false;
         let mut target = "accretion";
+        let mut near_black_hole = false;
         let mut mouse_target = (0.0f32, 0.0f32);
         let mut args = args.iter();
         while let Some(argument) = args.next() {
@@ -77,6 +79,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "--target" => {
                     target = args.next().ok_or("Falta el nombre del escenario")?;
                 }
+                "--near-black-hole" => near_black_hole = true,
                 "--ship" => {
                     let number: usize = args.next().ok_or("Falta el número de nave")?.parse()?;
                     if !(1..=3).contains(&number) {
@@ -116,6 +119,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 return Err("La exportación de vuelo admite hasta 600 segundos".into());
             }
             let mut flight = flight::Flight::new();
+            if near_black_hole {
+                flight.position =
+                    black_hole::BLACK_HOLE.position + nalgebra_glm::Vec3::new(0.0, 0.0, 250.0);
+            }
             flight.move_with_mouse(Some(mouse_target));
             for frame in 0..(seconds * 60.0).ceil() as u32 {
                 let dt = (seconds - frame as f32 / 60.0).min(1.0 / 60.0);

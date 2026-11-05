@@ -1,115 +1,141 @@
-//! High-resolution distant scenery, in world coordinates rather than screen overlays.
-//! Plates preserve photographic filaments; lensing is baked into the source art.
+//! Ray intersections with a world-space horizon and an inclined accretion disk.
 use crate::{
+    black_hole::{BLACK_HOLE, BlackHole},
     flight::Flight,
     framebuffer::Framebuffer,
     renderer::{FLIGHT_FOCAL, FlightView},
-    texture::Texture,
 };
-use nalgebra_glm::{Vec2, Vec3};
-use std::{
-    error::Error,
-    sync::{Arc, OnceLock},
-};
-
-static TEXTURE: OnceLock<Result<Arc<Texture>, String>> = OnceLock::new();
-
-struct Landmark {
-    position: Vec3,
-    width: f32,
-}
+use nalgebra_glm::Vec3;
+use std::error::Error;
 
 pub struct DeepSpace {
-    texture: Arc<Texture>,
-    object: Landmark,
+    hole: BlackHole,
 }
 
-fn smooth(value: f32) -> f32 {
-    let t = value.clamp(0.0, 1.0);
-    t * t * (3.0 - 2.0 * t)
-}
-
-fn edge_fade(u: f32, v: f32) -> f32 {
-    let edge = u.min(1.0 - u).min(v.min(1.0 - v));
-    let radius = ((u - 0.5).powi(2) + (v - 0.5).powi(2)).sqrt() * 2.0;
-    smooth(edge / 0.12) * smooth((1.10 - radius) / 0.32)
-}
-
-/// Coordinates use image rows, with y increasing downward.
-fn shadow(u: f32, v: f32) -> f32 {
-    let ellipse = |x: f32, y: f32, rx: f32, ry: f32| {
-        let radius = (((u - x) / rx).powi(2) + ((v - y) / ry).powi(2)).sqrt();
-        smooth((1.03 - radius) / 0.06)
-    };
-    ellipse(0.670, 0.530, 0.153, 0.237).max(ellipse(0.118, 0.668, 0.017, 0.030))
+fn sphere_hit(origin: Vec3, direction: Vec3, center: Vec3, radius: f32) -> Option<f32> {
+    let relative = origin - center;
+    let b = relative.dot(&direction);
+    let discriminant = b * b - relative.norm_squared() + radius * radius;
+    if discriminant < 0.0 {
+        return None;
+    }
+    let root = discriminant.sqrt();
+    let near = -b - root;
+    let far = -b + root;
+    if near > 0.25 {
+        Some(near)
+    } else if far > 0.25 {
+        Some(far)
+    } else {
+        None
+    }
 }
 
 impl DeepSpace {
-    pub fn load() -> Result<Self, Box<dyn Error>> {
-        let texture = TEXTURE
-            .get_or_init(|| {
-                Texture::load("assets/deep-space/textures/accretion.png")
-                    .map_err(|e| format!("Agujero negro: {e}"))
-                    .map(Arc::new)
-            })
-            .as_ref()
-            .map(Arc::clone)
-            .map_err(Clone::clone)?;
-        Ok(Self {
-            texture,
-            object: Landmark {
-                position: Vec3::new(12420.0, 2610.0, -20560.0),
-                width: 11200.0,
-            },
-        })
+    pub fn new() -> Self {
+        Self { hole: BLACK_HOLE }
     }
 
     pub fn draw(&self, fb: &mut Framebuffer, flight: &Flight) {
         let view = FlightView::new(flight, fb.width, fb.height);
-        self.draw_object(fb, &view);
-    }
-
-    fn draw_object(&self, fb: &mut Framebuffer, view: &FlightView) {
-        let object = &self.object;
-        let Some(center) = view.project(object.position) else {
+        if !view.sphere_visible(self.hole.position, self.hole.disk_radius) {
             return;
+        }
+        let eye = flight.camera_position();
+        let (right, up, forward) = flight.camera.basis();
+        let relative = self.hole.position - eye;
+        let depth = relative.dot(&forward);
+        let bounds = if depth > self.hole.disk_radius * 1.5 {
+            let center = view.project(self.hole.position).unwrap();
+            // Conservative bound accounts for the near side of the tilted disk.
+            let size = self.hole.disk_radius * FLIGHT_FOCAL / (depth - self.hole.disk_radius);
+            (
+                (center.x - size).max(0.0).min(fb.width as f32) as usize,
+                (center.y - size).max(0.0).min(fb.height as f32) as usize,
+                (center.x + size).ceil().max(0.0).min(fb.width as f32) as usize,
+                (center.y + size).ceil().max(0.0).min(fb.height as f32) as usize,
+            )
+        } else {
+            (0, 0, fb.width, fb.height)
         };
-        let width = object.width * FLIGHT_FOCAL * center.z;
-        let height = width / self.texture.aspect_ratio();
-        let (left, top) = (center.x - width * 0.5, center.y - height * 0.5);
-        let x0 = left.max(0.0).min(fb.width as f32) as usize;
-        let y0 = top.max(0.0).min(fb.height as f32) as usize;
-        let x1 = (left + width).ceil().max(0.0).min(fb.width as f32) as usize;
-        let y1 = (top + height).ceil().max(0.0).min(fb.height as f32) as usize;
-        for y in y0..y1 {
-            let v = (y as f32 + 0.5 - top) / height;
-            for x in x0..x1 {
-                let u = (x as f32 + 0.5 - left) / width;
-                let fade = edge_fade(u, v);
-                if fade <= 0.0 {
-                    continue;
+        let normal = Vec3::new(0.025, 0.997, 0.072).normalize();
+        let disk_axis = normal.cross(&Vec3::z()).normalize();
+        let disk_up = normal.cross(&disk_axis);
+        let plane_distance = relative.dot(&normal);
+        for y in bounds.1..bounds.3 {
+            for x in bounds.0..bounds.2 {
+                let direction = (forward
+                    + right * ((x as f32 + 0.5 - fb.width as f32 * 0.5) / FLIGHT_FOCAL)
+                    + up * ((fb.height as f32 * 0.5 - y as f32 - 0.5) / FLIGHT_FOCAL))
+                    .normalize();
+                let cosine = direction.dot(&forward);
+                let horizon = sphere_hit(eye, direction, self.hole.position, self.hole.horizon);
+                if let Some(t) = horizon {
+                    fb.point(x as i32, y as i32, 1.0 / (t * cosine), 0x010102, true);
                 }
-                let color = self.texture.sample(Vec2::new(u, 1.0 - v)).to_hex();
-                fb.emission_depth((x, y), center.z, color, fade, shadow(u, v) * fade);
+                let denominator = direction.dot(&normal);
+                if denominator.abs() > 0.0001 {
+                    let t = plane_distance / denominator;
+                    if t > 0.25 && horizon.is_none_or(|hit| t < hit) {
+                        let point = eye + direction * t - self.hole.position;
+                        let r = point.norm();
+                        let inner = self.hole.horizon * 1.35;
+                        if r > inner && r < self.hole.disk_radius {
+                            let radial = (r - inner) / (self.hole.disk_radius - inner);
+                            let angle = point.dot(&disk_up).atan2(point.dot(&disk_axis));
+                            let flow = angle * 13.0
+                                + radial * 140.0
+                                + (angle * 5.0 + radial * 28.0).sin() * 4.0
+                                - flight.seconds * 1.8;
+                            let filaments = 0.55
+                                + 0.18 * flow.sin()
+                                + 0.14 * (radial * 390.0 + angle * 7.0 + flow.sin() * 2.0).sin()
+                                + 0.13 * (angle * 31.0 + radial * 52.0).sin();
+                            let edge = ((1.0 - radial) * 6.0).clamp(0.0, 1.0)
+                                * (radial * 30.0).clamp(0.0, 1.0);
+                            let hot = (1.0 - radial).powf(1.6);
+                            let brightness = edge * filaments * (0.40 + hot * 0.60);
+                            let r = (255.0 * brightness * 2.0).min(255.0).round() as u32;
+                            let g =
+                                ((35.0 + hot * 220.0) * brightness * 1.7).min(255.0).round() as u32;
+                            let b = ((4.0 + hot.powi(4) * 230.0) * brightness * 1.6)
+                                .min(255.0)
+                                .round() as u32;
+                            let color = r << 16 | g << 8 | b;
+                            fb.point(x as i32, y as i32, 1.0 / (t * cosine), color, true);
+                        }
+                    }
+                }
+                // Stylized photon ring follows the sphere silhouette from every angle.
+                let along = relative.dot(&direction);
+                if along > 0.25 {
+                    let impact = (relative - direction * along).norm() / self.hole.horizon;
+                    if (1.0..1.55).contains(&impact) {
+                        let ring = (-((impact - 1.075) / 0.024).powi(2)).exp();
+                        let halo = (-((impact - 1.11) / 0.22).powi(2)).exp() * 0.24;
+                        fb.emission_depth(
+                            (x, y),
+                            1.0 / (along * cosine),
+                            0xffba69,
+                            (ring + halo).min(1.0),
+                            0.0,
+                        );
+                    }
+                }
             }
         }
     }
 
-    /// A close view uses the same world projection and compositor as gameplay.
     pub fn preview(&self, fb: &mut Framebuffer, id: &str) -> Result<(), Box<dyn Error>> {
         if id != "accretion" {
-            return Err(format!("Escenario desconocido: {id}. Opcion: accretion").into());
+            return Err(format!("Objeto desconocido: {id}. Opción: accretion").into());
         }
-        let object = &self.object;
-        let distance = (object.width * FLIGHT_FOCAL / (fb.width as f32 * 0.90)).max(
-            object.width / self.texture.aspect_ratio() * FLIGHT_FOCAL / (fb.height as f32 * 0.90),
-        );
         let mut flight = Flight::new();
+        flight.position = self.hole.position + Vec3::new(0.0, 30.0, 430.0);
         flight.camera.pitch = 0.0;
-        flight.position = object.position + Vec3::new(0.0, -1.6, distance - 8.0);
         fb.clear();
-        fb.pixels.fill(0x010207);
-        self.draw_object(fb, &FlightView::new(&flight, fb.width, fb.height));
+        fb.pixels.fill(0x03060c);
+        self.draw(fb, &flight);
         Ok(())
     }
 }
@@ -119,48 +145,41 @@ mod tests {
     use super::*;
 
     #[test]
-    fn photographic_boundaries_fade_and_black_hole_centers_stay_opaque() {
-        for (u, v) in [(0.0, 0.5), (1.0, 0.5), (0.5, 0.0), (0.5, 1.0)] {
-            assert_eq!(edge_fade(u, v), 0.0);
+    fn horizon_is_a_volume_and_all_orbit_views_remain_finite() {
+        let hole = DeepSpace::new();
+        assert_eq!(
+            sphere_hit(Vec3::new(0.0, 0.0, 100.0), -Vec3::z(), Vec3::zeros(), 44.0),
+            Some(56.0)
+        );
+        assert_eq!(
+            sphere_hit(Vec3::zeros(), Vec3::z(), Vec3::zeros(), 44.0),
+            Some(44.0)
+        );
+        for angle in [0.0_f32, 1.0, 2.5, 4.5] {
+            let mut flight = Flight::new();
+            let offset = Vec3::new(angle.sin(), 0.2, angle.cos()) * 250.0;
+            flight.position = BLACK_HOLE.position + offset;
+            let direction = -offset.normalize();
+            flight.camera.yaw = (-direction.z).atan2(-direction.x);
+            flight.camera.pitch = (-direction.y).asin();
+            let mut fb = Framebuffer::new(320, 240);
+            hole.draw(&mut fb, &flight);
+            assert!(fb.pixels.contains(&0x010102));
+            assert!(fb.pixels.iter().any(|c| (c >> 16) > 80));
         }
-        assert_eq!(edge_fade(0.5, 0.5), 1.0);
-        assert_eq!(shadow(0.670, 0.530), 1.0);
-        assert_eq!(shadow(0.118, 0.668), 1.0);
-        assert_eq!(shadow(0.5, 0.1), 0.0);
     }
 
     #[test]
-    fn landmarks_are_distant_world_objects_visible_at_launch_and_behind_foreground() {
-        let space = DeepSpace::load().unwrap();
-        let flight = Flight::new();
-        let view = FlightView::new(&flight, 1280, 840);
-        {
-            let object = &space.object;
-            assert!(object.position.norm() > 15000.0);
-            let center = view.project(object.position).unwrap();
-            assert!((0.0..1280.0).contains(&center.x));
-            assert!((0.0..840.0).contains(&center.y));
-            assert!(center.z < 0.0001);
-            let mut moved = Flight::new();
-            moved.position.x = 3000.0;
-            let shifted = FlightView::new(&moved, 1280, 840)
-                .project(object.position)
-                .unwrap();
-            assert!((shifted.x - center.x).abs() > 50.0);
-        }
-        let mut fb = Framebuffer::new(1280, 840);
+    fn foreground_geometry_hides_the_horizon_and_disk() {
+        let mut fb = Framebuffer::new(320, 240);
         for y in 0..fb.height {
             for x in 0..fb.width {
-                fb.point(x as i32, y as i32, 0.5, 0x123456, true);
+                fb.point(x as i32, y as i32, 1.0, 0x123456, true);
             }
         }
-        space.draw(&mut fb, &flight);
-        assert!(fb.pixels.iter().all(|pixel| *pixel == 0x123456));
-        let mut away = Flight::new();
-        away.camera.yaw += std::f32::consts::PI;
-        fb.clear();
-        let baseline = fb.pixels.clone();
-        space.draw(&mut fb, &away);
-        assert_eq!(fb.pixels, baseline);
+        let mut flight = Flight::new();
+        flight.position = BLACK_HOLE.position + Vec3::new(0.0, 0.0, 200.0);
+        DeepSpace::new().draw(&mut fb, &flight);
+        assert!(fb.pixels.iter().all(|c| *c == 0x123456));
     }
 }

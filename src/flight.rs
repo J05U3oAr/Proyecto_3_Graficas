@@ -10,6 +10,9 @@ pub struct Flight {
     pub heading: Camera,
     pub bank: f32,
     pub seconds: f32,
+    gravity_velocity: Vec3,
+    captured_for: Option<f32>,
+    pub respawn_notice: f32,
     steering: (f32, f32),
     mouse_target: (f32, f32),
 }
@@ -31,6 +34,9 @@ impl Flight {
             heading,
             bank: 0.0,
             seconds: 0.0,
+            gravity_velocity: Vec3::zeros(),
+            captured_for: None,
+            respawn_notice: 0.0,
             steering: (0.0, 0.0),
             mouse_target: (0.0, 0.0),
         }
@@ -53,6 +59,15 @@ impl Flight {
         self.steering = (0.0, 0.0);
     }
 
+    pub fn capture_progress(&self) -> f32 {
+        self.captured_for
+            .map_or(0.0, |time| (time / 1.4).clamp(0.0, 1.0))
+    }
+
+    pub fn is_captured(&self) -> bool {
+        self.captured_for.is_some()
+    }
+
     pub fn camera_position(&self) -> Vec3 {
         let (_, up, forward) = self.camera.basis();
         self.position - forward * 8.0 + up * 1.6
@@ -72,6 +87,17 @@ impl Flight {
         // Small physics steps keep steering and camera response consistent at low FPS.
         let dt = dt.min(0.1);
         self.seconds += dt;
+        self.respawn_notice = (self.respawn_notice - dt).max(0.0);
+        if let Some(time) = self.captured_for.as_mut() {
+            *time += dt;
+            if *time >= 1.4 {
+                let seconds = self.seconds;
+                *self = Self::new();
+                self.seconds = seconds;
+                self.respawn_notice = 3.5;
+            }
+            return;
+        }
         let steps = (dt * 120.0).ceil() as usize;
         let dt = dt / steps as f32;
         for _ in 0..steps {
@@ -98,8 +124,27 @@ impl Flight {
             } else {
                 3.0
             };
-            self.velocity += (target_velocity - self.velocity) * (1.0 - (-acceleration * dt).exp());
-            self.position += self.velocity * dt;
+            // Thrusters damp their own motion; releasing WASD does not erase gravity.
+            let mut controlled = self.velocity - self.gravity_velocity;
+            controlled += (target_velocity - controlled) * (1.0 - (-acceleration * dt).exp());
+            self.gravity_velocity += crate::black_hole::BLACK_HOLE.acceleration(self.position) * dt;
+            // Brakes can help in the outer field but cannot cancel the attraction.
+            if brake {
+                self.gravity_velocity *= (-0.25 * dt).exp();
+            }
+            let drift_speed = self.gravity_velocity.norm();
+            if drift_speed > 320.0 {
+                self.gravity_velocity *= 320.0 / drift_speed;
+            }
+            self.velocity = controlled + self.gravity_velocity;
+            let next = self.position + self.velocity * dt;
+            if crate::black_hole::BLACK_HOLE.captures(self.position, next) {
+                self.captured_for = Some(0.0);
+                self.velocity = Vec3::zeros();
+                self.gravity_velocity = Vec3::zeros();
+                break;
+            }
+            self.position = next;
 
             let follow = 1.0 - (-7.0 * dt).exp();
             let yaw_error = (self.heading.yaw - self.camera.yaw + PI).rem_euclid(TAU) - PI;
@@ -112,6 +157,55 @@ impl Flight {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gravity_pulls_an_idle_ship_and_remains_consistent_between_frame_rates() {
+        let simulate = |fps: usize| {
+            let mut flight = Flight::new();
+            flight.position = crate::black_hole::BLACK_HOLE.position + Vec3::z() * 200.0;
+            for _ in 0..fps * 2 {
+                flight.advance(1.0 / fps as f32, (0.0, 0.0), false, false);
+            }
+            flight
+        };
+        let flight = simulate(60);
+        assert!(flight.velocity.z < -5.0);
+        assert!((flight.position - crate::black_hole::BLACK_HOLE.position).norm() < 195.0);
+        assert!((flight.position - simulate(30).position).norm() < 0.05);
+    }
+
+    #[test]
+    fn boost_can_escape_the_outer_field() {
+        let mut flight = Flight::new();
+        flight.position = crate::black_hole::BLACK_HOLE.position + Vec3::z() * 250.0;
+        flight.heading.yaw = 3.0 * FRAC_PI_2;
+        flight.camera = flight.heading;
+        for _ in 0..360 {
+            flight.advance(1.0 / 60.0, (1.0, 0.0), true, false);
+        }
+        assert!(!flight.is_captured());
+        assert!((flight.position - crate::black_hole::BLACK_HOLE.position).norm() > 500.0);
+    }
+
+    #[test]
+    fn capture_respawns_without_invalid_coordinates_or_residual_gravity() {
+        let mut flight = Flight::new();
+        flight.position = crate::black_hole::BLACK_HOLE.position + Vec3::z() * 75.0;
+        let mut captured = false;
+        for _ in 0..600 {
+            flight.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+            captured |= flight.is_captured();
+            assert!(flight.position.iter().all(|v| v.is_finite()));
+            if flight.respawn_notice > 0.0 {
+                break;
+            }
+        }
+        assert!(captured && flight.respawn_notice > 0.0);
+        assert_eq!(flight.position, Vec3::zeros());
+        assert_eq!(flight.velocity, Vec3::zeros());
+        assert_eq!(flight.gravity_velocity, Vec3::zeros());
+        assert!(!flight.is_captured());
+    }
 
     #[test]
     fn ship_waits_for_movement_keys_even_when_the_mouse_turns() {

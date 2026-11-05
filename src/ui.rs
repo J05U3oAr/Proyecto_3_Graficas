@@ -228,7 +228,7 @@ impl Ui {
             background: background.pixels,
             stars,
             space: crate::space::Space::load()?,
-            deep_space: crate::deep_space::DeepSpace::load()?,
+            deep_space: crate::deep_space::DeepSpace::new(),
         })
     }
 
@@ -525,12 +525,35 @@ impl Ui {
             }
         }
 
-        self.deep_space.draw(fb, flight);
         self.space.draw(fb, flight, seconds);
         renderer::draw_flight_model(fb, &ship.model, flight, ship.finish);
+        self.deep_space.draw(fb, flight);
         self.space.draw_atmospheres(fb, flight, seconds);
 
+        if flight.is_captured() {
+            let fade = 0.35 + flight.capture_progress() * 0.65;
+            for pixel in &mut fb.pixels {
+                *pixel = mix(*pixel, 0x000000, fade);
+            }
+        }
+
         let view = renderer::FlightView::new(flight, WIDTH, HEIGHT);
+        let hole = crate::black_hole::BLACK_HOLE;
+        let distance = (flight.position - hole.position).norm();
+        if let Some(point) = view.project(hole.position) {
+            let y = point.y + hole.horizon * renderer::FLIGHT_FOCAL * point.z + 22.0;
+            let label = format!("Agujero negro  {:.0} u", distance);
+            if (180.0..WIDTH as f32 - 180.0).contains(&point.x) && (145.0..650.0).contains(&y) {
+                self.fonts.text(
+                    fb,
+                    14,
+                    (point.x - self.fonts.width(14, &label) * 0.5) as i32,
+                    y as i32,
+                    &label,
+                    0xffba69,
+                );
+            }
+        }
         for planet in &self.space.planets {
             if let Some(point) = view.project(planet.transform.position) {
                 let atmosphere = if planet.dust.is_some() { 1.22 } else { 1.0 };
@@ -595,6 +618,23 @@ impl Ui {
             0x7892a8,
         );
 
+        let warning = if flight.is_captured() {
+            Some(("NAVE ABSORBIDA", "Regresando al punto de partida..."))
+        } else if flight.respawn_notice > 0.0 {
+            Some(("NAVE RECUPERADA", "Has regresado al punto de partida."))
+        } else if hole.strength(flight.position) > 0.001 {
+            Some((
+                "ATRACCION GRAVITACIONAL",
+                "Alejate con WASD + SHIFT para intentar escapar.",
+            ))
+        } else {
+            None
+        };
+        if let Some((title, detail)) = warning {
+            rounded(fb, Rect::new(385, 680, 510, 66), 12, 0x241a16, 0xbe703c);
+            self.fonts.text(fb, 16, 405, 690, title, 0xffba69);
+            self.fonts.text(fb, 14, 405, 718, detail, TEXT);
+        }
         rounded(fb, Rect::new(34, 770, 1212, 43), 10, 0x101d2c, 0x304154);
         self.fonts.text(
             fb,
