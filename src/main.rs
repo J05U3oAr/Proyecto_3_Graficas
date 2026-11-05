@@ -135,9 +135,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                 Screen::Menu => break,
                 Screen::Flight => screen = Screen::Menu,
                 Screen::Inspector => {
-                    flight.camera.yaw = ships[selected].camera.yaw;
-                    flight.camera.pitch = ships[selected].camera.pitch;
-                    flight.camera.zoom = 1.08;
                     flight.reset_mouse_anchor();
                     screen = Screen::Flight;
                 }
@@ -195,14 +192,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                 *value += (target - *value) * (1.0 - (-dt * 12.0).exp());
             }
             if window.is_key_pressed(Key::Enter, KeyRepeat::No) || (clicked && hover_button) {
-                flight = flight::Flight::new(ui::preview_camera(selected, clock.seconds));
+                flight = flight::Flight::new(ui::preview_camera(selected, 0.0));
                 screen = Screen::Flight;
             }
         } else if screen == Screen::Inspector {
             if clicked && hover_back {
-                flight.camera.yaw = ships[selected].camera.yaw;
-                flight.camera.pitch = ships[selected].camera.pitch;
-                flight.camera.zoom = 1.08;
                 flight.reset_mouse_anchor();
                 screen = Screen::Flight;
             }
@@ -221,11 +215,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                 mode = mode.next();
             }
         } else {
-            flight.look_with_mouse(mouse);
+            flight.move_with_mouse(mouse);
             let thrust = (
                 i32::from(window.is_key_down(Key::W)) - i32::from(window.is_key_down(Key::S)),
-                i32::from(window.is_key_down(Key::D)) - i32::from(window.is_key_down(Key::A)),
-                i32::from(window.is_key_down(Key::R)) - i32::from(window.is_key_down(Key::F)),
+                0,
+                0,
             );
             flight.advance(
                 dt,

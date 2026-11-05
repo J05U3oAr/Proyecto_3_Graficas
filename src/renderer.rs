@@ -34,7 +34,7 @@ pub struct Viewport {
     pub height: usize,
 }
 
-/// Shared CPU pipeline for the three previews and the inspection view.
+/// Shared CPU pipeline for the three previews, inspection, and flight view.
 pub fn draw_model(
     framebuffer: &mut Framebuffer,
     model: &Model,
@@ -42,6 +42,26 @@ pub fn draw_model(
     mode: RenderMode,
     viewport: Viewport,
     fallback_color: Option<Color>,
+) {
+    draw_model_offset(
+        framebuffer,
+        model,
+        camera,
+        mode,
+        viewport,
+        fallback_color,
+        (0.0, 0.0),
+    );
+}
+
+pub fn draw_model_offset(
+    framebuffer: &mut Framebuffer,
+    model: &Model,
+    camera: &Camera,
+    mode: RenderMode,
+    viewport: Viewport,
+    fallback_color: Option<Color>,
+    screen_offset: (f32, f32),
 ) {
     framebuffer.set_clip(viewport.x, viewport.y, viewport.width, viewport.height);
     let (right, up, forward) = camera.basis();
@@ -64,8 +84,8 @@ pub fn draw_model(
         .iter()
         .map(|v| {
             Vec3::new(
-                viewport.x as f32 + viewport.width as f32 * 0.5 + v.x * scale,
-                viewport.y as f32 + viewport.height as f32 * 0.5 - v.y * scale,
+                viewport.x as f32 + viewport.width as f32 * 0.5 + v.x * scale + screen_offset.0,
+                viewport.y as f32 + viewport.height as f32 * 0.5 - v.y * scale + screen_offset.1,
                 v.z,
             )
         })

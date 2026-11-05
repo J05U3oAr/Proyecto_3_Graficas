@@ -475,17 +475,10 @@ impl Ui {
         }
 
         let (right, up, forward) = flight.camera.basis();
-        let half_extent = 280.0;
         let focal = 660.0;
         let speed = flight.velocity.norm();
         for star in &self.stars {
-            let wrap =
-                |delta: f32| (delta + half_extent).rem_euclid(half_extent * 2.0) - half_extent;
-            let relative = Vec3::new(
-                wrap(star.position.x - flight.position.x),
-                wrap(star.position.y - flight.position.y),
-                wrap(star.position.z - flight.position.z),
-            );
+            let relative = star.position;
             let depth = relative.dot(&forward);
             if !(3.0..280.0).contains(&depth) {
                 continue;
@@ -512,18 +505,21 @@ impl Ui {
             }
         }
 
-        renderer::draw_model(
+        let mut flight_camera = flight.camera;
+        flight_camera.zoom = 0.81;
+        renderer::draw_model_offset(
             fb,
             &ship.model,
-            &flight.camera,
+            &flight_camera,
             RenderMode::Solid,
             Viewport {
-                x: 250,
-                y: 105,
-                width: 780,
-                height: 630,
+                x: 0,
+                y: 0,
+                width: WIDTH,
+                height: HEIGHT,
             },
             ship.finish,
+            flight.screen_offset,
         );
 
         rounded(fb, Rect::new(34, 25, 285, 66), 12, 0x101d2c, 0x304154);
@@ -582,7 +578,7 @@ impl Ui {
             14,
             52,
             784,
-            "Mouse Mirar  ·  W/S Impulso  ·  A/D Lateral  ·  R/F Vertical  ·  SHIFT Turbo  ·  ESPACIO Frenar  ·  I Vista  ·  ESC Hangar",
+            "Mouse Mover  ·  W/S Impulso  ·  SHIFT Turbo  ·  ESPACIO Frenar  ·  I Vista  ·  ESC Hangar",
             MUTED,
         );
     }

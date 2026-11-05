@@ -33,17 +33,15 @@ La animación usa tiempo transcurrido y se pausa cuando la ventana pierde el foc
 
 | Tecla | Acción |
 | --- | --- |
-| `W` / `S` | Avanzar / retroceder |
-| `A` / `D` | Desplazarse a los lados |
-| `R` / `F` | Subir / bajar |
-| Mouse | Mirar alrededor; la cámara acompaña la nave a distancia fija |
+| Mouse | Mover la nave por la pantalla; su orientación queda fija |
+| `W` / `S` | Impulsarla hacia delante / atrás |
 | `Shift` | Aumentar el impulso y la velocidad máxima |
 | `Espacio` | Frenar |
 | `1`, `2`, `3` | Cambiar de nave |
 | `I` | Inspeccionar la nave actual |
 | `Esc` | Volver al hangar |
 
-El campo estelar envuelve sus coordenadas para permitir volar continuamente. La velocidad añade estelas a las estrellas; el HUD muestra velocidad y posición.
+La cámara mantiene una orientación fija durante el vuelo. El movimiento horizontal y vertical del mouse desplaza la nave por la pantalla; el HUD muestra su posición y velocidad.
 
 ## Controles de inspección
 
