@@ -135,7 +135,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 Screen::Menu => break,
                 Screen::Flight => screen = Screen::Menu,
                 Screen::Inspector => {
-                    flight.camera = ships[selected].camera;
+                    flight.camera.yaw = ships[selected].camera.yaw;
+                    flight.camera.pitch = ships[selected].camera.pitch;
+                    flight.camera.zoom = 1.08;
+                    flight.reset_mouse_anchor();
                     screen = Screen::Flight;
                 }
             }
@@ -197,7 +200,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         } else if screen == Screen::Inspector {
             if clicked && hover_back {
-                flight.camera = ships[selected].camera;
+                flight.camera.yaw = ships[selected].camera.yaw;
+                flight.camera.pitch = ships[selected].camera.pitch;
+                flight.camera.zoom = 1.08;
+                flight.reset_mouse_anchor();
                 screen = Screen::Flight;
             }
             let camera = &mut ships[selected].camera;
@@ -215,11 +221,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 mode = mode.next();
             }
         } else {
-            let turn = (
-                i32::from(window.is_key_down(Key::Right))
-                    - i32::from(window.is_key_down(Key::Left)),
-                i32::from(window.is_key_down(Key::Up)) - i32::from(window.is_key_down(Key::Down)),
-            );
+            flight.look_with_mouse(mouse);
             let thrust = (
                 i32::from(window.is_key_down(Key::W)) - i32::from(window.is_key_down(Key::S)),
                 i32::from(window.is_key_down(Key::D)) - i32::from(window.is_key_down(Key::A)),
@@ -227,7 +229,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             );
             flight.advance(
                 dt,
-                (turn.0 as f32, turn.1 as f32),
                 (thrust.0 as f32, thrust.1 as f32, thrust.2 as f32),
                 window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift),
                 window.is_key_down(Key::Space),

@@ -36,7 +36,7 @@ La animación usa tiempo transcurrido y se pausa cuando la ventana pierde el foc
 | `W` / `S` | Avanzar / retroceder |
 | `A` / `D` | Desplazarse a los lados |
 | `R` / `F` | Subir / bajar |
-| Flechas | Orientar la nave |
+| Mouse | Mirar alrededor; la cámara acompaña la nave a distancia fija |
 | `Shift` | Aumentar el impulso y la velocidad máxima |
 | `Espacio` | Frenar |
 | `1`, `2`, `3` | Cambiar de nave |

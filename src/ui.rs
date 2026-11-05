@@ -582,7 +582,7 @@ impl Ui {
             14,
             52,
             784,
-            "W/S Impulso  ·  A/D Lateral  ·  R/F Vertical  ·  Flechas Orientar  ·  SHIFT Turbo  ·  ESPACIO Frenar  ·  I Vista  ·  ESC Hangar",
+            "Mouse Mirar  ·  W/S Impulso  ·  A/D Lateral  ·  R/F Vertical  ·  SHIFT Turbo  ·  ESPACIO Frenar  ·  I Vista  ·  ESC Hangar",
             MUTED,
         );
     }
