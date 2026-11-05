@@ -110,7 +110,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 "--help" => {
                     println!(
-                        "cargo run --release\ncargo run --release -- --render-menu salida.png [--time 4] [--ship 2]\ncargo run --release -- --render-inspector salida.png [--ship 3]\ncargo run --release -- --render-flight salida.png [--ship 1] [--time 2] [--mouse 0.5 -0.3] [--near-black-hole]\ncargo run --release -- --render-landmark salida.png [--target accretion]\ncargo run --release -- --render-planet salida.png [--target boreal] [--time 20]"
+                        "cargo run --release\ncargo run --release -- --render-menu salida.png [--time 4] [--ship 2]\ncargo run --release -- --render-inspector salida.png [--ship 3]\ncargo run --release -- --render-flight salida.png [--ship 1] [--time 2] [--mouse 0.5 -0.3] [--near-black-hole | --near-planet boreal]\ncargo run --release -- --render-landmark salida.png [--target accretion]\ncargo run --release -- --render-planet salida.png [--target boreal] [--time 20]"
                     );
                     return Ok(());
                 }

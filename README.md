@@ -56,6 +56,13 @@ con iluminación y textura UV inspirada en la referencia del usuario. Ocupan pos
 fijas en el espacio: puedes acercarte, rodearlos y observar los túneles de Oquedad.
 Sus modelos originales y escenas editables están en [assets/planets](assets/planets/README.md).
 
+Los cuatro planetas tienen colisión con su superficie real. Los túneles de
+Oquedad siguen abiertos y sus paredes también chocan con la nave. Los roces suaves
+eliminan el movimiento hacia el terreno y permiten deslizarte o retroceder.
+Un impacto fuerte destruye la nave y muestra fuego, fragmentos y humo; después de
+dos segundos reapareces en el origen. Frena con `Espacio` antes de aproximarte.
+[Ver la explosión y sus parámetros](assets/effects/README.md).
+
 Jovara recrea la referencia del polo de Júpiter con su centro azul y ciclones claros.
 Utiliza una textura PNG sobre una esfera 3D, con filtrado bilineal e interpolación
 UV corregida por perspectiva para conservar los detalles al acercarte o rodearlo.
@@ -97,6 +104,7 @@ cargo run --release -- --render-inspector output/lightflash.png --ship 3
 cargo run --release -- --render-flight output/vuelo.png --ship 1
 cargo run --release -- --render-flight output/giro.png --ship 2 --time 2 --mouse 0.65 -0.35
 cargo run --release -- --render-planet output/boreal.png --target boreal
+cargo run --release -- --render-flight output/impacto.png --near-planet boreal --time 1.05
 ```
 
 `--time` indica el instante de la animación en segundos; `--ship` elige una nave de 1 a 3. Para vuelo, `--time` simula hasta 600 segundos manteniendo `W` y `--mouse x y` mantiene una dirección normalizada entre -1 y 1 (centro: `0 0`; derecha y arriba: `0.65 -0.35`). Estas exportaciones usan la misma física y el mismo renderizador que la aplicación interactiva.
@@ -105,10 +113,16 @@ cargo run --release -- --render-planet output/boreal.png --target boreal
 renderizador del vuelo. Admite `--target boreal`, `jovara`, `siroco` u `oquedad`;
 por defecto muestra Boreal. `--time` permite revisar su rotación sin mover la nave.
 
+`--near-planet nombre` inicia la exportación frente al planeta indicado para
+revisar el acercamiento, la colisión y la explosión usando la física del juego.
+Admite los cuatro nombres de planeta y es una alternativa a `--near-black-hole`.
+
 ## Organización
 
 - `src/fleet.rs`: modelos, nombres y acabados de las naves.
 - `src/flight.rs`: posición, velocidad, impulso y controles de vuelo.
+- `src/collision.rs`: colisión continua con las mallas de los planetas y sus túneles.
+- `src/explosion.rs`: fuego, fragmentos y humo del impacto en coordenadas del mundo.
 - `src/space.rs`: carga, posición y rotación de los planetas.
 - `src/dust.rs`: nube animada de arena de Siroco y partículas con transparencia.
 - `src/texture.rs`: carga y muestreo bilineal de mapas de color PNG.

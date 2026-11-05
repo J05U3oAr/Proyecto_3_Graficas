@@ -34,6 +34,10 @@ originales de los cinco cortes para poder regenerarlos.
 
 ## Compatibilidad con el juego
 
+Los cuatro planetas tienen colisión continua con su malla y rotación de vuelo.
+La nave puede atravesar los túneles de Oquedad; sus paredes y bordes sí bloquean
+el paso. Los impactos fuertes activan la [explosión y reaparición](../effects/README.md).
+
 Las exportaciones usan triángulos y materiales de color difuso `Kd`. Jovara añade
 coordenadas UV y un mapa PNG mediante `map_Kd`; su material `illum 0` conserva la
 iluminación que ya contiene la fotografía. El eje vertical se convierte de Z en Blender a Y en el juego. Los
