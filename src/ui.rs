@@ -474,6 +474,15 @@ impl Ui {
         self.deep_space.preview(fb, id)
     }
 
+    pub fn planet_preview(
+        &self,
+        fb: &mut Framebuffer,
+        name: &str,
+        seconds: f32,
+    ) -> Result<(), Box<dyn Error>> {
+        self.space.preview(fb, name, seconds)
+    }
+
     pub fn flight(&self, fb: &mut Framebuffer, ship: &Ship, flight: &Flight, seconds: f32) {
         fb.clear();
         for y in 0..HEIGHT {

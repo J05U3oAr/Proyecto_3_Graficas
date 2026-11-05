@@ -58,6 +58,23 @@ impl Space {
                     rotation_speed: 0.006,
                     dust: None,
                 },
+                Planet {
+                    name: "Boreal",
+                    model: {
+                        let mut model = Model::load(assets.join("boreal.obj"))?;
+                        for texture in &mut model.textures {
+                            texture.blend_longitude_seam(0.035);
+                        }
+                        model
+                    },
+                    transform: WorldTransform {
+                        position: Vec3::new(-145.0, -85.0, -235.0),
+                        radius: 42.0,
+                        yaw: 0.35,
+                    },
+                    rotation_speed: 0.012,
+                    dust: None,
+                },
             ],
         })
     }
@@ -69,6 +86,36 @@ impl Space {
             transform.yaw += seconds * planet.rotation_speed;
             renderer::draw_world_model(fb, &planet.model, &view, transform);
         }
+    }
+
+    pub fn preview(
+        &self,
+        fb: &mut Framebuffer,
+        name: &str,
+        seconds: f32,
+    ) -> Result<(), Box<dyn Error>> {
+        let planet = self
+            .planets
+            .iter()
+            .find(|planet| planet.name.eq_ignore_ascii_case(name))
+            .ok_or_else(|| format!("Planeta desconocido: {name}"))?;
+        let mut flight = Flight::new();
+        flight.camera.pitch = 0.0;
+        let target_radius = fb.width.min(fb.height) as f32 * 0.40;
+        let distance = planet.transform.radius
+            * (1.0 + (renderer::FLIGHT_FOCAL / target_radius).powi(2)).sqrt();
+        flight.position = planet.transform.position + Vec3::new(0.0, -1.6, distance - 8.0);
+        let mut transform = planet.transform;
+        transform.yaw += seconds * planet.rotation_speed;
+        fb.clear();
+        fb.pixels.fill(0x03060c);
+        renderer::draw_world_model(
+            fb,
+            &planet.model,
+            &FlightView::new(&flight, fb.width, fb.height),
+            transform,
+        );
+        Ok(())
     }
 
     pub fn draw_atmospheres(&self, fb: &mut Framebuffer, flight: &Flight, seconds: f32) {
@@ -87,6 +134,52 @@ impl Space {
 mod tests {
     use super::*;
     use crate::framebuffer::BACKGROUND;
+
+    #[test]
+    fn boreal_has_a_lit_cloud_map_and_is_visible_below_the_launch_planets() {
+        let space = Space::load().unwrap();
+        let planet = space.planets.iter().find(|p| p.name == "Boreal").unwrap();
+        assert_eq!(planet.model.textures.len(), 1);
+        assert!(
+            planet
+                .model
+                .faces
+                .iter()
+                .all(|face| face.uv.is_some() && !face.unlit)
+        );
+        let flight = Flight::new();
+        let mut fb = Framebuffer::new(1280, 840);
+        let view = FlightView::new(&flight, fb.width, fb.height);
+        let center = view.project(planet.transform.position).unwrap();
+        assert!((180.0..350.0).contains(&center.x));
+        assert!((500.0..630.0).contains(&center.y));
+        renderer::draw_world_model(&mut fb, &planet.model, &view, planet.transform);
+        let cyan = fb
+            .pixels
+            .iter()
+            .filter(|pixel| {
+                let (r, g, b) = ((**pixel >> 16) & 255, (**pixel >> 8) & 255, **pixel & 255);
+                g > r * 2 && b > r * 2 && g > 50
+            })
+            .count();
+        assert!(
+            cyan > 15_000,
+            "The ice planet should retain its turquoise cloud bands"
+        );
+        let before = fb.pixels.clone();
+        fb.clear();
+        let mut rotated = planet.transform;
+        rotated.yaw += 0.7;
+        renderer::draw_world_model(&mut fb, &planet.model, &view, rotated);
+        assert!(
+            fb.pixels
+                .iter()
+                .zip(&before)
+                .filter(|(a, b)| a != b)
+                .count()
+                > 15_000
+        );
+    }
 
     #[test]
     fn jovara_is_visible_above_the_launch_route_with_its_blue_polar_texture() {

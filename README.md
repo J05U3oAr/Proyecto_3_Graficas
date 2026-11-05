@@ -50,7 +50,9 @@ El mouse dirige la nave sin mantener clic. La posición del cursor respecto al c
 La cámara está detrás y ligeramente por encima de la nave, mirando de la cola hacia la proa. Sigue los cambios de dirección con suavidad y la nave inclina las alas al girar. Las tres naves se dibujan en perspectiva y las estrellas se desplazan según la posición y velocidad reales, con estelas al avanzar. El HUD muestra posición y velocidad. El vuelo se pausa mientras inspeccionas la nave o la ventana pierde el foco.
 
 Al despegar, Siroco aparece a la izquierda, Oquedad a la derecha y Jovara arriba,
-entre los dos. Ocupan posiciones
+entre los dos. Boreal, el nuevo gigante helado turquesa, aparece abajo a la izquierda.
+Sus bandas blancas y remolinos azul oscuro giran lentamente sobre una esfera 3D,
+con iluminación y textura UV inspirada en la referencia del usuario. Ocupan posiciones
 fijas en el espacio: puedes acercarte, rodearlos y observar los túneles de Oquedad.
 Sus modelos originales y escenas editables están en [assets/planets](assets/planets/README.md).
 
@@ -94,9 +96,14 @@ cargo run --release -- --render-menu output/hangar.png --time 4 --ship 1
 cargo run --release -- --render-inspector output/lightflash.png --ship 3
 cargo run --release -- --render-flight output/vuelo.png --ship 1
 cargo run --release -- --render-flight output/giro.png --ship 2 --time 2 --mouse 0.65 -0.35
+cargo run --release -- --render-planet output/boreal.png --target boreal
 ```
 
 `--time` indica el instante de la animación en segundos; `--ship` elige una nave de 1 a 3. Para vuelo, `--time` simula hasta 600 segundos manteniendo `W` y `--mouse x y` mantiene una dirección normalizada entre -1 y 1 (centro: `0 0`; derecha y arriba: `0.65 -0.35`). Estas exportaciones usan la misma física y el mismo renderizador que la aplicación interactiva.
+
+`--render-planet` exporta un planeta centrado sobre fondo oscuro, usando el mismo
+renderizador del vuelo. Admite `--target boreal`, `jovara`, `siroco` u `oquedad`;
+por defecto muestra Boreal. `--time` permite revisar su rotación sin mover la nave.
 
 ## Organización
 

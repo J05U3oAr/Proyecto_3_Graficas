@@ -2,9 +2,10 @@
 
 Los archivos `.blend` son editables y contienen todos sus recursos. Siroco y Oquedad
 usan mallas y materiales procedurales. Jovara reproduce la referencia polar con una
-textura fotográfica empaquetada dentro de su escena. Los tres están incorporados
+textura fotográfica empaquetada dentro de su escena. Boreal añade un gigante
+helado con bandas turquesa y blancas. Los cuatro están incorporados
 al modo de vuelo: Siroco aparece a la izquierda al despegar, Oquedad a la derecha
-y Jovara arriba, entre ellos.
+y Jovara arriba, entre ellos. Boreal se ve abajo a la izquierda.
 
 [Vista de los planetas dentro del juego](previews/en-vuelo.png).
 
@@ -13,6 +14,7 @@ y Jovara arriba, entre ellos.
 | **Siroco** | Planeta desértico cubierto por una tormenta global. Gran ciclón, corrientes de arena y dos capas de polvo animadas a distintas velocidades. | `blender/siroco.blend` | `siroco.obj` + `siroco.mtl` |
 | **Oquedad** | Mundo rocoso con cinco túneles conectados. Las aberturas son geometría real; sus bordes son irregulares y las paredes interiores tienen vetas turquesa. | `blender/oquedad.blend` | `oquedad.obj` + `oquedad.mtl` |
 | **Jovara** | Centro azul petróleo, ciclones blancos y nubes beige. Recreación de la referencia de Júpiter mediante textura UV, conservando su detalle. | `blender/jovara.blend` | `jovara.obj` + `jovara.mtl` + `textures/jovara-clouds.png` |
+| **Boreal** | Gigante helado turquesa, bandas blancas, remolinos oscuros y eje inclinado. Textura artística guiada por la referencia del usuario. | `blender/boreal.blend` | `boreal.obj` + `boreal.mtl` + `textures/boreal-clouds.png` |
 
 ## Abrir y editar en Blender
 
@@ -51,7 +53,7 @@ Los OBJ de Siroco y Oquedad tienen menor detalle que las mallas editables para r
 el trabajo del rasterizador CPU. Jovara utiliza una esfera de 16,128 triángulos con
 textura UV para conservar los pequeños ciclones. `mesh_stats.json` registra los recuentos generados.
 
-Se comprobó que los tres OBJ se cargan con `Model::load` y se dibujan con el
+Se comprobó que los cuatro OBJ se cargan con `Model::load` y se dibujan con el
 renderizador Rust actual. Las capturas `previews/siroco-cpu.png` y
 `previews/oquedad-cpu.png` muestran esa versión de colores estáticos. La abertura
 central de Oquedad también deja ver el fondo en ese renderizador.
@@ -68,6 +70,21 @@ el juego. La cara posterior es una continuación artística de la referencia, qu
 solo muestra una vista polar. Créditos y procedencia en [textures/README.md](textures/README.md).
 
 ## Regenerar los modelos
+
+Para recrear Boreal con su textura incluida:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/blender/generate_planets.ps1 -Planet boreal -Overwrite
+```
+
+Su generador es `scripts/blender/create_boreal.py`. La esfera tiene 16,128
+triángulos, UV e iluminación sobre la geometría. La textura está empaquetada
+en el `.blend`, por lo que puedes abrirlo y editarlo sin buscar imágenes externas.
+[Vista en Blender](previews/boreal.png) y [vista del renderizador Rust](previews/boreal-cpu.png).
+
+Boreal ocupa (−145, −85, −235), tiene radio 42 y gira lentamente a 0.012 rad/s.
+Es una recreación artística del planeta de la referencia, no un mapa científico
+de Urano. El atlas y su prompt están documentados en [textures/README.md](textures/README.md).
 
 Generador: `scripts/blender/create_planets.py`. Se ejecuta con el Python incluido
 en Blender. Se usó [Blender 5.2.3 LTS, descargado del sitio oficial](https://www.blender.org/download/).
@@ -103,7 +120,7 @@ powershell -ExecutionPolicy Bypass -File scripts/blender/generate_planets.ps1 -P
 
 También puedes ejecutar `scripts/blender/create_jovara.py` directamente con Blender.
 La opción `-Planet` del script PowerShell permite seleccionar `siroco`, `oquedad`
-o `jovara`; al omitirla, se generan los dos modelos procedurales originales.
+`jovara` o `boreal`; al omitirla, se generan los dos modelos procedurales originales.
 
 Los nombres y parámetros son propuestas iniciales. La colección puede ampliarse
-con los otros siete planetas para completar la primera colección de diez.
+con otros seis planetas para completar la primera colección de diez.

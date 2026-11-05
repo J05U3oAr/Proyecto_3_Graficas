@@ -54,15 +54,17 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut selected = 0usize;
         let mut export_screen = Screen::Menu;
         let mut landmark = false;
-        let mut target = "accretion";
+        let mut planet = false;
+        let mut target = None;
         let mut near_black_hole = false;
         let mut mouse_target = (0.0f32, 0.0f32);
         let mut args = args.iter();
         while let Some(argument) = args.next() {
             match argument.as_str() {
                 "--render-menu" | "--render-inspector" | "--render-flight"
-                | "--render-landmark" => {
+                | "--render-landmark" | "--render-planet" => {
                     landmark = argument == "--render-landmark";
+                    planet = argument == "--render-planet";
                     export_screen = match argument.as_str() {
                         "--render-flight" => Screen::Flight,
                         "--render-inspector" => Screen::Inspector,
@@ -77,7 +79,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
                 "--target" => {
-                    target = args.next().ok_or("Falta el nombre del escenario")?;
+                    target = Some(args.next().ok_or("Falta el nombre del escenario")?.as_str());
                 }
                 "--near-black-hole" => near_black_hole = true,
                 "--ship" => {
@@ -102,7 +104,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 "--help" => {
                     println!(
-                        "cargo run --release\ncargo run --release -- --render-menu salida.png [--time 4] [--ship 2]\ncargo run --release -- --render-inspector salida.png [--ship 3]\ncargo run --release -- --render-flight salida.png [--ship 1] [--time 2] [--mouse 0.5 -0.3] [--near-black-hole]\ncargo run --release -- --render-landmark salida.png [--target accretion]"
+                        "cargo run --release\ncargo run --release -- --render-menu salida.png [--time 4] [--ship 2]\ncargo run --release -- --render-inspector salida.png [--ship 3]\ncargo run --release -- --render-flight salida.png [--ship 1] [--time 2] [--mouse 0.5 -0.3] [--near-black-hole]\ncargo run --release -- --render-landmark salida.png [--target accretion]\ncargo run --release -- --render-planet salida.png [--target boreal] [--time 20]"
                     );
                     return Ok(());
                 }
@@ -110,10 +112,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
         let output = output.ok_or(
-            "Especifica --render-menu, --render-inspector, --render-flight o --render-landmark",
+            "Especifica --render-menu, --render-inspector, --render-flight, --render-landmark o --render-planet",
         )?;
-        if landmark {
-            ui.landmark_preview(&mut framebuffer, target)?;
+        if planet {
+            ui.planet_preview(&mut framebuffer, target.unwrap_or("boreal"), seconds)?;
+        } else if landmark {
+            ui.landmark_preview(&mut framebuffer, target.unwrap_or("accretion"))?;
         } else if export_screen == Screen::Flight {
             if seconds > 600.0 {
                 return Err("La exportación de vuelo admite hasta 600 segundos".into());

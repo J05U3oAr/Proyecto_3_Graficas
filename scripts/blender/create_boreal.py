@@ -73,7 +73,36 @@ def main():
     texture.image.pack()
     texture.image.filepath = '//../textures/boreal-clouds.png'
     texture.interpolation = 'Linear'
-    links.new(texture.outputs['Color'], shader.inputs['Base Color'])
+    # Match the game's narrow, smooth blend across the longitude seam.
+    uv = nodes.new('ShaderNodeTexCoord')
+    separate = nodes.new('ShaderNodeSeparateXYZ')
+    links.new(uv.outputs['UV'], separate.inputs[0])
+    mirror = nodes.new('ShaderNodeMath')
+    mirror.operation = 'SUBTRACT'
+    mirror.inputs[0].default_value = 1.0
+    links.new(separate.outputs['X'], mirror.inputs[1])
+    combine = nodes.new('ShaderNodeCombineXYZ')
+    links.new(mirror.outputs[0], combine.inputs['X'])
+    links.new(separate.outputs['Y'], combine.inputs['Y'])
+    other = nodes.new('ShaderNodeTexImage')
+    other.image = texture.image
+    links.new(combine.outputs[0], other.inputs['Vector'])
+    edge = nodes.new('ShaderNodeMath')
+    edge.operation = 'MINIMUM'
+    links.new(separate.outputs['X'], edge.inputs[0])
+    links.new(mirror.outputs[0], edge.inputs[1])
+    fade = nodes.new('ShaderNodeMapRange')
+    fade.interpolation_type = 'SMOOTHSTEP'
+    fade.inputs['From Min'].default_value = 0.0
+    fade.inputs['From Max'].default_value = 0.035
+    fade.inputs['To Min'].default_value = 0.5
+    fade.inputs['To Max'].default_value = 0.0
+    links.new(edge.outputs[0], fade.inputs['Value'])
+    blend = nodes.new('ShaderNodeMixRGB')
+    links.new(fade.outputs[0], blend.inputs[0])
+    links.new(texture.outputs['Color'], blend.inputs[1])
+    links.new(other.outputs['Color'], blend.inputs[2])
+    links.new(blend.outputs[0], shader.inputs['Base Color'])
     planet.data.materials.append(mat)
     planet['referencia'] = 'Imagen de gigante helado turquesa aportada por el usuario'
     planet['textura'] = 'ImageGen: atlas artistico equirectangular, no mapa cientifico de Urano'

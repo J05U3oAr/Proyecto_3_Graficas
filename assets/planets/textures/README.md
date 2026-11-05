@@ -11,6 +11,8 @@ científico de Urano. El prompt completo se conserva en `boreal-prompt.txt`.
 La textura cubre toda la esfera con UV estándar, sin sombras direccionales
 dibujadas: Blender y el juego iluminan la geometría. Está empaquetada dentro de
 `blender/boreal.blend` y se conserva también aquí para el material OBJ/MTL.
+El material de Blender y el muestreador del juego mezclan una franja UV de 0.035
+en la unión de los extremos del atlas para suavizar la costura al rodear el planeta.
 
 ## Jovara
 
