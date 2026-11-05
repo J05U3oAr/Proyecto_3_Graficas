@@ -1,5 +1,6 @@
 mod camera;
 mod color;
+mod deep_space;
 mod dust;
 mod fleet;
 mod flight;
@@ -51,11 +52,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut seconds = 0.0f32;
         let mut selected = 0usize;
         let mut export_screen = Screen::Menu;
+        let mut landmark = false;
+        let mut target = "helix";
         let mut mouse_target = (0.0f32, 0.0f32);
         let mut args = args.iter();
         while let Some(argument) = args.next() {
             match argument.as_str() {
-                "--render-menu" | "--render-inspector" | "--render-flight" => {
+                "--render-menu" | "--render-inspector" | "--render-flight"
+                | "--render-landmark" => {
+                    landmark = argument == "--render-landmark";
                     export_screen = match argument.as_str() {
                         "--render-flight" => Screen::Flight,
                         "--render-inspector" => Screen::Inspector,
@@ -68,6 +73,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                     if !seconds.is_finite() || seconds < 0.0 {
                         return Err("Tiempo inválido".into());
                     }
+                }
+                "--target" => {
+                    target = args.next().ok_or("Falta el nombre del escenario")?;
                 }
                 "--ship" => {
                     let number: usize = args.next().ok_or("Falta el número de nave")?.parse()?;
@@ -100,7 +108,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         let output =
             output.ok_or("Especifica --render-menu, --render-inspector o --render-flight")?;
-        if export_screen == Screen::Flight {
+        if landmark {
+            ui.landmark_preview(&mut framebuffer, target)?;
+        } else if export_screen == Screen::Flight {
             if seconds > 600.0 {
                 return Err("La exportación de vuelo admite hasta 600 segundos".into());
             }

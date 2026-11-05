@@ -77,6 +77,37 @@ impl Framebuffer {
         self.pixels[index] = channel(16) << 16 | channel(8) << 8 | channel(0);
     }
 
+    /// Emissive scenery adds light; its black-hole shadow can occlude the sky.
+    /// Strength fades the image boundary. Shadow is independent of brightness.
+    pub fn emission_depth(
+        &mut self,
+        point: (usize, usize),
+        depth: f32,
+        color: u32,
+        strength: f32,
+        shadow: f32,
+    ) {
+        let (x, y) = point;
+        let (left, top, right, bottom) = self.clip;
+        if x < left || y < top || x >= right || y >= bottom {
+            return;
+        }
+        let index = y * self.width + x;
+        if depth <= self.depth[index] {
+            return;
+        }
+        let background = self.pixels[index];
+        let channel = |shift: u32| {
+            let from = ((background >> shift) & 255) as f32 * (1.0 - shadow.clamp(0.0, 1.0));
+            let light = ((color >> shift) & 255) as f32 * strength.clamp(0.0, 1.0);
+            (255.0 - (255.0 - from) * (1.0 - light / 255.0)).round() as u32
+        };
+        self.pixels[index] = channel(16) << 16 | channel(8) << 8 | channel(0);
+        if shadow >= 0.999 {
+            self.depth[index] = depth;
+        }
+    }
+
     pub fn save_png(&self, path: &str) -> Result<(), image::ImageError> {
         let mut image = ImageBuffer::<Rgb<u8>, Vec<u8>>::new(self.width as u32, self.height as u32);
         for (index, pixel) in self.pixels.iter().enumerate() {
@@ -93,5 +124,27 @@ impl Framebuffer {
             );
         }
         image.save(path)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn emission_preserves_foreground_and_black_shadows_occlude_background() {
+        let mut fb = Framebuffer::new(3, 1);
+        fb.pixels.fill(0xffffff);
+        fb.point(0, 0, 0.5, 0x223344, true);
+        fb.emission_depth((0, 0), 0.01, 0xffffff, 1.0, 1.0);
+        assert_eq!(fb.pixels[0], 0x223344);
+        fb.emission_depth((1, 0), 0.01, 0, 1.0, 1.0);
+        assert_eq!(fb.pixels[1], 0);
+        fb.point(1, 0, 0.001, 0xffffff, true);
+        assert_eq!(fb.pixels[1], 0);
+        fb.point(1, 0, 0.1, 0xabcdef, true);
+        assert_eq!(fb.pixels[1], 0xabcdef);
+        fb.emission_depth((2, 0), 0.01, 0xffffff, 0.0, 0.0);
+        assert_eq!(fb.pixels[2], 0xffffff);
     }
 }

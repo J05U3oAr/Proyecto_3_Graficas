@@ -154,6 +154,7 @@ pub struct Ui {
     background: Vec<u32>,
     stars: Vec<Star>,
     space: crate::space::Space,
+    deep_space: crate::deep_space::DeepSpace,
 }
 
 struct Star {
@@ -227,6 +228,7 @@ impl Ui {
             background: background.pixels,
             stars,
             space: crate::space::Space::load()?,
+            deep_space: crate::deep_space::DeepSpace::load()?,
         })
     }
 
@@ -468,6 +470,10 @@ impl Ui {
         self.fonts
             .text(fb, 16, 1000, 774, "ESC  Volver al vuelo", MUTED);
     }
+    pub fn landmark_preview(&self, fb: &mut Framebuffer, id: &str) -> Result<(), Box<dyn Error>> {
+        self.deep_space.preview(fb, id)
+    }
+
     pub fn flight(&self, fb: &mut Framebuffer, ship: &Ship, flight: &Flight, seconds: f32) {
         fb.clear();
         for y in 0..HEIGHT {
@@ -519,6 +525,7 @@ impl Ui {
             }
         }
 
+        self.deep_space.draw(fb, flight);
         self.space.draw(fb, flight, seconds);
         renderer::draw_flight_model(fb, &ship.model, flight, ship.finish);
         self.space.draw_atmospheres(fb, flight, seconds);
