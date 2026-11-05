@@ -44,6 +44,11 @@ impl AnimationClock {
     }
 }
 
+fn launch_flight(ui: &ui::Ui, flight: &mut flight::Flight, screen: &mut Screen) {
+    *flight = ui.new_flight();
+    *screen = Screen::Flight;
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let mut ships = fleet::load()?;
     let ui = ui::Ui::new()?;
@@ -260,8 +265,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 *value += (target - *value) * (1.0 - (-dt * 12.0).exp());
             }
             if window.is_key_pressed(Key::Enter, KeyRepeat::No) || (clicked && hover_button) {
-                flight = flight::Flight::new();
-                screen = Screen::Flight;
+                launch_flight(&ui, &mut flight, &mut screen);
             }
         } else if screen == Screen::Inspector {
             if clicked && hover_back {
@@ -361,6 +365,30 @@ fn main() -> Result<(), Box<dyn Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hangar_launch_and_relaunch_keep_planet_collisions_and_impact_explosions() {
+        let ui = ui::Ui::new().unwrap();
+        let mut flight = ui.new_flight();
+        let mut screen = Screen::Menu;
+        for attempt in 0..2 {
+            launch_flight(&ui, &mut flight, &mut screen);
+            assert!(screen == Screen::Flight);
+            ui.approach_planet(&mut flight, "Boreal").unwrap();
+            for _ in 0..180 {
+                flight.advance(1.0 / 60.0, (1.0, 0.0), true, false);
+                if flight.crash.is_some() {
+                    break;
+                }
+            }
+            assert_eq!(
+                flight.crash.as_ref().map(|crash| crash.planet),
+                Some("Boreal"),
+                "Launching from the hangar must preserve collisions on attempt {attempt}"
+            );
+            screen = Screen::Menu;
+        }
+    }
     #[test]
     fn paused_previews_preserve_their_angle_and_resume_without_jumping() {
         let mut clock = AnimationClock::default();
