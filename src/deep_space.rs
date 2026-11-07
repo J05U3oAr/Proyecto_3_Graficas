@@ -37,18 +37,19 @@ impl DeepSpace {
     }
 
     pub fn draw(&self, fb: &mut Framebuffer, flight: &Flight) {
+        let hole = flight.black_hole;
         let view = FlightView::new(flight, fb.width, fb.height);
-        if !view.sphere_visible(self.hole.position, self.hole.disk_radius) {
+        if !view.sphere_visible(hole.position, hole.disk_radius) {
             return;
         }
         let eye = flight.camera_position();
         let (right, up, forward) = flight.camera.basis();
-        let relative = self.hole.position - eye;
+        let relative = hole.position - eye;
         let depth = relative.dot(&forward);
-        let bounds = if depth > self.hole.disk_radius * 1.5 {
-            let center = view.project(self.hole.position).unwrap();
+        let bounds = if depth > hole.disk_radius * 1.5 {
+            let center = view.project(hole.position).unwrap();
             // El limite incluye el borde cercano del disco inclinado.
-            let size = self.hole.disk_radius * FLIGHT_FOCAL / (depth - self.hole.disk_radius);
+            let size = hole.disk_radius * FLIGHT_FOCAL / (depth - hole.disk_radius);
             (
                 (center.x - size).max(0.0).min(fb.width as f32) as usize,
                 (center.y - size).max(0.0).min(fb.height as f32) as usize,
@@ -70,7 +71,7 @@ impl DeepSpace {
                 + up * ((height * 0.5 - y as f32 - 0.5) / FLIGHT_FOCAL))
                 .normalize();
             let cosine = direction.dot(&forward);
-            let horizon = sphere_hit(eye, direction, self.hole.position, self.hole.horizon);
+            let horizon = sphere_hit(eye, direction, hole.position, hole.horizon);
             if let Some(t) = horizon {
                 let z = 1.0 / (t * cosine);
                 if z > *depth_buffer {
@@ -82,11 +83,11 @@ impl DeepSpace {
             if denominator.abs() > 0.0001 {
                 let t = plane_distance / denominator;
                 if t > 0.25 && horizon.is_none_or(|hit| t < hit) {
-                    let point = eye + direction * t - self.hole.position;
+                    let point = eye + direction * t - hole.position;
                     let r = point.norm();
-                    let inner = self.hole.horizon * 1.35;
-                    if r > inner && r < self.hole.disk_radius {
-                        let radial = (r - inner) / (self.hole.disk_radius - inner);
+                    let inner = hole.horizon * 1.35;
+                    if r > inner && r < hole.disk_radius {
+                        let radial = (r - inner) / (hole.disk_radius - inner);
                         let angle = point.dot(&disk_up).atan2(point.dot(&disk_axis));
                         let flow = angle * 13.0
                             + radial * 140.0
@@ -117,7 +118,7 @@ impl DeepSpace {
             // El anillo luminoso sigue la silueta desde cualquier angulo.
             let along = relative.dot(&direction);
             if along > 0.25 {
-                let impact = (relative - direction * along).norm() / self.hole.horizon;
+                let impact = (relative - direction * along).norm() / hole.horizon;
                 if (1.0..1.55).contains(&impact) {
                     let ring = (-((impact - 1.075) / 0.024).powi(2)).exp();
                     let halo = (-((impact - 1.11) / 0.22).powi(2)).exp() * 0.24;

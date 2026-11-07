@@ -19,6 +19,7 @@ pub struct Crash {
 /// Arcade flight with a mouse steering target and a camera following from behind.
 pub struct Flight {
     pub position: Vec3,
+    pub black_hole: crate::black_hole::BlackHole,
     spawn_position: Vec3,
     pub velocity: Vec3,
     pub camera: Camera,
@@ -44,6 +45,7 @@ impl Flight {
         };
         Self {
             position: Vec3::zeros(),
+            black_hole: crate::black_hole::BLACK_HOLE,
             spawn_position: Vec3::zeros(),
             velocity: Vec3::zeros(),
             camera: Camera {
@@ -76,10 +78,12 @@ impl Flight {
     fn respawn(&mut self) {
         let seconds = self.seconds;
         let spawn_position = self.spawn_position;
+        let black_hole = self.black_hole;
         let collisions = self.collisions.take();
         *self = Self::new();
         self.position = spawn_position;
         self.spawn_position = spawn_position;
+        self.black_hole = black_hole;
         self.seconds = seconds;
         self.collisions = collisions;
         self.respawn_notice = 3.5;
@@ -175,7 +179,7 @@ impl Flight {
             // Thrusters damp their own motion; releasing WASD does not erase gravity.
             let mut controlled = self.velocity - self.gravity_velocity;
             controlled += (target_velocity - controlled) * (1.0 - (-acceleration * dt).exp());
-            self.gravity_velocity += crate::black_hole::BLACK_HOLE.acceleration(self.position) * dt;
+            self.gravity_velocity += self.black_hole.acceleration(self.position) * dt;
             // Brakes can help in the outer field but cannot cancel the attraction.
             if brake {
                 self.gravity_velocity *= (-0.25 * dt).exp();
@@ -216,7 +220,7 @@ impl Flight {
                     break;
                 }
             }
-            if crate::black_hole::BLACK_HOLE.captures(self.position, next) {
+            if self.black_hole.captures(self.position, next) {
                 self.captured_for = Some(0.0);
                 self.velocity = Vec3::zeros();
                 self.gravity_velocity = Vec3::zeros();

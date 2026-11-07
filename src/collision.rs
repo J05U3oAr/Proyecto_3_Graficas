@@ -31,6 +31,7 @@ pub struct PlanetCollider {
     name: &'static str,
     transform: WorldTransform,
     rotation_speed: f32,
+    motion: crate::orbit::Motion,
     tree: Node,
 }
 
@@ -262,13 +263,28 @@ impl PlanetCollider {
             name,
             transform,
             rotation_speed,
+            motion: crate::orbit::Motion::default(),
             tree: Node::build(&mut triangles),
         }
     }
 
+    pub fn with_motion(mut self, motion: crate::orbit::Motion) -> Self {
+        self.motion = motion;
+        self
+    }
+
+    fn center(&self, time: f32) -> Vec3 {
+        self.transform.position + self.motion.displacement(time)
+    }
+
+    fn surface_velocity(&self, position: Vec3, time: f32) -> Vec3 {
+        self.motion.velocity(time)
+            + Vec3::y().cross(&(position - self.center(time))) * self.rotation_speed
+    }
+
     fn local(&self, point: Vec3, time: f32) -> Vec3 {
         rotate(
-            point - self.transform.position,
+            point - self.center(time),
             -(self.transform.yaw + self.rotation_speed * time),
         ) / self.transform.radius
     }
@@ -320,8 +336,7 @@ impl CollisionWorld {
                 break;
             };
             position += remaining * hit.time + hit.normal * (hit.penetration + SKIN);
-            let surface_velocity =
-                Vec3::y().cross(&(position - planet.transform.position)) * planet.rotation_speed;
+            let surface_velocity = planet.surface_velocity(position, time + duration * hit.time);
             contacts.push(Contact {
                 normal: hit.normal,
                 surface_velocity,
