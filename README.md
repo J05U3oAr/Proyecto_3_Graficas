@@ -1,6 +1,6 @@
-# Proyecto de gráficas - naves espaciales
+# Beyond the Interstellar
 
-Exploración espacial en Rust con dos menús: un hangar con selección lateral y vista 3D de la nave, seguido de un atlas de galaxias. El destino elegido configura los planetas, sus posiciones, el fondo y la decoración del vuelo.
+Exploración espacial en Rust con un menú principal, un hangar con selección lateral y vista 3D de la nave, y un mapa de galaxias. El destino elegido configura los planetas, sus posiciones, el fondo y la decoración del vuelo.
 
 Los modelos se cargan desde archivos OBJ; el programa transforma y rasteriza los triángulos en un framebuffer propio con búfer de profundidad. `minifb` se usa para la ventana y la entrada, no para dibujar modelos 3D. El menú también se dibuja en la CPU, incluidos textos, tarjetas, estrellas y plataformas luminosas.
 
@@ -14,11 +14,23 @@ cargo run --release
 
 El primer inicio compila las dependencias declaradas en `Cargo.toml`. Rayon reparte la rasterización de planetas, la mezcla del polvo y el cálculo por píxel del agujero negro entre los núcleos disponibles. El pipeline gráfico y la física siguen implementados en el proyecto; Rayon no proporciona modelos, cámaras ni funciones de dibujo.
 
+## Menú principal
+
+La aplicación inicia en **Beyond the Interstellar**, con el título grande sobre la nebulosa y una flecha junto a la opción seleccionada:
+
+- **Seleccionar nave:** abre el hangar.
+- **Elegir destino:** abre directamente el mapa con la nave seleccionada; al iniciar se usa Guardgalaxy.
+- **Controles:** muestra las teclas de navegación, vuelo e inspección.
+- **Instrucciones:** explica cómo preparar la nave, elegir un destino y explorar.
+- **Salir:** cierra el juego.
+
+Usa flechas arriba/abajo, `W/S`, `Tab` o `Shift+Tab` para cambiar de opción y `Enter` para activarla. El ratón también permite seleccionar y hacer clic. En las pantallas de ayuda, `Esc`, `Enter` o el botón de volver regresan al inicio. En la portada, `Esc` selecciona **Salir** y `Enter` confirma.
+
 ## Controles del hangar
 
 Selecciona una nave en la columna izquierda. Su nombre aparece como título principal y la vista central muestra el modelo girando; la ficha derecha contiene datos reales de su geometría y los parámetros compartidos de vuelo. Pulsa **Elegir destino** para continuar al mapa.
 
-Los dos menús usan el fondo procedural adaptado de `referencia.rs`: una nebulosa con ruido fractal, franjas de polvo oscuro y estrellas de semilla fija. Se genera una sola vez y se conserva en memoria; el mapa utiliza una variación violeta de la misma nebulosa. No necesita imágenes externas.
+Los menús usan el fondo procedural adaptado de `referencia.rs`: una nebulosa con ruido fractal, franjas de polvo oscuro y estrellas de semilla fija. Se genera una sola vez y se conserva en memoria; el mapa utiliza una variación violeta de la misma nebulosa. No necesita imágenes externas.
 
 | Tecla | Acción |
 | --- | --- |
@@ -27,13 +39,15 @@ Los dos menús usan el fondo procedural adaptado de `referencia.rs`: una nebulos
 | `Enter` | Continuar al selector de galaxias |
 | `Espacio` o botón de pausa | Pausar / reanudar el giro de la nave principal |
 | `P` | Guardar una captura del menú en `render.png` |
-| `Esc` | Salir |
+| `Esc` o **Menú principal** | Volver al inicio |
 
 La animación usa tiempo transcurrido y se pausa cuando la ventana pierde el foco. Se puede redimensionar la ventana: la interfaz conserva sus proporciones y la selección con ratón se ajusta a su tamaño.
 
 ## Selector de galaxias
 
 La pantalla **Destinos** permite elegir tres regiones explorables. El mapa ocupa toda la ventana y gira lentamente de forma automática. La descripción aparece únicamente al seleccionar un destino mediante clic o teclado; se puede cerrar con la cruz o haciendo clic en el espacio vacío. Las regiones reutilizan los modelos existentes con distintas combinaciones y posiciones; no representan planetas nuevos.
+
+Las galaxias del mapa tienen ilustraciones procedurales diferentes: Aurora es una espiral violeta inclinada; Hélice tiene dos brazos azules y un núcleo dorado con barra; Umbría se observa de canto, con un disco azulado y una franja oscura de polvo. Se tomaron como referencias visuales `galaxia1.png` y `galaxia2.png`; las imágenes no se cargan en el juego. El color se calcula por píxel una sola vez, se almacena en memoria y se dibuja con filtrado bilineal y mezcla de luz. Su movimiento lento continúa durante la selección.
 
 | Destino | Planetas | Decoración |
 | --- | --- | --- |
@@ -127,6 +141,9 @@ El HUD muestra la distancia y avisa de la atracción. Puedes ver
 ## Exportar vistas sin abrir una ventana
 
 ```bash
+cargo run --release -- --render-home output/inicio.png
+cargo run --release -- --render-home output/controles.png --home-section controles
+cargo run --release -- --render-home output/instrucciones.png --home-section instrucciones
 cargo run --release -- --render-menu output/hangar.png --time 4 --ship 1
 cargo run --release -- --render-galaxies output/atlas.png --galaxy 2
 cargo run --release -- --render-galaxies output/detalle.png --galaxy 2 --details --time 8
@@ -169,7 +186,9 @@ Admite los cuatro nombres de planeta y es una alternativa a `--near-black-hole`.
 ## Organización
 
 - `src/fleet.rs`: modelos, nombres y acabados de las naves.
+- `src/home.rs`: título del juego, menú principal, controles e instrucciones.
 - `src/galaxy.rs`: catálogo de destinos, distribuciones y transformación del mapa.
+- `src/galaxy_art.rs`: ilustraciones procedurales de galaxias con núcleos, brazos y polvo.
 - `src/menus.rs`: hangar lateral, vista principal y atlas de galaxias.
 - `src/nebula.rs`: fondo procedural basado en `referencia.rs` y variación de color del mapa.
 - `src/noise.rs`: ruido reproducible y funciones de interpolación de la nebulosa.
