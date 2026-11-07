@@ -8,7 +8,10 @@ mod explosion;
 mod fleet;
 mod flight;
 mod framebuffer;
+mod galaxy;
+mod menus;
 mod model;
+mod raster_batch;
 mod renderer;
 mod space;
 mod texture;
@@ -27,6 +30,7 @@ use ui::{HEIGHT, WIDTH};
 #[derive(Clone, Copy, PartialEq)]
 enum Screen {
     Menu,
+    Galaxy,
     Inspector,
     Flight,
 }
@@ -51,7 +55,7 @@ fn launch_flight(ui: &ui::Ui, flight: &mut flight::Flight, screen: &mut Screen) 
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut ships = fleet::load()?;
-    let ui = ui::Ui::new()?;
+    let mut ui = ui::Ui::new()?;
     let mut framebuffer = Framebuffer::new(WIDTH, HEIGHT);
     // Deterministic exports let us inspect the CPU renderer without a window.
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -59,6 +63,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut output = None;
         let mut seconds = 0.0f32;
         let mut selected = 0usize;
+        let mut benchmark_frames = 0usize;
+        let mut galaxy_index = 0usize;
         let mut export_screen = Screen::Menu;
         let mut landmark = false;
         let mut planet = false;
@@ -69,16 +75,31 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut args = args.iter();
         while let Some(argument) = args.next() {
             match argument.as_str() {
-                "--render-menu" | "--render-inspector" | "--render-flight"
-                | "--render-landmark" | "--render-planet" => {
+                "--benchmark-frames" => {
+                    benchmark_frames =
+                        args.next().ok_or("Falta la cantidad de cuadros")?.parse()?;
+                    if !(1..=10000).contains(&benchmark_frames) {
+                        return Err("La medición admite de 1 a 10000 cuadros".into());
+                    }
+                }
+                "--render-menu" | "--render-galaxies" | "--render-inspector"
+                | "--render-flight" | "--render-landmark" | "--render-planet" => {
                     landmark = argument == "--render-landmark";
                     planet = argument == "--render-planet";
                     export_screen = match argument.as_str() {
                         "--render-flight" => Screen::Flight,
+                        "--render-galaxies" => Screen::Galaxy,
                         "--render-inspector" => Screen::Inspector,
                         _ => Screen::Menu,
                     };
                     output = Some(args.next().ok_or("Falta el archivo PNG de salida")?);
+                }
+                "--galaxy" => {
+                    let number: usize = args.next().ok_or("Falta el numero de galaxia")?.parse()?;
+                    if !(1..=galaxy::GALAXIES.len()).contains(&number) {
+                        return Err("La galaxia debe ser 1, 2 o 3".into());
+                    }
+                    galaxy_index = number - 1;
                 }
                 "--time" => {
                     seconds = args.next().ok_or("Falta el tiempo")?.parse()?;
@@ -115,6 +136,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 "--help" => {
                     println!(
+                        "cargo run --release -- --render-galaxies salida.png [--galaxy 1-3] [--time 2]\nLas exportaciones de vuelo admiten --galaxy 1-3 y --benchmark-frames 120."
+                    );
+                    println!(
                         "cargo run --release\ncargo run --release -- --render-menu salida.png [--time 4] [--ship 2]\ncargo run --release -- --render-inspector salida.png [--ship 3]\ncargo run --release -- --render-flight salida.png [--ship 1] [--time 2] [--mouse 0.5 -0.3] [--near-black-hole | --near-planet boreal]\ncargo run --release -- --render-landmark salida.png [--target accretion]\ncargo run --release -- --render-planet salida.png [--target boreal] [--time 20]"
                     );
                     return Ok(());
@@ -125,6 +149,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         let output = output.ok_or(
             "Especifica --render-menu, --render-inspector, --render-flight, --render-landmark o --render-planet",
         )?;
+        ui.select_galaxy(galaxy_index);
+        if benchmark_frames > 0 && export_screen != Screen::Flight {
+            return Err("La medicion requiere --render-flight".into());
+        }
         if planet {
             ui.planet_preview(&mut framebuffer, target.unwrap_or("boreal"), seconds)?;
         } else if landmark {
@@ -151,6 +179,28 @@ fn main() -> Result<(), Box<dyn Error>> {
                 flight.advance(dt, (1.0, 0.0), false, false);
             }
             ui.flight(&mut framebuffer, &ships[selected], &flight, seconds);
+            if benchmark_frames > 0 {
+                let start = Instant::now();
+                for _ in 0..benchmark_frames {
+                    ui.flight(&mut framebuffer, &ships[selected], &flight, seconds);
+                    std::hint::black_box(&framebuffer.pixels);
+                }
+                let milliseconds = start.elapsed().as_secs_f64() * 1000.0 / benchmark_frames as f64;
+                println!(
+                    "Render CPU: {milliseconds:.3} ms/cuadro, {:.1} FPS teóricos, {benchmark_frames} cuadros",
+                    1000.0 / milliseconds
+                );
+            }
+        } else if export_screen == Screen::Galaxy {
+            ui.galaxy_menu(
+                &mut framebuffer,
+                &ships[selected],
+                &galaxy::GalaxyView {
+                    selected: galaxy_index,
+                    seconds,
+                    ..Default::default()
+                },
+            );
         } else if export_screen == Screen::Inspector {
             ships[selected].camera = ui::preview_camera(selected, seconds);
             ui.inspector(&mut framebuffer, &ships[selected], RenderMode::Solid, false);
@@ -180,7 +230,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let mut window = Window::new(
-        "Orbital | Hangar de naves",
+        "Orbital | Exploracion espacial",
         WIDTH,
         HEIGHT,
         WindowOptions {
@@ -190,6 +240,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
     )?;
     window.set_target_fps(60);
+    let mut atlas = galaxy::GalaxyView::default();
     let mut screen = Screen::Menu;
     let mut selected = 0usize;
     let mut mode = RenderMode::Solid;
@@ -206,7 +257,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         if window.is_key_pressed(Key::Escape, KeyRepeat::No) {
             match screen {
                 Screen::Menu => break,
-                Screen::Flight => screen = Screen::Menu,
+                Screen::Galaxy => screen = Screen::Menu,
+                Screen::Flight => screen = Screen::Galaxy,
                 Screen::Inspector => {
                     flight.reset_steering();
                     screen = Screen::Flight;
@@ -215,7 +267,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         for (index, key) in [Key::Key1, Key::Key2, Key::Key3].into_iter().enumerate() {
             if window.is_key_pressed(key, KeyRepeat::No) {
-                selected = index;
+                if screen == Screen::Galaxy {
+                    atlas.selected = index;
+                } else {
+                    selected = index;
+                }
             }
         }
         let mouse = window
@@ -225,15 +281,20 @@ fn main() -> Result<(), Box<dyn Error>> {
         let clicked = mouse_down && !mouse_was_down;
         mouse_was_down = mouse_down;
         let hover = mouse.and_then(|p| (0..3).find(|&index| ui::card(index).contains(p)));
+        let galaxy_hover = mouse.and_then(|point| atlas.hit(point));
         let hover_button = mouse.is_some_and(|p| ui::LAUNCH.contains(p));
         let hover_pause = mouse.is_some_and(|p| ui::PAUSE.contains(p));
         let hover_back = mouse.is_some_and(|p| ui::BACK.contains(p));
 
         if screen == Screen::Menu {
-            if window.is_key_pressed(Key::Left, KeyRepeat::Yes) {
+            if window.is_key_pressed(Key::Left, KeyRepeat::Yes)
+                || window.is_key_pressed(Key::Up, KeyRepeat::Yes)
+            {
                 selected = (selected + 2) % 3;
             }
-            if window.is_key_pressed(Key::Right, KeyRepeat::Yes) {
+            if window.is_key_pressed(Key::Right, KeyRepeat::Yes)
+                || window.is_key_pressed(Key::Down, KeyRepeat::Yes)
+            {
                 selected = (selected + 1) % 3;
             }
             if window.is_key_pressed(Key::Tab, KeyRepeat::No) {
@@ -265,6 +326,51 @@ fn main() -> Result<(), Box<dyn Error>> {
                 *value += (target - *value) * (1.0 - (-dt * 12.0).exp());
             }
             if window.is_key_pressed(Key::Enter, KeyRepeat::No) || (clicked && hover_button) {
+                screen = Screen::Galaxy;
+            }
+        } else if screen == Screen::Galaxy {
+            if window.is_active() {
+                atlas.seconds += dt;
+                let axis = |positive, negative| {
+                    i32::from(window.is_key_down(positive))
+                        - i32::from(window.is_key_down(negative))
+                };
+                atlas.pan.0 =
+                    (atlas.pan.0 + axis(Key::D, Key::A) as f32 * dt * 180.0).clamp(-140.0, 140.0);
+                atlas.pan.1 =
+                    (atlas.pan.1 + axis(Key::S, Key::W) as f32 * dt * 180.0).clamp(-80.0, 80.0);
+                atlas.angle =
+                    (atlas.angle + axis(Key::E, Key::Q) as f32 * dt * 0.6).clamp(-0.55, 0.55);
+                let wheel = window.get_scroll_wheel().map_or(0.0, |(_, y)| y);
+                let zoom_key = axis(Key::Equal, Key::Minus) as f32 * dt;
+                atlas.zoom = (atlas.zoom * (wheel * 0.10 + zoom_key).exp()).clamp(0.65, 1.35);
+            }
+            if window.is_key_pressed(Key::R, KeyRepeat::No) {
+                atlas = galaxy::GalaxyView {
+                    selected: atlas.selected,
+                    ..Default::default()
+                };
+            }
+            let previous = window.is_key_pressed(Key::Left, KeyRepeat::Yes)
+                || window.is_key_pressed(Key::Up, KeyRepeat::Yes);
+            let next = window.is_key_pressed(Key::Right, KeyRepeat::Yes)
+                || window.is_key_pressed(Key::Down, KeyRepeat::Yes);
+            if previous {
+                atlas.selected = (atlas.selected + 2) % 3;
+            }
+            if next || window.is_key_pressed(Key::Tab, KeyRepeat::No) {
+                let backwards = !next
+                    && (window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift));
+                atlas.selected = (atlas.selected + if backwards { 2 } else { 1 }) % 3;
+            }
+            if clicked && let Some(index) = galaxy_hover {
+                atlas.selected = index;
+            }
+            if clicked && hover_back {
+                screen = Screen::Menu;
+            }
+            if window.is_key_pressed(Key::Enter, KeyRepeat::No) || (clicked && hover_button) {
+                ui.select_galaxy(atlas.selected);
                 launch_flight(&ui, &mut flight, &mut screen);
             }
         } else if screen == Screen::Inspector {
@@ -323,6 +429,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         let actionable = if screen == Screen::Menu {
             hover.is_some() || hover_button || hover_pause
+        } else if screen == Screen::Galaxy {
+            galaxy_hover.is_some() || hover_button || hover_back
         } else if screen == Screen::Inspector {
             hover_back
         } else {
@@ -347,6 +455,16 @@ fn main() -> Result<(), Box<dyn Error>> {
                     hover_button,
                     hover_pause,
                     emphasis,
+                },
+            ),
+            Screen::Galaxy => ui.galaxy_menu(
+                &mut framebuffer,
+                &ships[selected],
+                &galaxy::GalaxyView {
+                    hover: galaxy_hover,
+                    hover_button,
+                    hover_back,
+                    ..atlas
                 },
             ),
             Screen::Inspector => ui.inspector(&mut framebuffer, &ships[selected], mode, hover_back),
