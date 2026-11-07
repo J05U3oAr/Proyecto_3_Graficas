@@ -7,6 +7,7 @@ edition = "2024"
 image = { version = "0.25", default-features = false, features = ["png"] }
 minifb = "0.26"
 nalgebra-glm = "0.18"
+rayon = "1.12"
 
 [profile.dev]
 opt-level = 3

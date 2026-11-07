@@ -10,6 +10,7 @@ use nalgebra_glm::Vec3;
 use std::{error::Error, path::PathBuf, sync::Arc};
 
 pub struct Planet {
+    pub active: bool,
     pub name: &'static str,
     pub model: Model,
     pub transform: WorldTransform,
@@ -20,6 +21,8 @@ pub struct Planet {
 pub struct Space {
     pub planets: Vec<Planet>,
     collisions: Arc<CollisionWorld>,
+    debris_model: Model,
+    debris: Vec<WorldTransform>,
 }
 
 impl Space {
@@ -27,6 +30,7 @@ impl Space {
         let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/planets");
         let planets = vec![
             Planet {
+                active: true,
                 name: "Siroco",
                 model: Model::load(assets.join("siroco.obj"))?,
                 transform: WorldTransform {
@@ -38,6 +42,7 @@ impl Space {
                 dust: Some(DustStorm::new()),
             },
             Planet {
+                active: true,
                 name: "Oquedad",
                 model: Model::load(assets.join("oquedad.obj"))?,
                 transform: WorldTransform {
@@ -49,6 +54,7 @@ impl Space {
                 dust: None,
             },
             Planet {
+                active: true,
                 name: "Jovara",
                 model: Model::load(assets.join("jovara.obj"))?,
                 transform: WorldTransform {
@@ -60,6 +66,7 @@ impl Space {
                 dust: None,
             },
             Planet {
+                active: true,
                 name: "Boreal",
                 model: {
                     let mut model = Model::load(assets.join("boreal.obj"))?;
@@ -86,7 +93,46 @@ impl Space {
         Ok(Self {
             planets,
             collisions,
+            debris_model: debris_model(),
+            debris: Vec::new(),
         })
+    }
+
+    pub fn configure(&mut self, index: usize) {
+        let galaxy = &crate::galaxy::GALAXIES[index];
+        for (planet_index, planet) in self.planets.iter_mut().enumerate() {
+            planet.active = galaxy.planets.contains(&planet_index);
+            planet.transform = crate::galaxy::planet_transform(index, planet_index);
+        }
+        self.collisions = Arc::new(CollisionWorld::new(
+            self.active_planets()
+                .map(|p| PlanetCollider::new(p.name, &p.model, p.transform, p.rotation_speed))
+                .collect(),
+        ));
+        let mut seed = galaxy.seed;
+        let mut next = || {
+            seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
+            seed as f32 / u32::MAX as f32
+        };
+        self.debris = (0..galaxy.debris)
+            .map(|_| {
+                let angle = next() * std::f32::consts::TAU;
+                let distance = 82.0 + next() * 72.0;
+                WorldTransform {
+                    position: Vec3::new(
+                        angle.cos() * distance,
+                        -43.0 + next() * 18.0,
+                        -200.0 + angle.sin() * distance,
+                    ),
+                    radius: 0.8 + next() * 2.8,
+                    yaw: next() * std::f32::consts::TAU,
+                }
+            })
+            .collect();
+    }
+
+    pub fn active_planets(&self) -> impl Iterator<Item = &Planet> {
+        self.planets.iter().filter(|planet| planet.active)
     }
 
     pub fn new_flight(&self) -> Flight {
@@ -97,7 +143,7 @@ impl Space {
         let planet = self
             .planets
             .iter()
-            .find(|p| p.name.eq_ignore_ascii_case(name))
+            .find(|p| p.active && p.name.eq_ignore_ascii_case(name))
             .ok_or_else(|| format!("Planeta desconocido: {name}"))?;
         flight.position = planet.transform.position + Vec3::z() * (planet.transform.radius + 24.0);
         Ok(())
@@ -105,10 +151,13 @@ impl Space {
 
     pub fn draw(&self, fb: &mut Framebuffer, flight: &Flight, seconds: f32) {
         let view = FlightView::new(flight, fb.width, fb.height);
-        for planet in &self.planets {
+        for planet in self.active_planets() {
             let mut transform = planet.transform;
             transform.yaw += seconds * planet.rotation_speed;
             renderer::draw_world_model(fb, &planet.model, &view, transform);
+        }
+        for &transform in &self.debris {
+            renderer::draw_world_model(fb, &self.debris_model, &view, transform);
         }
     }
 
@@ -121,7 +170,7 @@ impl Space {
         let planet = self
             .planets
             .iter()
-            .find(|planet| planet.name.eq_ignore_ascii_case(name))
+            .find(|planet| planet.active && planet.name.eq_ignore_ascii_case(name))
             .ok_or_else(|| format!("Planeta desconocido: {name}"))?;
         let mut flight = Flight::new();
         flight.camera.pitch = 0.0;
@@ -144,7 +193,7 @@ impl Space {
 
     pub fn draw_atmospheres(&self, fb: &mut Framebuffer, flight: &Flight, seconds: f32) {
         let view = FlightView::new(flight, fb.width, fb.height);
-        for planet in &self.planets {
+        for planet in self.active_planets() {
             if let Some(dust) = &planet.dust {
                 let mut transform = planet.transform;
                 transform.yaw += seconds * planet.rotation_speed;
@@ -154,9 +203,79 @@ impl Space {
     }
 }
 
+fn debris_model() -> Model {
+    let vertices = vec![
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(-0.8, 0.0, 0.0),
+        Vec3::new(0.0, 0.7, 0.0),
+        Vec3::new(0.0, -1.0, 0.0),
+        Vec3::new(0.0, 0.0, 0.9),
+        Vec3::new(0.0, 0.0, -0.7),
+    ];
+    let faces = [
+        [0, 2, 4],
+        [4, 2, 1],
+        [1, 2, 5],
+        [5, 2, 0],
+        [0, 4, 3],
+        [4, 1, 3],
+        [1, 5, 3],
+        [5, 0, 3],
+    ]
+    .into_iter()
+    .map(|indices| crate::model::Face {
+        indices,
+        color: crate::color::Color::new(112, 122, 142),
+        uv: None,
+        texture: None,
+        unlit: false,
+    })
+    .collect();
+    Model {
+        vertices,
+        faces,
+        center: Vec3::zeros(),
+        radius: 1.0,
+        textures: Vec::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn destinations_restore_layouts_reproduce_debris_and_keep_active_collisions() {
+        let mut space = Space::load().unwrap();
+        for galaxy in [1, 2, 0, 2, 1, 0] {
+            space.configure(galaxy);
+            let definition = &crate::galaxy::GALAXIES[galaxy];
+            assert_eq!(space.active_planets().count(), definition.planets.len());
+            assert_eq!(space.debris.len(), definition.debris);
+            let first_debris: Vec<_> = space.debris.iter().map(|t| t.position).collect();
+            space.configure(galaxy);
+            assert_eq!(
+                first_debris,
+                space.debris.iter().map(|t| t.position).collect::<Vec<_>>()
+            );
+            let solid = space
+                .active_planets()
+                .find(|p| p.name != "Oquedad")
+                .unwrap();
+            let start = solid.transform.position + Vec3::z() * (solid.transform.radius + 20.0);
+            let motion = space
+                .collisions
+                .move_ship(start, -Vec3::z() * 80.0, 0.0, 0.1);
+            assert!(
+                motion
+                    .contacts
+                    .iter()
+                    .any(|contact| contact.planet == solid.name)
+            );
+            for planet in space.planets.iter().filter(|p| !p.active) {
+                assert!(space.approach(&mut Flight::new(), planet.name).is_err());
+            }
+        }
+    }
     use crate::framebuffer::BACKGROUND;
 
     #[test]

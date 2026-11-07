@@ -5,6 +5,8 @@ use std::f32::consts::{FRAC_PI_2, PI, TAU};
 use std::sync::Arc;
 
 pub const CRASH_SPEED: f32 = 28.0;
+pub const CRUISE_SPEED: f32 = 36.0;
+pub const BOOST_SPEED: f32 = 62.0;
 
 pub struct Crash {
     pub position: Vec3,
@@ -151,7 +153,7 @@ impl Flight {
             let direction = forward * movement.0 + right * movement.1;
             // Normalize diagonals so W+D is as fast as W alone.
             let direction = direction / direction.norm().max(1.0);
-            let speed = if boost { 62.0 } else { 36.0 };
+            let speed = if boost { BOOST_SPEED } else { CRUISE_SPEED };
             let target_velocity = if brake {
                 Vec3::zeros()
             } else {

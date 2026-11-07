@@ -3,6 +3,7 @@ use crate::{
     renderer::{FLIGHT_FOCAL, FlightView, WorldTransform},
 };
 use nalgebra_glm::Vec3;
+use rayon::prelude::*;
 use std::f32::consts::TAU;
 
 struct Grain {
@@ -140,12 +141,83 @@ impl DustStorm {
         }
         // Reciprocal depth increases toward the eye: blend the farthest billows first.
         projected.sort_unstable_by(|a, b| a.screen.z.total_cmp(&b.screen.z));
-        for dust in projected {
-            draw_billows(fb, dust);
-        }
+        draw_cloud(fb, &projected);
     }
 }
 
+fn draw_cloud(fb: &mut Framebuffer, particles: &[ProjectedDust]) {
+    let width = fb.width;
+    let (left, top, right, bottom) = fb.clip;
+    let band_height = 32;
+    let mut bins = vec![Vec::new(); fb.height.div_ceil(band_height)];
+    for (index, dust) in particles.iter().enumerate() {
+        let y0 = (dust.screen.y - dust.radius).floor().max(top as f32) as usize;
+        let y1 = ((dust.screen.y + dust.radius).ceil() + 1.0)
+            .max(0.0)
+            .min(bottom as f32) as usize;
+        if y0 < y1 {
+            for bin in &mut bins[y0 / band_height..=(y1 - 1) / band_height] {
+                bin.push(index);
+            }
+        }
+    }
+    // El orden de mezcla se mantiene de atras hacia delante dentro de cada franja.
+    let paint = |(band, (pixels, depth)): (usize, (&mut [u32], &[f32]))| {
+        let start_y = band * band_height;
+        let end_y = start_y + pixels.len() / width;
+        for &index in &bins[band] {
+            let dust = &particles[index];
+            let x0 = (dust.screen.x - dust.radius).floor().max(left as f32) as usize;
+            let x1 = ((dust.screen.x + dust.radius).ceil() + 1.0)
+                .max(0.0)
+                .min(right as f32) as usize;
+            let y0 = (dust.screen.y - dust.radius)
+                .floor()
+                .max(top.max(start_y) as f32) as usize;
+            let y1 = ((dust.screen.y + dust.radius).ceil() + 1.0)
+                .max(0.0)
+                .min(bottom.min(end_y) as f32) as usize;
+            let inverse_radius_squared = 1.0 / (dust.radius * dust.radius);
+            for y in y0..y1 {
+                for x in x0..x1 {
+                    let offset = (y - start_y) * width + x;
+                    if dust.screen.z <= depth[offset] {
+                        continue;
+                    }
+                    let dx = x as f32 + 0.5 - dust.screen.x;
+                    let dy = y as f32 + 0.5 - dust.screen.y;
+                    let distance = (dx * dx + dy * dy) * inverse_radius_squared;
+                    if distance < 1.0 {
+                        let alpha = (dust.opacity * (1.0 - distance).powi(2)).clamp(0.0, 1.0);
+                        let background = pixels[offset];
+                        let channel = |shift: u32| {
+                            let from = ((background >> shift) & 255) as f32;
+                            let to = ((dust.color >> shift) & 255) as f32;
+                            (from + (to - from) * alpha).round() as u32
+                        };
+                        pixels[offset] = channel(16) << 16 | channel(8) << 8 | channel(0);
+                    }
+                }
+            }
+        }
+    };
+    let chunk = width * band_height;
+    if particles.len() >= 128 && rayon::current_num_threads() > 1 {
+        fb.pixels
+            .par_chunks_mut(chunk)
+            .zip(fb.depth.par_chunks(chunk))
+            .enumerate()
+            .for_each(paint);
+    } else {
+        fb.pixels
+            .chunks_mut(chunk)
+            .zip(fb.depth.chunks(chunk))
+            .enumerate()
+            .for_each(paint);
+    }
+}
+
+#[cfg(test)]
 fn draw_billows(fb: &mut Framebuffer, dust: ProjectedDust) {
     let left = (dust.screen.x - dust.radius).floor().max(0.0) as usize;
     let right = (dust.screen.x + dust.radius)
@@ -173,6 +245,48 @@ fn draw_billows(fb: &mut Framebuffer, dust: ProjectedDust) {
 mod tests {
     use super::*;
     use crate::{flight::Flight, space::Space};
+
+    #[test]
+    fn parallel_cloud_matches_ordered_transparency_and_opaque_depth() {
+        let particles: Vec<_> = (0..160)
+            .map(|i| ProjectedDust {
+                screen: Vec3::new(
+                    8.0 + (i % 9) as f32 * 8.0,
+                    5.0 + (i % 11) as f32 * 7.0,
+                    0.1 + i as f32 * 0.001,
+                ),
+                radius: 12.0,
+                color: 0xe6ad72,
+                opacity: 0.2,
+            })
+            .collect();
+        let mut reference = Framebuffer::new(96, 96);
+        reference.set_clip(6, 3, 78, 83);
+        reference.point(30, 30, 2.0, 0xff00ff, true);
+        for dust in &particles {
+            draw_billows(
+                &mut reference,
+                ProjectedDust {
+                    screen: dust.screen,
+                    radius: dust.radius,
+                    color: dust.color,
+                    opacity: dust.opacity,
+                },
+            );
+        }
+        for threads in [1, 4] {
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap();
+            let mut frame = Framebuffer::new(96, 96);
+            frame.set_clip(6, 3, 78, 83);
+            frame.point(30, 30, 2.0, 0xff00ff, true);
+            pool.install(|| draw_cloud(&mut frame, &particles));
+            assert_eq!(frame.pixels, reference.pixels);
+            assert_eq!(frame.depth, reference.depth);
+        }
+    }
 
     #[test]
     fn storm_moves_while_the_ship_is_stationary_and_repeats_deterministically() {

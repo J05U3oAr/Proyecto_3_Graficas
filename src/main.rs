@@ -8,10 +8,18 @@ mod explosion;
 mod fleet;
 mod flight;
 mod framebuffer;
+mod galaxy;
+mod galaxy_art;
+mod home;
+mod menus;
 mod model;
+mod nebula;
+mod noise;
+mod raster_batch;
 mod renderer;
 mod space;
 mod texture;
+mod travel;
 mod triangle;
 mod ui;
 
@@ -26,7 +34,10 @@ use ui::{HEIGHT, WIDTH};
 
 #[derive(Clone, Copy, PartialEq)]
 enum Screen {
+    Home,
     Menu,
+    Galaxy,
+    Travel,
     Inspector,
     Flight,
 }
@@ -51,7 +62,7 @@ fn launch_flight(ui: &ui::Ui, flight: &mut flight::Flight, screen: &mut Screen) 
 
 fn main() -> Result<(), Box<dyn Error>> {
     let mut ships = fleet::load()?;
-    let ui = ui::Ui::new()?;
+    let mut ui = ui::Ui::new()?;
     let mut framebuffer = Framebuffer::new(WIDTH, HEIGHT);
     // Deterministic exports let us inspect the CPU renderer without a window.
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -59,6 +70,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut output = None;
         let mut seconds = 0.0f32;
         let mut selected = 0usize;
+        let mut benchmark_frames = 0usize;
+        let mut galaxy_index = 0usize;
+        let mut details_open = false;
+        let mut home_page = home::Page::Main;
         let mut export_screen = Screen::Menu;
         let mut landmark = false;
         let mut planet = false;
@@ -69,16 +84,51 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut args = args.iter();
         while let Some(argument) = args.next() {
             match argument.as_str() {
-                "--render-menu" | "--render-inspector" | "--render-flight"
-                | "--render-landmark" | "--render-planet" => {
+                "--benchmark-frames" => {
+                    benchmark_frames =
+                        args.next().ok_or("Falta la cantidad de cuadros")?.parse()?;
+                    if !(1..=10000).contains(&benchmark_frames) {
+                        return Err("La medición admite de 1 a 10000 cuadros".into());
+                    }
+                }
+                "--render-home" | "--render-menu" | "--render-galaxies" | "--render-travel"
+                | "--render-inspector" | "--render-flight" | "--render-landmark"
+                | "--render-planet" => {
                     landmark = argument == "--render-landmark";
                     planet = argument == "--render-planet";
                     export_screen = match argument.as_str() {
+                        "--render-home" => Screen::Home,
                         "--render-flight" => Screen::Flight,
+                        "--render-galaxies" => Screen::Galaxy,
+                        "--render-travel" => Screen::Travel,
                         "--render-inspector" => Screen::Inspector,
                         _ => Screen::Menu,
                     };
                     output = Some(args.next().ok_or("Falta el archivo PNG de salida")?);
+                }
+                "--home-section" => {
+                    home_page = match args
+                        .next()
+                        .ok_or("Falta la seccion del menu principal")?
+                        .as_str()
+                    {
+                        "principal" => home::Page::Main,
+                        "controles" => home::Page::Controls,
+                        "instrucciones" => home::Page::Instructions,
+                        _ => {
+                            return Err(
+                                "Seccion invalida: principal, controles o instrucciones".into()
+                            );
+                        }
+                    };
+                }
+                "--details" => details_open = true,
+                "--galaxy" => {
+                    let number: usize = args.next().ok_or("Falta el numero de galaxia")?.parse()?;
+                    if !(1..=galaxy::GALAXIES.len()).contains(&number) {
+                        return Err("La galaxia debe ser 1, 2 o 3".into());
+                    }
+                    galaxy_index = number - 1;
                 }
                 "--time" => {
                     seconds = args.next().ok_or("Falta el tiempo")?.parse()?;
@@ -115,6 +165,15 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 "--help" => {
                     println!(
+                        "Beyond the Interstellar\ncargo run --release -- --render-home salida.png [--home-section principal|controles|instrucciones]"
+                    );
+                    println!(
+                        "cargo run --release -- --render-travel salida.png [--galaxy 2] [--time 1.4]\n--render-galaxies admite --details para mostrar la descripcion seleccionada."
+                    );
+                    println!(
+                        "cargo run --release -- --render-galaxies salida.png [--galaxy 1-3] [--time 2]\nLas exportaciones de vuelo admiten --galaxy 1-3 y --benchmark-frames 120."
+                    );
+                    println!(
                         "cargo run --release\ncargo run --release -- --render-menu salida.png [--time 4] [--ship 2]\ncargo run --release -- --render-inspector salida.png [--ship 3]\ncargo run --release -- --render-flight salida.png [--ship 1] [--time 2] [--mouse 0.5 -0.3] [--near-black-hole | --near-planet boreal]\ncargo run --release -- --render-landmark salida.png [--target accretion]\ncargo run --release -- --render-planet salida.png [--target boreal] [--time 20]"
                     );
                     return Ok(());
@@ -123,9 +182,22 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
         let output = output.ok_or(
-            "Especifica --render-menu, --render-inspector, --render-flight, --render-landmark o --render-planet",
+            "Especifica --render-home, --render-menu, --render-galaxies, --render-travel, --render-inspector, --render-flight, --render-landmark o --render-planet",
         )?;
-        if planet {
+        ui.select_galaxy(galaxy_index);
+        if benchmark_frames > 0 && export_screen != Screen::Flight {
+            return Err("La medicion requiere --render-flight".into());
+        }
+        if export_screen == Screen::Home {
+            home::draw(
+                &ui,
+                &mut framebuffer,
+                &home::Home {
+                    page: home_page,
+                    ..Default::default()
+                },
+            );
+        } else if planet {
             ui.planet_preview(&mut framebuffer, target.unwrap_or("boreal"), seconds)?;
         } else if landmark {
             ui.landmark_preview(&mut framebuffer, target.unwrap_or("accretion"))?;
@@ -151,6 +223,37 @@ fn main() -> Result<(), Box<dyn Error>> {
                 flight.advance(dt, (1.0, 0.0), false, false);
             }
             ui.flight(&mut framebuffer, &ships[selected], &flight, seconds);
+            if benchmark_frames > 0 {
+                let start = Instant::now();
+                for _ in 0..benchmark_frames {
+                    ui.flight(&mut framebuffer, &ships[selected], &flight, seconds);
+                    std::hint::black_box(&framebuffer.pixels);
+                }
+                let milliseconds = start.elapsed().as_secs_f64() * 1000.0 / benchmark_frames as f64;
+                println!(
+                    "Render CPU: {milliseconds:.3} ms/cuadro, {:.1} FPS teóricos, {benchmark_frames} cuadros",
+                    1000.0 / milliseconds
+                );
+            }
+        } else if export_screen == Screen::Galaxy {
+            ui.galaxy_menu(
+                &mut framebuffer,
+                &ships[selected],
+                &galaxy::GalaxyView {
+                    selected: galaxy_index,
+                    seconds,
+                    details_open,
+                    ..Default::default()
+                },
+            );
+        } else if export_screen == Screen::Travel {
+            let mut arrival = Framebuffer::new(WIDTH, HEIGHT);
+            ui.flight(&mut arrival, &ships[selected], &ui.new_flight(), 0.0);
+            ui.travel(
+                &mut framebuffer,
+                &travel::Travel::at(galaxy_index, seconds),
+                &arrival,
+            );
         } else if export_screen == Screen::Inspector {
             ships[selected].camera = ui::preview_camera(selected, seconds);
             ui.inspector(&mut framebuffer, &ships[selected], RenderMode::Solid, false);
@@ -180,7 +283,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let mut window = Window::new(
-        "Orbital | Hangar de naves",
+        home::GAME_TITLE,
         WIDTH,
         HEIGHT,
         WindowOptions {
@@ -190,7 +293,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
     )?;
     window.set_target_fps(60);
-    let mut screen = Screen::Menu;
+    let mut atlas = galaxy::GalaxyView::default();
+    let mut transit = travel::Travel::new(0);
+    let mut arrival = Framebuffer::new(WIDTH, HEIGHT);
+    let mut screen = Screen::Home;
+    let mut home_menu = home::Home::default();
+    let mut previous_mouse = None;
     let mut selected = 0usize;
     let mut mode = RenderMode::Solid;
     let mut flight = ui.new_flight();
@@ -205,8 +313,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         previous = now;
         if window.is_key_pressed(Key::Escape, KeyRepeat::No) {
             match screen {
-                Screen::Menu => break,
-                Screen::Flight => screen = Screen::Menu,
+                Screen::Home => home_menu.back(),
+                Screen::Menu => screen = Screen::Home,
+                Screen::Galaxy => screen = Screen::Menu,
+                Screen::Travel => screen = Screen::Galaxy,
+                Screen::Flight => screen = Screen::Galaxy,
                 Screen::Inspector => {
                     flight.reset_steering();
                     screen = Screen::Flight;
@@ -215,25 +326,83 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         for (index, key) in [Key::Key1, Key::Key2, Key::Key3].into_iter().enumerate() {
             if window.is_key_pressed(key, KeyRepeat::No) {
-                selected = index;
+                if screen == Screen::Galaxy {
+                    atlas.select(index);
+                } else if matches!(screen, Screen::Menu | Screen::Flight | Screen::Inspector) {
+                    selected = index;
+                }
             }
         }
         let mouse = window
             .get_unscaled_mouse_pos(MouseMode::Discard)
             .and_then(|p| ui::canvas_mouse(p, window.get_size()));
+        let mouse_moved = mouse != previous_mouse;
+        previous_mouse = mouse;
+        let home_hover = mouse.and_then(|point| home_menu.hit(point));
+        let hover_home = mouse.is_some_and(|point| home::HANGAR_BACK.contains(point));
         let mouse_down = window.get_mouse_down(MouseButton::Left);
         let clicked = mouse_down && !mouse_was_down;
         mouse_was_down = mouse_down;
         let hover = mouse.and_then(|p| (0..3).find(|&index| ui::card(index).contains(p)));
-        let hover_button = mouse.is_some_and(|p| ui::LAUNCH.contains(p));
+        let galaxy_hover = mouse.and_then(|point| atlas.hit(point));
+        let hover_button = mouse.is_some_and(|p| ui::LAUNCH.contains(p))
+            && (screen != Screen::Galaxy || atlas.details_open);
         let hover_pause = mouse.is_some_and(|p| ui::PAUSE.contains(p));
-        let hover_back = mouse.is_some_and(|p| ui::BACK.contains(p));
+        let hover_back = mouse.is_some_and(|p| {
+            if screen == Screen::Galaxy {
+                menus::DESTINATION_BACK.contains(p)
+            } else {
+                ui::BACK.contains(p)
+            }
+        });
+        let hover_close = screen == Screen::Galaxy
+            && atlas.details_open
+            && mouse.is_some_and(|p| menus::DESTINATION_CLOSE.contains(p));
 
-        if screen == Screen::Menu {
-            if window.is_key_pressed(Key::Left, KeyRepeat::Yes) {
+        if screen == Screen::Home {
+            if home_menu.page == home::Page::Main {
+                let backwards = window.is_key_pressed(Key::Up, KeyRepeat::Yes)
+                    || window.is_key_pressed(Key::W, KeyRepeat::Yes);
+                let forwards = window.is_key_pressed(Key::Down, KeyRepeat::Yes)
+                    || window.is_key_pressed(Key::S, KeyRepeat::Yes);
+                if backwards {
+                    home_menu.navigate(-1);
+                }
+                if forwards {
+                    home_menu.navigate(1);
+                }
+                if window.is_key_pressed(Key::Tab, KeyRepeat::No) {
+                    let shift =
+                        window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift);
+                    home_menu.navigate(if shift { -1 } else { 1 });
+                }
+                if (mouse_moved || clicked)
+                    && let Some(index) = home_hover
+                {
+                    home_menu.selected = index;
+                }
+            }
+            if window.is_key_pressed(Key::Enter, KeyRepeat::No) || (clicked && home_hover.is_some())
+            {
+                match home_menu.activate() {
+                    home::Action::Ships => screen = Screen::Menu,
+                    home::Action::Destinations => {
+                        atlas.details_open = false;
+                        screen = Screen::Galaxy;
+                    }
+                    home::Action::Exit => break,
+                    home::Action::None => {}
+                }
+            }
+        } else if screen == Screen::Menu {
+            if window.is_key_pressed(Key::Left, KeyRepeat::Yes)
+                || window.is_key_pressed(Key::Up, KeyRepeat::Yes)
+            {
                 selected = (selected + 2) % 3;
             }
-            if window.is_key_pressed(Key::Right, KeyRepeat::Yes) {
+            if window.is_key_pressed(Key::Right, KeyRepeat::Yes)
+                || window.is_key_pressed(Key::Down, KeyRepeat::Yes)
+            {
                 selected = (selected + 1) % 3;
             }
             if window.is_key_pressed(Key::Tab, KeyRepeat::No) {
@@ -265,6 +434,73 @@ fn main() -> Result<(), Box<dyn Error>> {
                 *value += (target - *value) * (1.0 - (-dt * 12.0).exp());
             }
             if window.is_key_pressed(Key::Enter, KeyRepeat::No) || (clicked && hover_button) {
+                atlas.details_open = false;
+                screen = Screen::Galaxy;
+            }
+            if clicked && hover_home {
+                screen = Screen::Home;
+            }
+        } else if screen == Screen::Galaxy {
+            if window.is_active() {
+                atlas.advance(dt);
+                let axis = |positive, negative| {
+                    i32::from(window.is_key_down(positive))
+                        - i32::from(window.is_key_down(negative))
+                };
+                atlas.pan.0 =
+                    (atlas.pan.0 + axis(Key::D, Key::A) as f32 * dt * 180.0).clamp(-140.0, 140.0);
+                atlas.pan.1 =
+                    (atlas.pan.1 + axis(Key::S, Key::W) as f32 * dt * 180.0).clamp(-80.0, 80.0);
+                let wheel = window.get_scroll_wheel().map_or(0.0, |(_, y)| y);
+                let zoom_key = axis(Key::Equal, Key::Minus) as f32 * dt;
+                atlas.zoom = (atlas.zoom * (wheel * 0.10 + zoom_key).exp()).clamp(0.65, 1.35);
+            }
+            if window.is_key_pressed(Key::R, KeyRepeat::No) {
+                atlas = galaxy::GalaxyView {
+                    selected: atlas.selected,
+                    details_open: atlas.details_open,
+                    seconds: atlas.seconds,
+                    ..Default::default()
+                };
+            }
+            let previous = window.is_key_pressed(Key::Left, KeyRepeat::Yes)
+                || window.is_key_pressed(Key::Up, KeyRepeat::Yes);
+            let next = window.is_key_pressed(Key::Right, KeyRepeat::Yes)
+                || window.is_key_pressed(Key::Down, KeyRepeat::Yes);
+            if previous {
+                atlas.select((atlas.selected + 2) % 3);
+            }
+            if next || window.is_key_pressed(Key::Tab, KeyRepeat::No) {
+                let backwards = !next
+                    && (window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift));
+                atlas.select((atlas.selected + if backwards { 2 } else { 1 }) % 3);
+            }
+            if clicked && let Some(index) = galaxy_hover {
+                atlas.select(index);
+            }
+            if clicked
+                && (hover_close
+                    || (galaxy_hover.is_none()
+                        && !hover_button
+                        && !mouse.is_some_and(|p| menus::DESTINATION_PANEL.contains(p))))
+            {
+                atlas.details_open = false;
+            }
+            if clicked && hover_back {
+                screen = Screen::Menu;
+            }
+            if window.is_key_pressed(Key::Enter, KeyRepeat::No) || (clicked && hover_button) {
+                if atlas.details_open {
+                    ui.select_galaxy(atlas.selected);
+                    ui.flight(&mut arrival, &ships[selected], &ui.new_flight(), 0.0);
+                    transit = travel::Travel::new(atlas.selected);
+                    screen = Screen::Travel;
+                } else {
+                    atlas.select(atlas.selected);
+                }
+            }
+        } else if screen == Screen::Travel {
+            if window.is_active() && transit.advance(dt) {
                 launch_flight(&ui, &mut flight, &mut screen);
             }
         } else if screen == Screen::Inspector {
@@ -321,13 +557,18 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
 
-        let actionable = if screen == Screen::Menu {
-            hover.is_some() || hover_button || hover_pause
+        let actionable = if screen == Screen::Home {
+            home_hover.is_some()
+        } else if screen == Screen::Menu {
+            hover.is_some() || hover_button || hover_pause || hover_home
+        } else if screen == Screen::Galaxy {
+            galaxy_hover.is_some() || hover_button || hover_back || hover_close
         } else if screen == Screen::Inspector {
             hover_back
         } else {
             false
         };
+        window.set_cursor_visibility(screen != Screen::Travel);
         window.set_cursor_style(if screen == Screen::Flight {
             CursorStyle::Crosshair
         } else if actionable {
@@ -336,6 +577,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             CursorStyle::Arrow
         });
         match screen {
+            Screen::Home => home::draw(&ui, &mut framebuffer, &home_menu),
             Screen::Menu => ui.menu(
                 &mut framebuffer,
                 &ships,
@@ -349,6 +591,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                     emphasis,
                 },
             ),
+            Screen::Galaxy => ui.galaxy_menu(
+                &mut framebuffer,
+                &ships[selected],
+                &galaxy::GalaxyView {
+                    hover: galaxy_hover,
+                    hover_button,
+                    hover_back,
+                    ..atlas
+                },
+            ),
+            Screen::Travel => ui.travel(&mut framebuffer, &transit, &arrival),
             Screen::Inspector => ui.inspector(&mut framebuffer, &ships[selected], mode, hover_back),
             Screen::Flight => {
                 ui.flight(&mut framebuffer, &ships[selected], &flight, flight.seconds)
