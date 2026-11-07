@@ -3,6 +3,7 @@ use nalgebra_glm::Vec3;
 
 pub struct Galaxy {
     pub name: &'static str,
+    pub artwork: usize,
     pub subtitle: &'static str,
     pub description: [&'static str; 3],
     pub planets: &'static [usize],
@@ -15,7 +16,8 @@ pub struct Galaxy {
 
 pub const GALAXIES: [Galaxy; 3] = [
     Galaxy {
-        name: "Aurora",
+        name: "Helice",
+        artwork: 1,
         subtitle: "FRONTERA DE EXPLORACION",
         description: [
             "Cuatro mundos, cuatro horizontes.",
@@ -30,7 +32,8 @@ pub const GALAXIES: [Galaxy; 3] = [
         debris: 0,
     },
     Galaxy {
-        name: "Helice",
+        name: "Aurora",
+        artwork: 0,
         subtitle: "CORREDOR DE POLVO ESTELAR",
         description: [
             "Un archipielago entre nubes doradas.",
@@ -46,6 +49,7 @@ pub const GALAXIES: [Galaxy; 3] = [
     },
     Galaxy {
         name: "Umbria",
+        artwork: 2,
         subtitle: "REGION DE HIELO Y PIEDRA",
         description: [
             "Un paisaje frio, silencioso y remoto.",

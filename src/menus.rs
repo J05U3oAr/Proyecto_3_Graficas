@@ -236,7 +236,7 @@ pub fn galaxies(ui: &Ui, fb: &mut Framebuffer, ship: &Ship, view: &GalaxyView) {
     for (index, galaxy) in GALAXIES.iter().enumerate() {
         let (cx, cy) = points[index];
         let active = view.details_open && index == view.selected;
-        crate::galaxy_art::draw(fb, index, (cx, cy), view.zoom, view.seconds);
+        crate::galaxy_art::draw(fb, galaxy.artwork, (cx, cy), view.zoom, view.seconds);
         if active || view.hover == Some(index) {
             for i in 0..160 {
                 let angle = i as f32 * TAU / 160.0;
