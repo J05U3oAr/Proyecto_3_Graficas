@@ -50,7 +50,7 @@ pub struct MenuView {
     pub emphasis: [f32; 3],
 }
 pub const fn card(index: usize) -> Rect {
-    Rect::new(52 + index as i32 * 400, 260, 376, 416)
+    Rect::new(42, 258 + index as i32 * 130, 250, 112)
 }
 
 /// Mouse positions include letterboxing when the native window is resized.
@@ -90,7 +90,7 @@ struct Glyph {
     top: i32,
     advance: f32,
 }
-struct Fonts {
+pub(crate) struct Fonts {
     atlas: RgbaImage,
     glyphs: HashMap<(u32, char), Glyph>,
 }
@@ -123,10 +123,18 @@ impl Fonts {
             .get(&(size, c))
             .unwrap_or_else(|| &self.glyphs[&(size, '?')])
     }
-    fn width(&self, size: u32, text: &str) -> f32 {
+    pub(crate) fn width(&self, size: u32, text: &str) -> f32 {
         text.chars().map(|c| self.glyph(size, c).advance).sum()
     }
-    fn text(&self, fb: &mut Framebuffer, size: u32, x: i32, y: i32, text: &str, color: u32) {
+    pub(crate) fn text(
+        &self,
+        fb: &mut Framebuffer,
+        size: u32,
+        x: i32,
+        y: i32,
+        text: &str,
+        color: u32,
+    ) {
         let mut cursor = x as f32;
         for c in text.chars() {
             let glyph = self.glyph(size, c);
@@ -150,11 +158,12 @@ impl Fonts {
 }
 
 pub struct Ui {
-    fonts: Fonts,
+    pub(crate) fonts: Fonts,
     background: Vec<u32>,
     stars: Vec<Star>,
     space: crate::space::Space,
     deep_space: crate::deep_space::DeepSpace,
+    galaxy: usize,
 }
 
 struct Star {
@@ -224,6 +233,7 @@ impl Ui {
             });
         }
         Ok(Self {
+            galaxy: 0,
             fonts: Fonts::load()?,
             background: background.pixels,
             stars,
@@ -232,7 +242,7 @@ impl Ui {
         })
     }
 
-    fn begin(&self, fb: &mut Framebuffer) {
+    pub(crate) fn begin(&self, fb: &mut Framebuffer) {
         fb.clear();
         fb.pixels.copy_from_slice(&self.background);
         self.header(fb);
@@ -247,164 +257,19 @@ impl Ui {
     }
 
     pub fn menu(&self, fb: &mut Framebuffer, ships: &[Ship], view: &MenuView) {
-        let MenuView {
-            selected,
-            seconds,
-            paused,
-            hover,
-            hover_button,
-            hover_pause,
-            emphasis,
-        } = *view;
-        self.begin(fb);
-        self.fonts
-            .text(fb, 52, 50, 120, "Elige tu próxima nave.", TEXT);
-        rounded(
-            fb,
-            PAUSE,
-            9,
-            if hover_pause { 0x25364a } else { 0x172233 },
-            BORDER,
-        );
-        if paused {
-            arrow(fb, 1048, 155, 0xb9c8dc);
-        } else {
-            rounded(fb, Rect::new(1048, 155, 3, 13), 1, MUTED, MUTED);
-            rounded(fb, Rect::new(1055, 155, 3, 13), 1, MUTED, MUTED);
+        crate::menus::ships(self, fb, ships, view);
+    }
+
+    pub fn galaxy_menu(&self, fb: &mut Framebuffer, ship: &Ship, view: &crate::galaxy::GalaxyView) {
+        crate::menus::galaxies(self, fb, ship, view);
+    }
+
+    pub fn select_galaxy(&mut self, index: usize) {
+        if self.galaxy == index {
+            return;
         }
-        self.fonts.text(
-            fb,
-            16,
-            1072,
-            151,
-            if paused {
-                "Reanudar giro"
-            } else {
-                "Pausar giro"
-            },
-            TEXT,
-        );
-        for (index, ship) in ships.iter().enumerate() {
-            let r = card(index);
-            let active = index == selected;
-            let amount = emphasis[index];
-            let edge = mix(BORDER, ship.accent, amount * 0.85);
-            rounded(
-                fb,
-                Rect::new(r.x, r.y + 8, r.w, r.h),
-                18,
-                0x060b13,
-                0x060b13,
-            );
-            rounded(fb, r, 18, mix(0x111b2b, 0x1b2b3d, amount * 0.5), edge);
-            rule(
-                fb,
-                (r.x + 22, r.y + 1),
-                (r.x + r.w - 22, r.y + 1),
-                mix(edge, ship.accent, amount),
-            );
-            self.fonts.text(
-                fb,
-                14,
-                r.x + 24,
-                r.y + 22,
-                &format!("0{}", index + 1),
-                MUTED,
-            );
-            self.fonts.text(
-                fb,
-                14,
-                r.x + r.w - 60,
-                r.y + 24,
-                "360°",
-                if active { ship.accent } else { MUTED },
-            );
-
-            let platform_y = 518.0;
-            let center_x = r.x as f32 + r.w as f32 * 0.5;
-            glow(
-                fb,
-                (center_x, platform_y - 45.0),
-                (163.0, 115.0),
-                ship.accent,
-                0.08 + amount * 0.035,
-            );
-            glow(
-                fb,
-                (center_x, platform_y + 3.0),
-                (142.0, 27.0),
-                ship.accent,
-                0.16,
-            );
-            ellipse(
-                fb,
-                (center_x, platform_y),
-                (136.0, 23.0),
-                mix(0x172638, ship.accent, 0.32),
-            );
-            ellipse(
-                fb,
-                (center_x, platform_y),
-                (106.0, 17.0),
-                mix(0x172638, ship.accent, 0.21),
-            );
-            rule(fb, (r.x + 30, 518), (r.x + 45, 518), edge);
-            rule(fb, (r.x + r.w - 45, 518), (r.x + r.w - 30, 518), edge);
-            let orbit = seconds * TAU / 18.0 + index as f32 * 0.8;
-            let marker = (
-                center_x + orbit.cos() * 136.0,
-                platform_y + orbit.sin() * 23.0,
-            );
-            rounded(
-                fb,
-                Rect::new(marker.0 as i32 - 2, marker.1 as i32 - 2, 5, 5),
-                2,
-                ship.accent,
-                ship.accent,
-            );
-
-            renderer::draw_model(
-                fb,
-                &ship.model,
-                &preview_camera(index, seconds),
-                RenderMode::Solid,
-                Viewport {
-                    x: (r.x + 16) as usize,
-                    y: 306,
-                    width: (r.w - 32) as usize,
-                    height: 240,
-                },
-                ship.finish,
-            );
-            self.fonts.text(fb, 28, r.x + 24, 566, ship.name, TEXT);
-            if hover == Some(index) && !active {
-                rounded(
-                    fb,
-                    Rect::new(r.x + 342, 576, 8, 8),
-                    4,
-                    ship.accent,
-                    ship.accent,
-                );
-            }
-        }
-
-        rule(fb, (52, 711), (1228, 711), BORDER);
-        self.fonts.text(fb, 14, 54, 744, "SELECCIONADA", MUTED);
-        self.fonts.text(fb, 22, 54, 762, ships[selected].name, TEXT);
-        let cta = if hover_button { 0xadffe9 } else { TEAL };
-        rounded(fb, LAUNCH, 12, cta, cta);
-        let label = "VOLAR";
-        let label_x = LAUNCH.x + (LAUNCH.w - self.fonts.width(18, label).round() as i32 - 20) / 2;
-        self.fonts.text(fb, 18, label_x, 749, label, 0x0c2829);
-        arrow(fb, LAUNCH.x + LAUNCH.w - 28, 755, 0x0c2829);
-        self.fonts.text(
-            fb,
-            14,
-            54,
-            805,
-            "1–3 Elegir  ·  TAB Recorrer  ·  ENTER Volar  ·  ESPACIO Pausar  ·  ESC Salir",
-            MUTED,
-        );
+        self.space.configure(index);
+        self.galaxy = index;
     }
 
     pub fn inspector(&self, fb: &mut Framebuffer, ship: &Ship, mode: RenderMode, hover_back: bool) {
@@ -495,7 +360,7 @@ impl Ui {
         fb.clear();
         for y in 0..HEIGHT {
             let t = y as f32 / HEIGHT as f32;
-            let color = mix(0x0d1725, 0x03060c, t);
+            let color = mix(crate::galaxy::GALAXIES[self.galaxy].sky, 0x03060c, t);
             fb.pixels[y * WIDTH..(y + 1) * WIDTH].fill(color);
         }
 
@@ -576,7 +441,7 @@ impl Ui {
                 );
             }
         }
-        for planet in &self.space.planets {
+        for planet in self.space.active_planets() {
             if let Some(point) = view.project(planet.transform.position) {
                 let atmosphere = if planet.dust.is_some() { 1.22 } else { 1.0 };
                 let y = point.y
@@ -591,7 +456,14 @@ impl Ui {
         }
 
         rounded(fb, Rect::new(34, 25, 285, 66), 12, 0x101d2c, 0x304154);
-        self.fonts.text(fb, 14, 54, 37, "VUELO LIBRE", TEAL);
+        self.fonts.text(
+            fb,
+            14,
+            54,
+            37,
+            crate::galaxy::GALAXIES[self.galaxy].name,
+            TEAL,
+        );
         self.fonts.text(fb, 22, 54, 56, ship.name, TEXT);
         rounded(fb, Rect::new(970, 25, 276, 92), 12, 0x101d2c, 0x304154);
         self.fonts.text(
@@ -674,13 +546,13 @@ impl Ui {
             14,
             52,
             784,
-            "W/S Avanzar/Retroceder  ·  A/D Lateral  ·  Mouse Dirigir  ·  SHIFT Turbo  ·  ESPACIO Freno  ·  I Vista  ·  ESC Hangar",
+            "W/S Avanzar/Retroceder  ·  A/D Lateral  ·  Mouse Dirigir  ·  SHIFT Turbo  ·  ESPACIO Freno  ·  I Vista  ·  ESC Galaxias",
             MUTED,
         );
     }
 }
 
-fn mix(a: u32, b: u32, t: f32) -> u32 {
+pub(crate) fn mix(a: u32, b: u32, t: f32) -> u32 {
     let t = t.clamp(0.0, 1.0);
     let channel = |shift: u32| {
         let a = ((a >> shift) & 255) as f32;
@@ -689,13 +561,13 @@ fn mix(a: u32, b: u32, t: f32) -> u32 {
     };
     channel(16) << 16 | channel(8) << 8 | channel(0)
 }
-fn blend_pixel(fb: &mut Framebuffer, x: i32, y: i32, color: u32, alpha: f32) {
+pub(crate) fn blend_pixel(fb: &mut Framebuffer, x: i32, y: i32, color: u32, alpha: f32) {
     if x >= 0 && y >= 0 && (x as usize) < fb.width && (y as usize) < fb.height {
         let i = y as usize * fb.width + x as usize;
         fb.pixels[i] = mix(fb.pixels[i], color, alpha);
     }
 }
-fn rounded(fb: &mut Framebuffer, r: Rect, radius: i32, fill: u32, border: u32) {
+pub(crate) fn rounded(fb: &mut Framebuffer, r: Rect, radius: i32, fill: u32, border: u32) {
     rounded_fill(fb, r, radius, border);
     if fill != border {
         rounded_fill(
@@ -708,7 +580,7 @@ fn rounded(fb: &mut Framebuffer, r: Rect, radius: i32, fill: u32, border: u32) {
 }
 
 // Fill scanlines in bulk; only the two edge pixels need alpha blending.
-fn rounded_fill(fb: &mut Framebuffer, r: Rect, radius: i32, color: u32) {
+pub(crate) fn rounded_fill(fb: &mut Framebuffer, r: Rect, radius: i32, color: u32) {
     let radius = radius.max(0).min(r.w / 2).min(r.h / 2) as f32;
     for y in r.y.max(0)..(r.y + r.h).min(fb.height as i32) {
         let dy = ((y as f32 + 0.5 - r.y as f32 - r.h as f32 * 0.5).abs()
@@ -726,7 +598,13 @@ fn rounded_fill(fb: &mut Framebuffer, r: Rect, radius: i32, color: u32) {
         blend_pixel(fb, right.floor() as i32, y, color, right - right.floor());
     }
 }
-fn glow(fb: &mut Framebuffer, center: (f32, f32), radius: (f32, f32), color: u32, strength: f32) {
+pub(crate) fn glow(
+    fb: &mut Framebuffer,
+    center: (f32, f32),
+    radius: (f32, f32),
+    color: u32,
+    strength: f32,
+) {
     let left = (center.0 - radius.0).max(0.0) as i32;
     let right = (center.0 + radius.0).min(fb.width as f32) as i32;
     let top = (center.1 - radius.1).max(0.0) as i32;
@@ -742,7 +620,7 @@ fn glow(fb: &mut Framebuffer, center: (f32, f32), radius: (f32, f32), color: u32
         }
     }
 }
-fn rule(fb: &mut Framebuffer, from: (i32, i32), to: (i32, i32), color: u32) {
+pub(crate) fn rule(fb: &mut Framebuffer, from: (i32, i32), to: (i32, i32), color: u32) {
     triangle::line(
         fb,
         &Vec3::new(from.0 as f32, from.1 as f32, 0.0),
@@ -751,7 +629,7 @@ fn rule(fb: &mut Framebuffer, from: (i32, i32), to: (i32, i32), color: u32) {
         false,
     );
 }
-fn ellipse(fb: &mut Framebuffer, center: (f32, f32), radius: (f32, f32), color: u32) {
+pub(crate) fn ellipse(fb: &mut Framebuffer, center: (f32, f32), radius: (f32, f32), color: u32) {
     let mut previous = (center.0 + radius.0, center.1);
     for step in 1..=160 {
         let angle = step as f32 * TAU / 160.0;
@@ -767,11 +645,6 @@ fn ellipse(fb: &mut Framebuffer, center: (f32, f32), radius: (f32, f32), color: 
         );
         previous = point;
     }
-}
-fn arrow(fb: &mut Framebuffer, x: i32, y: i32, color: u32) {
-    rule(fb, (x, y + 5), (x + 17, y + 5), color);
-    rule(fb, (x + 12, y), (x + 17, y + 5), color);
-    rule(fb, (x + 12, y + 10), (x + 17, y + 5), color);
 }
 
 #[cfg(test)]
@@ -816,41 +689,43 @@ mod tests {
         }
     }
     #[test]
-    fn all_three_models_animate_inside_their_preview_without_changing_the_menu() {
+    fn each_selected_ship_animates_without_changing_the_sidebar_or_details() {
         let ships = crate::fleet::load().unwrap();
         let ui = Ui::new().unwrap();
         let mut before = Framebuffer::new(WIDTH, HEIGHT);
         let mut after = Framebuffer::new(WIDTH, HEIGHT);
-        let view = MenuView {
-            emphasis: [1.0, 0.0, 0.0],
-            ..Default::default()
-        };
-        ui.menu(&mut before, &ships, &view);
-        ui.menu(
-            &mut after,
-            &ships,
-            &MenuView {
-                seconds: 4.0,
-                ..view
-            },
-        );
-        let mut changed = [0; 3];
-        for y in 0..HEIGHT {
-            for x in 0..WIDTH {
-                if before.pixels[y * WIDTH + x] != after.pixels[y * WIDTH + x] {
-                    let index = (0..3)
-                        .find(|&i| {
-                            Rect::new(card(i).x + 16, 306, 344, 240).contains((x as f32, y as f32))
-                        })
-                        .expect("Preview geometry escaped its viewport");
-                    changed[index] += 1;
+        for selected in 0..3 {
+            let view = MenuView {
+                selected,
+                ..Default::default()
+            };
+            ui.menu(&mut before, &ships, &view);
+            ui.menu(
+                &mut after,
+                &ships,
+                &MenuView {
+                    seconds: 4.0,
+                    ..view
+                },
+            );
+            let hero = crate::menus::HERO;
+            let mut changed = 0;
+            for y in 0..HEIGHT {
+                for x in 0..WIDTH {
+                    if before.pixels[y * WIDTH + x] != after.pixels[y * WIDTH + x] {
+                        assert!(
+                            x >= hero.x
+                                && x < hero.x + hero.width
+                                && y >= hero.y
+                                && y < hero.y + hero.height,
+                            "La animacion debe permanecer dentro de la vista principal"
+                        );
+                        changed += 1;
+                    }
                 }
             }
+            assert!(changed > 500, "La nave seleccionada debe animarse");
         }
-        assert!(
-            changed.iter().all(|&count| count > 500),
-            "A ship preview was empty or static: {changed:?}"
-        );
         for size in [14, 16, 18, 22, 28, 52] {
             for character in "áéíóúÓÍÑ°–".chars() {
                 assert!(
