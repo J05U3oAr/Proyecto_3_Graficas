@@ -21,7 +21,7 @@ pub const DESTINATION_PANEL: Rect = Rect::new(922, 375, 314, 334);
 pub const DESTINATION_CLOSE: Rect = Rect::new(1194, 391, 24, 24);
 pub const DESTINATION_BACK: Rect = Rect::new(44, 740, 190, 46);
 
-fn glass(fb: &mut Framebuffer, rect: Rect, border: u32, opacity: f32) {
+pub(crate) fn glass(fb: &mut Framebuffer, rect: Rect, border: u32, opacity: f32) {
     let radius = 12.0;
     for y in rect.y.max(0)..(rect.y + rect.h).min(fb.height as i32) {
         for x in rect.x.max(0)..(rect.x + rect.w).min(fb.width as i32) {
@@ -67,6 +67,8 @@ fn button(ui: &Ui, fb: &mut Framebuffer, label: &str, accent: u32, hover: bool) 
 pub fn ships(ui: &Ui, fb: &mut Framebuffer, ships: &[Ship], view: &MenuView) {
     ui.begin(fb);
     let ship = &ships[view.selected];
+    glass(fb, crate::home::HANGAR_BACK, LINE, 0.55);
+    ui.fonts.text(fb, 16, 1062, 48, "< Menu principal", TEXT);
     ui.fonts.text(fb, 28, 44, 36, "Selecciona tu nave", TEXT);
     ui.fonts.text(fb, 52, 40, 140, ship.name, TEXT);
     ui.fonts.text(fb, 14, 44, 220, "FLOTA DISPONIBLE", MUTED);
@@ -209,7 +211,7 @@ pub fn ships(ui: &Ui, fb: &mut Framebuffer, ships: &[Ship], view: &MenuView) {
         14,
         44,
         815,
-        "1-3 / Flechas Elegir   TAB Recorrer   ENTER Continuar   ESPACIO Pausar   ESC Salir",
+        "1-3 / Flechas Elegir   TAB Recorrer   ENTER Continuar   ESPACIO Pausar   ESC Inicio",
         MUTED,
     );
 }
@@ -234,39 +236,15 @@ pub fn galaxies(ui: &Ui, fb: &mut Framebuffer, ship: &Ship, view: &GalaxyView) {
     for (index, galaxy) in GALAXIES.iter().enumerate() {
         let (cx, cy) = points[index];
         let active = view.details_open && index == view.selected;
-        glow(
-            fb,
-            (cx, cy),
-            (145.0 * view.zoom, 92.0 * view.zoom),
-            galaxy.accent,
-            if active { 0.10 } else { 0.045 },
-        );
-        for i in 0..1450 {
-            let t = (i as f32 + 0.5) / 1450.0;
-            let arm = (i % 3) as f32 * TAU / 3.0;
-            let angle = arm + t * 8.2 + view.seconds * 0.035;
-            let radius = t.sqrt() * 111.0 * view.zoom;
-            let jitter = ((i * 71 % 37) as f32 - 18.0) * 0.25;
-            let x = cx + angle.cos() * radius + jitter;
-            let y = cy + angle.sin() * radius * 0.52 + jitter;
-            let brightness = (1.0 - t * 0.65) * if active { 0.95 } else { 0.65 };
-            blend_pixel(
-                fb,
-                x as i32,
-                y as i32,
-                mix(galaxy.accent, 0xffffff, (1.0 - t).powi(4)),
-                brightness,
-            );
-        }
-        ellipse(fb, (cx, cy), (3.0, 3.0), 0xf4eaff);
+        crate::galaxy_art::draw(fb, index, (cx, cy), view.zoom, view.seconds);
         if active || view.hover == Some(index) {
             for i in 0..160 {
                 let angle = i as f32 * TAU / 160.0;
-                let radius = 126.0 * view.zoom;
+                let radius = 210.0 * view.zoom;
                 blend_pixel(
                     fb,
                     (cx + angle.cos() * radius) as i32,
-                    (cy + angle.sin() * radius * 0.63) as i32,
+                    (cy + angle.sin() * radius * 0.62) as i32,
                     galaxy.accent,
                     0.65,
                 );
@@ -274,7 +252,7 @@ pub fn galaxies(ui: &Ui, fb: &mut Framebuffer, ship: &Ship, view: &GalaxyView) {
         }
         let label_width = ui.fonts.width(22, galaxy.name);
         let label_x = (cx - label_width * 0.5) as i32;
-        let label_y = cy as i32 + (83.0 * view.zoom) as i32;
+        let label_y = cy as i32 + (119.0 * view.zoom) as i32;
         let covered = view.details_open
             && label_x < DESTINATION_PANEL.x + DESTINATION_PANEL.w
             && label_x + label_width as i32 > DESTINATION_PANEL.x

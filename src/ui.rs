@@ -126,6 +126,48 @@ impl Fonts {
     pub(crate) fn width(&self, size: u32, text: &str) -> f32 {
         text.chars().map(|c| self.glyph(size, c).advance).sum()
     }
+    pub(crate) fn text_scaled(
+        &self,
+        fb: &mut Framebuffer,
+        position: (i32, i32),
+        text: &str,
+        scale: f32,
+        color: u32,
+    ) {
+        let size = 52;
+        let mut cursor = position.0 as f32;
+        for character in text.chars() {
+            let glyph = self.glyph(size, character);
+            let origin_x = cursor + glyph.left as f32 * scale;
+            let origin_y = position.1 as f32 + (size as i32 + glyph.top) as f32 * scale;
+            for y in 0..(glyph.h as f32 * scale).ceil() as u32 {
+                for x in 0..(glyph.w as f32 * scale).ceil() as u32 {
+                    let source_x = (x as f32 / scale).min(glyph.w.saturating_sub(1) as f32);
+                    let source_y = (y as f32 / scale).min(glyph.h.saturating_sub(1) as f32);
+                    let left = source_x.floor() as u32;
+                    let top = source_y.floor() as u32;
+                    let right = (left + 1).min(glyph.w.saturating_sub(1));
+                    let bottom = (top + 1).min(glyph.h.saturating_sub(1));
+                    let sample = |x, y| self.atlas.get_pixel(glyph.x + x, glyph.y + y)[3] as f32;
+                    let u = source_x - left as f32;
+                    let v = source_y - top as f32;
+                    let upper = sample(left, top) * (1.0 - u) + sample(right, top) * u;
+                    let lower = sample(left, bottom) * (1.0 - u) + sample(right, bottom) * u;
+                    let alpha = (upper * (1.0 - v) + lower * v) / 255.0;
+                    if alpha > 0.0 {
+                        blend_pixel(
+                            fb,
+                            origin_x.round() as i32 + x as i32,
+                            origin_y.round() as i32 + y as i32,
+                            color,
+                            alpha,
+                        );
+                    }
+                }
+            }
+            cursor += glyph.advance * scale;
+        }
+    }
     pub(crate) fn text(
         &self,
         fb: &mut Framebuffer,
@@ -173,6 +215,7 @@ struct Star {
 }
 impl Ui {
     pub fn new() -> Result<Self, Box<dyn Error>> {
+        crate::galaxy_art::prepare();
         let background = &crate::nebula::backgrounds().hangar;
         let mut stars = Vec::with_capacity(900);
         for index in 0..900 {
