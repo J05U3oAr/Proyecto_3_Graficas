@@ -16,7 +16,9 @@ El primer inicio compila las dependencias declaradas en `Cargo.toml`. Rayon repa
 
 ## Controles del hangar
 
-Selecciona una nave en la columna izquierda. La vista central muestra el modelo girando; la ficha derecha contiene datos reales de su geometría y los parámetros compartidos de vuelo. Pulsa **Elegir galaxia** para continuar al atlas.
+Selecciona una nave en la columna izquierda. Su nombre aparece como título principal y la vista central muestra el modelo girando; la ficha derecha contiene datos reales de su geometría y los parámetros compartidos de vuelo. Pulsa **Elegir destino** para continuar al mapa.
+
+Los dos menús usan el fondo procedural adaptado de `referencia.rs`: una nebulosa con ruido fractal, franjas de polvo oscuro y estrellas de semilla fija. Se genera una sola vez y se conserva en memoria; el mapa utiliza una variación violeta de la misma nebulosa. No necesita imágenes externas.
 
 | Tecla | Acción |
 | --- | --- |
@@ -31,7 +33,7 @@ La animación usa tiempo transcurrido y se pausa cuando la ventana pierde el foc
 
 ## Selector de galaxias
 
-El atlas permite elegir tres regiones explorables. Reutilizan los modelos existentes con distintas combinaciones y posiciones; no representan planetas nuevos.
+La pantalla **Destinos** permite elegir tres regiones explorables. El mapa ocupa toda la ventana y gira lentamente de forma automática. La descripción aparece únicamente al seleccionar un destino mediante clic o teclado; se puede cerrar con la cruz o haciendo clic en el espacio vacío. Las regiones reutilizan los modelos existentes con distintas combinaciones y posiciones; no representan planetas nuevos.
 
 | Destino | Planetas | Decoración |
 | --- | --- | --- |
@@ -43,13 +45,15 @@ Los asteroides se generan con una semilla fija por región y no tienen colisión
 
 | Control | Acción |
 | --- | --- |
-| Clic sobre una galaxia, `1–3`, flechas o `Tab` / `Shift+Tab` | Elegir destino |
+| Clic sobre una galaxia, `1–3`, flechas o `Tab` / `Shift+Tab` | Elegir destino y abrir su descripción |
 | Rueda del ratón o `+` / `-` | Acercar o alejar el mapa |
 | `WASD` | Desplazar el mapa |
-| `Q` / `E` | Girar el mapa |
 | `R` | Restaurar encuadre |
-| `Enter` o **Despegar** | Iniciar un vuelo nuevo en el destino seleccionado |
+| `Enter` | Mostrar la descripción; si ya está abierta, iniciar el viaje |
+| **Viajar** | Iniciar el viaje hacia el destino seleccionado |
 | `Esc` o **Cambiar nave** | Regresar al hangar |
+
+El viaje dura 2.8 segundos y muestra aceleración con estelas radiales, acercamiento a la nebulosa y un destello. Termina mezclándose con el primer cuadro real del destino. La física del vuelo comienza al finalizar la transición. `Esc` permite cancelar el viaje; la animación se pausa si la ventana pierde el foco.
 
 La organización del mapa toma como referencia la navegación y la información contextual del [mapa galáctico descrito por Hello Games](https://www.nomanssky.com/atlas-rises-update/). Sus gráficos y distribución se dibujan mediante código propio.
 
@@ -125,6 +129,8 @@ El HUD muestra la distancia y avisa de la atracción. Puedes ver
 ```bash
 cargo run --release -- --render-menu output/hangar.png --time 4 --ship 1
 cargo run --release -- --render-galaxies output/atlas.png --galaxy 2
+cargo run --release -- --render-galaxies output/detalle.png --galaxy 2 --details --time 8
+cargo run --release -- --render-travel output/viaje.png --galaxy 2 --time 1.4
 cargo run --release -- --render-inspector output/lightflash.png --ship 3
 cargo run --release -- --render-flight output/vuelo.png --ship 1
 cargo run --release -- --render-flight output/umbria.png --galaxy 3
@@ -165,6 +171,9 @@ Admite los cuatro nombres de planeta y es una alternativa a `--near-black-hole`.
 - `src/fleet.rs`: modelos, nombres y acabados de las naves.
 - `src/galaxy.rs`: catálogo de destinos, distribuciones y transformación del mapa.
 - `src/menus.rs`: hangar lateral, vista principal y atlas de galaxias.
+- `src/nebula.rs`: fondo procedural basado en `referencia.rs` y variación de color del mapa.
+- `src/noise.rs`: ruido reproducible y funciones de interpolación de la nebulosa.
+- `src/travel.rs`: transición de viaje y mezcla con el cuadro de llegada.
 - `src/flight.rs`: posición, velocidad, impulso y controles de vuelo.
 - `src/collision.rs`: colisión continua con las mallas de los planetas y sus túneles.
 - `src/explosion.rs`: fuego, fragmentos y humo del impacto en coordenadas del mundo.
