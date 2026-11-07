@@ -131,8 +131,9 @@ impl GalaxyView {
         (0..GALAXIES.len())
             .filter_map(|index| {
                 let center = self.point(index);
-                let distance = (center.0 - point.0).powi(2) + (center.1 - point.1).powi(2);
-                (distance < (115.0 * self.zoom).powi(2)).then_some((index, distance))
+                let distance = ((center.0 - point.0) / (205.0 * self.zoom)).powi(2)
+                    + ((center.1 - point.1) / (130.0 * self.zoom)).powi(2);
+                (distance < 1.0).then_some((index, distance))
             })
             .min_by(|a, b| a.1.total_cmp(&b.1))
             .map(|entry| entry.0)
