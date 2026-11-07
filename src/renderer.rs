@@ -1,3 +1,4 @@
+use crate::raster_batch::{self, Primitive, Surface};
 use crate::{
     camera::Camera, color::Color, flight::Flight, framebuffer::Framebuffer, model::Model, triangle,
 };
@@ -176,6 +177,7 @@ pub fn draw_world_model(
         .collect();
     let light = Vec3::new(-0.4, 0.8, 1.0).normalize();
     let half = (light + Vec3::new(0.0, 0.0, 1.0)).normalize();
+    let mut primitives = Vec::with_capacity(model.faces.len());
     for face in &model.faces {
         let [i, j, k] = face.indices;
         let [a, b, c] = [vertices[i], vertices[j], vertices[k]];
@@ -197,13 +199,15 @@ pub fn draw_world_model(
                         inverse_w: screen.z,
                     }
                 });
-                triangle::fill_textured(
-                    fb,
-                    projected,
-                    &model.textures[texture],
-                    face.color,
-                    intensity,
-                );
+                primitives.push(Primitive {
+                    vertices: projected.map(|v| v.screen),
+                    surface: Surface::Textured {
+                        vertices: projected,
+                        texture: &model.textures[texture],
+                        tint: face.color,
+                        intensity,
+                    },
+                });
             }
             continue;
         }
@@ -217,15 +221,17 @@ pub fn draw_world_model(
                 p.z = p.z.min(-NEAR_PLANE);
                 camera.project_view(p).unwrap()
             };
-            triangle::fill(
-                fb,
-                &project(polygon[0]),
-                &project(polygon[index]),
-                &project(polygon[index + 1]),
-                color,
-            );
+            primitives.push(Primitive {
+                vertices: [
+                    project(polygon[0]),
+                    project(polygon[index]),
+                    project(polygon[index + 1]),
+                ],
+                surface: Surface::Solid(color),
+            });
         }
     }
+    raster_batch::draw(fb, &primitives);
 }
 
 fn clip_near(triangle: [Vec3; 3]) -> ([Vec3; 4], usize) {
