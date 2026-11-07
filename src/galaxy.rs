@@ -25,7 +25,7 @@ pub const GALAXIES: [Galaxy; 3] = [
         planets: &[0, 1, 2, 3],
         accent: 0x78eed5,
         sky: 0x0d1725,
-        map: (-170.0, -35.0),
+        map: (-285.0, -35.0),
         seed: 13875,
         debris: 0,
     },
@@ -40,7 +40,7 @@ pub const GALAXIES: [Galaxy; 3] = [
         planets: &[0, 2],
         accent: 0xf1b671,
         sky: 0x26170f,
-        map: (145.0, -125.0),
+        map: (295.0, -145.0),
         seed: 71029,
         debris: 42,
     },
@@ -55,7 +55,7 @@ pub const GALAXIES: [Galaxy; 3] = [
         planets: &[1, 3],
         accent: 0xa9afff,
         sky: 0x17142c,
-        map: (70.0, 155.0),
+        map: (30.0, 180.0),
         seed: 94013,
         debris: 64,
     },
@@ -92,6 +92,7 @@ pub struct GalaxyView {
     pub hover: Option<usize>,
     pub hover_button: bool,
     pub hover_back: bool,
+    pub details_open: bool,
 }
 
 impl Default for GalaxyView {
@@ -105,6 +106,7 @@ impl Default for GalaxyView {
             hover: None,
             hover_button: false,
             hover_back: false,
+            details_open: false,
         }
     }
 }
@@ -112,31 +114,63 @@ impl Default for GalaxyView {
 impl GalaxyView {
     pub fn point(&self, index: usize) -> (f32, f32) {
         let (x, y) = GALAXIES[index].map;
-        let (sin, cos) = self.angle.sin_cos();
+        let (sin, cos) = (self.angle + self.seconds * 0.018).sin_cos();
         (
-            460.0 + (x * cos - y * sin) * self.zoom + self.pan.0,
+            640.0 + (x * cos - y * sin) * self.zoom + self.pan.0,
             420.0 + (x * sin + y * cos) * self.zoom + self.pan.1,
         )
     }
 
     pub fn hit(&self, point: (f32, f32)) -> Option<usize> {
-        if !(43.0..889.0).contains(&point.0) || !(231.0..708.0).contains(&point.1) {
+        if !(0.0..1280.0).contains(&point.0)
+            || !(120.0..720.0).contains(&point.1)
+            || (self.details_open && crate::menus::DESTINATION_PANEL.contains(point))
+        {
             return None;
         }
         (0..GALAXIES.len())
             .filter_map(|index| {
                 let center = self.point(index);
                 let distance = (center.0 - point.0).powi(2) + (center.1 - point.1).powi(2);
-                (distance < (85.0 * self.zoom).powi(2)).then_some((index, distance))
+                (distance < (115.0 * self.zoom).powi(2)).then_some((index, distance))
             })
             .min_by(|a, b| a.1.total_cmp(&b.1))
             .map(|entry| entry.0)
+    }
+
+    pub fn select(&mut self, index: usize) {
+        self.selected = index;
+        self.details_open = true;
+    }
+
+    pub fn advance(&mut self, dt: f32) {
+        if dt.is_finite() && dt > 0.0 {
+            self.seconds += dt.min(0.1);
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn descriptions_require_selection_and_automatic_motion_preserves_picking() {
+        let mut view = GalaxyView::default();
+        assert!(!view.details_open);
+        let original = view.point(0);
+        for _ in 0..300 {
+            view.advance(1.0 / 60.0);
+        }
+        assert!(!view.details_open);
+        assert!((view.point(0).1 - original.1).abs() > 10.0);
+        for index in 0..GALAXIES.len() {
+            assert_eq!(view.hit(view.point(index)), Some(index));
+        }
+        view.select(2);
+        assert!(view.details_open);
+        assert_eq!(view.selected, 2);
+        assert_eq!(view.hit((950.0, 420.0)), None);
+    }
     #[test]
     fn transformed_map_picks_the_visible_destination() {
         for zoom in [0.65, 1.0, 1.35] {
