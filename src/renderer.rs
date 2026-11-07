@@ -162,6 +162,16 @@ pub fn draw_world_model(
     camera: &FlightView,
     transform: WorldTransform,
 ) {
+    draw_world_model_lit(fb, model, camera, transform, None);
+}
+
+pub fn draw_world_model_lit(
+    fb: &mut Framebuffer,
+    model: &Model,
+    camera: &FlightView,
+    transform: WorldTransform,
+    sun: Option<Vec3>,
+) {
     if !camera.sphere_visible(transform.position, transform.radius) {
         return;
     }
@@ -175,7 +185,11 @@ pub fn draw_world_model(
             camera.view_point(transform.position + rotated)
         })
         .collect();
-    let light = Vec3::new(-0.4, 0.8, 1.0).normalize();
+    let light = sun
+        .map(|position| camera.view_direction(position - transform.position))
+        .filter(|direction| direction.norm_squared() > 0.001)
+        .unwrap_or_else(|| Vec3::new(-0.4, 0.8, 1.0))
+        .normalize();
     let half = (light + Vec3::new(0.0, 0.0, 1.0)).normalize();
     let mut primitives = Vec::with_capacity(model.faces.len());
     for face in &model.faces {
@@ -187,7 +201,14 @@ pub fn draw_world_model(
                 point: points[i],
                 uv: uv[i],
             }));
-            let intensity = texture_intensity((b - a).cross(&(c - a)), face.unlit);
+            let normal = (b - a).cross(&(c - a));
+            let intensity = if sun.is_some() && !face.unlit && normal.norm_squared() > 0.001 {
+                let normal = normal.normalize();
+                let normal = if normal.z < 0.0 { -normal } else { normal };
+                0.18 + 0.95 * normal.dot(&light).max(0.0)
+            } else {
+                texture_intensity(normal, face.unlit)
+            };
             for index in 1..count.saturating_sub(1) {
                 let projected = [polygon[0], polygon[index], polygon[index + 1]].map(|vertex| {
                     let mut point = vertex.point;
