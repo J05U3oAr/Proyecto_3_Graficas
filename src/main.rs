@@ -9,6 +9,8 @@ mod fleet;
 mod flight;
 mod framebuffer;
 mod galaxy;
+mod galaxy_art;
+mod home;
 mod menus;
 mod model;
 mod nebula;
@@ -32,6 +34,7 @@ use ui::{HEIGHT, WIDTH};
 
 #[derive(Clone, Copy, PartialEq)]
 enum Screen {
+    Home,
     Menu,
     Galaxy,
     Travel,
@@ -70,6 +73,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut benchmark_frames = 0usize;
         let mut galaxy_index = 0usize;
         let mut details_open = false;
+        let mut home_page = home::Page::Main;
         let mut export_screen = Screen::Menu;
         let mut landmark = false;
         let mut planet = false;
@@ -87,12 +91,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                         return Err("La medición admite de 1 a 10000 cuadros".into());
                     }
                 }
-                "--render-menu" | "--render-galaxies" | "--render-travel"
+                "--render-home" | "--render-menu" | "--render-galaxies" | "--render-travel"
                 | "--render-inspector" | "--render-flight" | "--render-landmark"
                 | "--render-planet" => {
                     landmark = argument == "--render-landmark";
                     planet = argument == "--render-planet";
                     export_screen = match argument.as_str() {
+                        "--render-home" => Screen::Home,
                         "--render-flight" => Screen::Flight,
                         "--render-galaxies" => Screen::Galaxy,
                         "--render-travel" => Screen::Travel,
@@ -100,6 +105,22 @@ fn main() -> Result<(), Box<dyn Error>> {
                         _ => Screen::Menu,
                     };
                     output = Some(args.next().ok_or("Falta el archivo PNG de salida")?);
+                }
+                "--home-section" => {
+                    home_page = match args
+                        .next()
+                        .ok_or("Falta la seccion del menu principal")?
+                        .as_str()
+                    {
+                        "principal" => home::Page::Main,
+                        "controles" => home::Page::Controls,
+                        "instrucciones" => home::Page::Instructions,
+                        _ => {
+                            return Err(
+                                "Seccion invalida: principal, controles o instrucciones".into()
+                            );
+                        }
+                    };
                 }
                 "--details" => details_open = true,
                 "--galaxy" => {
@@ -144,6 +165,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 "--help" => {
                     println!(
+                        "Beyond the Interstellar\ncargo run --release -- --render-home salida.png [--home-section principal|controles|instrucciones]"
+                    );
+                    println!(
                         "cargo run --release -- --render-travel salida.png [--galaxy 2] [--time 1.4]\n--render-galaxies admite --details para mostrar la descripcion seleccionada."
                     );
                     println!(
@@ -158,13 +182,22 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
         let output = output.ok_or(
-            "Especifica --render-menu, --render-inspector, --render-flight, --render-landmark o --render-planet",
+            "Especifica --render-home, --render-menu, --render-galaxies, --render-travel, --render-inspector, --render-flight, --render-landmark o --render-planet",
         )?;
         ui.select_galaxy(galaxy_index);
         if benchmark_frames > 0 && export_screen != Screen::Flight {
             return Err("La medicion requiere --render-flight".into());
         }
-        if planet {
+        if export_screen == Screen::Home {
+            home::draw(
+                &ui,
+                &mut framebuffer,
+                &home::Home {
+                    page: home_page,
+                    ..Default::default()
+                },
+            );
+        } else if planet {
             ui.planet_preview(&mut framebuffer, target.unwrap_or("boreal"), seconds)?;
         } else if landmark {
             ui.landmark_preview(&mut framebuffer, target.unwrap_or("accretion"))?;
@@ -250,7 +283,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let mut window = Window::new(
-        "Orbital | Exploracion espacial",
+        home::GAME_TITLE,
         WIDTH,
         HEIGHT,
         WindowOptions {
@@ -263,7 +296,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut atlas = galaxy::GalaxyView::default();
     let mut transit = travel::Travel::new(0);
     let mut arrival = Framebuffer::new(WIDTH, HEIGHT);
-    let mut screen = Screen::Menu;
+    let mut screen = Screen::Home;
+    let mut home_menu = home::Home::default();
+    let mut previous_mouse = None;
     let mut selected = 0usize;
     let mut mode = RenderMode::Solid;
     let mut flight = ui.new_flight();
@@ -278,7 +313,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         previous = now;
         if window.is_key_pressed(Key::Escape, KeyRepeat::No) {
             match screen {
-                Screen::Menu => break,
+                Screen::Home => home_menu.back(),
+                Screen::Menu => screen = Screen::Home,
                 Screen::Galaxy => screen = Screen::Menu,
                 Screen::Travel => screen = Screen::Galaxy,
                 Screen::Flight => screen = Screen::Galaxy,
@@ -292,7 +328,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             if window.is_key_pressed(key, KeyRepeat::No) {
                 if screen == Screen::Galaxy {
                     atlas.select(index);
-                } else if screen != Screen::Travel {
+                } else if matches!(screen, Screen::Menu | Screen::Flight | Screen::Inspector) {
                     selected = index;
                 }
             }
@@ -300,6 +336,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mouse = window
             .get_unscaled_mouse_pos(MouseMode::Discard)
             .and_then(|p| ui::canvas_mouse(p, window.get_size()));
+        let mouse_moved = mouse != previous_mouse;
+        previous_mouse = mouse;
+        let home_hover = mouse.and_then(|point| home_menu.hit(point));
+        let hover_home = mouse.is_some_and(|point| home::HANGAR_BACK.contains(point));
         let mouse_down = window.get_mouse_down(MouseButton::Left);
         let clicked = mouse_down && !mouse_was_down;
         mouse_was_down = mouse_down;
@@ -319,7 +359,42 @@ fn main() -> Result<(), Box<dyn Error>> {
             && atlas.details_open
             && mouse.is_some_and(|p| menus::DESTINATION_CLOSE.contains(p));
 
-        if screen == Screen::Menu {
+        if screen == Screen::Home {
+            if home_menu.page == home::Page::Main {
+                let backwards = window.is_key_pressed(Key::Up, KeyRepeat::Yes)
+                    || window.is_key_pressed(Key::W, KeyRepeat::Yes);
+                let forwards = window.is_key_pressed(Key::Down, KeyRepeat::Yes)
+                    || window.is_key_pressed(Key::S, KeyRepeat::Yes);
+                if backwards {
+                    home_menu.navigate(-1);
+                }
+                if forwards {
+                    home_menu.navigate(1);
+                }
+                if window.is_key_pressed(Key::Tab, KeyRepeat::No) {
+                    let shift =
+                        window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift);
+                    home_menu.navigate(if shift { -1 } else { 1 });
+                }
+                if (mouse_moved || clicked)
+                    && let Some(index) = home_hover
+                {
+                    home_menu.selected = index;
+                }
+            }
+            if window.is_key_pressed(Key::Enter, KeyRepeat::No) || (clicked && home_hover.is_some())
+            {
+                match home_menu.activate() {
+                    home::Action::Ships => screen = Screen::Menu,
+                    home::Action::Destinations => {
+                        atlas.details_open = false;
+                        screen = Screen::Galaxy;
+                    }
+                    home::Action::Exit => break,
+                    home::Action::None => {}
+                }
+            }
+        } else if screen == Screen::Menu {
             if window.is_key_pressed(Key::Left, KeyRepeat::Yes)
                 || window.is_key_pressed(Key::Up, KeyRepeat::Yes)
             {
@@ -361,6 +436,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             if window.is_key_pressed(Key::Enter, KeyRepeat::No) || (clicked && hover_button) {
                 atlas.details_open = false;
                 screen = Screen::Galaxy;
+            }
+            if clicked && hover_home {
+                screen = Screen::Home;
             }
         } else if screen == Screen::Galaxy {
             if window.is_active() {
@@ -479,8 +557,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
 
-        let actionable = if screen == Screen::Menu {
-            hover.is_some() || hover_button || hover_pause
+        let actionable = if screen == Screen::Home {
+            home_hover.is_some()
+        } else if screen == Screen::Menu {
+            hover.is_some() || hover_button || hover_pause || hover_home
         } else if screen == Screen::Galaxy {
             galaxy_hover.is_some() || hover_button || hover_back || hover_close
         } else if screen == Screen::Inspector {
@@ -497,6 +577,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             CursorStyle::Arrow
         });
         match screen {
+            Screen::Home => home::draw(&ui, &mut framebuffer, &home_menu),
             Screen::Menu => ui.menu(
                 &mut framebuffer,
                 &ships,
