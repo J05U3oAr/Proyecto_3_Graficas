@@ -159,7 +159,7 @@ impl Fonts {
 
 pub struct Ui {
     pub(crate) fonts: Fonts,
-    background: Vec<u32>,
+    background: &'static [u32],
     stars: Vec<Star>,
     space: crate::space::Space,
     deep_space: crate::deep_space::DeepSpace,
@@ -173,44 +173,7 @@ struct Star {
 }
 impl Ui {
     pub fn new() -> Result<Self, Box<dyn Error>> {
-        let mut background = Framebuffer::new(WIDTH, HEIGHT);
-        for y in 0..HEIGHT {
-            let t = y as f32 / HEIGHT as f32;
-            let color = mix(0x101827, 0x070c16, t);
-            background.pixels[y * WIDTH..(y + 1) * WIDTH].fill(color);
-        }
-        glow(
-            &mut background,
-            (1030.0, 45.0),
-            (660.0, 340.0),
-            0x244468,
-            0.36,
-        );
-        glow(
-            &mut background,
-            (90.0, 750.0),
-            (630.0, 350.0),
-            0x193c3a,
-            0.2,
-        );
-        let mut seed = 13875u32;
-        for i in 0..110 {
-            seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
-            let x = (seed % WIDTH as u32) as i32;
-            seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
-            let y = (seed % HEIGHT as u32) as i32;
-            blend_pixel(
-                &mut background,
-                x,
-                y,
-                0xadc6e2,
-                if i % 8 == 0 { 0.65 } else { 0.22 },
-            );
-            if i % 16 == 0 {
-                rule(&mut background, (x - 2, y), (x + 2, y), 0x52677e);
-                rule(&mut background, (x, y - 2), (x, y + 2), 0x52677e);
-            }
-        }
+        let background = &crate::nebula::backgrounds().hangar;
         let mut stars = Vec::with_capacity(900);
         for index in 0..900 {
             let mut random = (index as u32 + 71).wrapping_mul(747_796_405);
@@ -235,7 +198,7 @@ impl Ui {
         Ok(Self {
             galaxy: 0,
             fonts: Fonts::load()?,
-            background: background.pixels,
+            background,
             stars,
             space: crate::space::Space::load()?,
             deep_space: crate::deep_space::DeepSpace::new(),
@@ -244,16 +207,33 @@ impl Ui {
 
     pub(crate) fn begin(&self, fb: &mut Framebuffer) {
         fb.clear();
-        fb.pixels.copy_from_slice(&self.background);
-        self.header(fb);
+        fb.pixels.copy_from_slice(self.background);
     }
 
-    fn header(&self, fb: &mut Framebuffer) {
-        ellipse(fb, (68.0, 47.0), (17.0, 9.0), TEAL);
-        ellipse(fb, (68.0, 47.0), (9.0, 17.0), 0x4a8589);
-        rounded(fb, Rect::new(65, 44, 6, 6), 3, TEAL, TEAL);
-        self.fonts.text(fb, 22, 102, 30, "ORBITAL", TEXT);
-        rule(fb, (52, 85), (1228, 85), BORDER);
+    pub(crate) fn begin_destinations(&self, fb: &mut Framebuffer) {
+        fb.clear();
+        fb.pixels
+            .copy_from_slice(&crate::nebula::backgrounds().destinations);
+    }
+
+    pub fn travel(
+        &self,
+        fb: &mut Framebuffer,
+        travel: &crate::travel::Travel,
+        arrival: &Framebuffer,
+    ) {
+        crate::travel::draw(
+            fb,
+            travel,
+            &crate::nebula::backgrounds().destinations,
+            &arrival.pixels,
+        );
+        if travel.progress() < 0.75 {
+            let name = crate::galaxy::GALAXIES[travel.destination].name;
+            let label = format!("RUMBO A {}", name.to_uppercase());
+            let x = (fb.width as f32 - self.fonts.width(22, &label)) as i32 / 2;
+            self.fonts.text(fb, 22, x, 735, &label, 0xe8e7ff);
+        }
     }
 
     pub fn menu(&self, fb: &mut Framebuffer, ships: &[Ship], view: &MenuView) {
