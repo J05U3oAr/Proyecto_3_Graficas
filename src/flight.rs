@@ -7,6 +7,7 @@ use std::sync::Arc;
 pub const CRASH_SPEED: f32 = 28.0;
 pub const CRUISE_SPEED: f32 = 36.0;
 pub const BOOST_SPEED: f32 = 62.0;
+pub const SPAWN_POSITION: Vec3 = Vec3::new(88.0, -139.0, 579.0);
 
 pub struct Crash {
     pub position: Vec3,
@@ -18,6 +19,7 @@ pub struct Crash {
 /// Arcade flight with a mouse steering target and a camera following from behind.
 pub struct Flight {
     pub position: Vec3,
+    spawn_position: Vec3,
     pub velocity: Vec3,
     pub camera: Camera,
     pub heading: Camera,
@@ -42,6 +44,7 @@ impl Flight {
         };
         Self {
             position: Vec3::zeros(),
+            spawn_position: Vec3::zeros(),
             velocity: Vec3::zeros(),
             camera: Camera {
                 pitch: 0.14,
@@ -63,6 +66,8 @@ impl Flight {
 
     pub fn with_collisions(world: Arc<CollisionWorld>) -> Self {
         Self {
+            position: SPAWN_POSITION,
+            spawn_position: SPAWN_POSITION,
             collisions: Some(world),
             ..Self::new()
         }
@@ -70,8 +75,11 @@ impl Flight {
 
     fn respawn(&mut self) {
         let seconds = self.seconds;
+        let spawn_position = self.spawn_position;
         let collisions = self.collisions.take();
         *self = Self::new();
+        self.position = spawn_position;
+        self.spawn_position = spawn_position;
         self.seconds = seconds;
         self.collisions = collisions;
         self.respawn_notice = 3.5;

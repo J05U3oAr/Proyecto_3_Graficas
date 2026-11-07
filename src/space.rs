@@ -250,6 +250,10 @@ mod tests {
             space.configure(galaxy);
             let definition = &crate::galaxy::GALAXIES[galaxy];
             assert_eq!(space.active_planets().count(), definition.planets.len());
+            let mut flight = space.new_flight();
+            assert_eq!(flight.position, crate::flight::SPAWN_POSITION);
+            flight.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+            assert_eq!(flight.position, crate::flight::SPAWN_POSITION);
             assert_eq!(space.debris.len(), definition.debris);
             let first_debris: Vec<_> = space.debris.iter().map(|t| t.position).collect();
             space.configure(galaxy);
@@ -379,7 +383,7 @@ mod tests {
             fast.advance(1.0 / 60.0, (0.0, 0.0), false, false);
         }
         assert!(fast.crash.is_none() && fast.respawn_notice > 0.0);
-        assert_eq!(fast.position, Vec3::zeros());
+        assert_eq!(fast.position, crate::flight::SPAWN_POSITION);
         fast.position = start;
         fast.velocity = -normal * 62.0;
         fast.advance(1.0 / 60.0, (0.0, 0.0), true, false);
