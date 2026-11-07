@@ -85,7 +85,12 @@ impl Model {
                     texcoords.push(Vec2::new(uv[0], uv[1]));
                 }
                 "mtllib" => {
-                    for filename in fields {
+                    let mut filenames: Vec<_> = fields.map(str::to_owned).collect();
+                    let combined = filenames.join(" ");
+                    if directory.join(&combined).is_file() {
+                        filenames = vec![combined];
+                    }
+                    for filename in filenames {
                         let material_path = directory.join(filename);
                         if material_path.exists() {
                             materials.extend(load_materials(
@@ -229,6 +234,15 @@ fn load_materials(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn material_library_names_with_spaces_load_the_provided_solar_model() {
+        let model = Model::load(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/planets/Helios II.obj"),
+        )
+        .unwrap();
+        assert_eq!(model.faces[0].color, Color::new(204, 204, 204));
+    }
 
     #[test]
     fn obj_loads_relative_texture_maps_negative_uv_indices_and_unlit_materials() {
