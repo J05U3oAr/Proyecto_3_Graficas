@@ -1,0 +1,34 @@
+{
+  "flareon": {
+    "source": "blender/Flareon.blend",
+    "original_triangles": 130560,
+    "triangles": 16320,
+    "vertices": 8162,
+    "texture": "textures/aurora-flareon-surface.png",
+    "unlit": true
+  },
+  "helios-ii": {
+    "source": "blender/Heiios II.blend",
+    "original_triangles": 130560,
+    "triangles": 16320,
+    "vertices": 8162,
+    "texture": "textures/aurora-helios-ii-surface.png",
+    "unlit": true
+  },
+  "kepler-186f": {
+    "source": "blender/Kepler-186f.blend",
+    "original_triangles": 130560,
+    "triangles": 16320,
+    "vertices": 8162,
+    "texture": "textures/aurora-kepler-186f-surface.png",
+    "unlit": false
+  },
+  "metis": {
+    "source": "blender/Metis.blend",
+    "original_triangles": 130560,
+    "triangles": 16320,
+    "vertices": 8162,
+    "texture": "textures/aurora-metis-surface.png",
+    "unlit": false
+  }
+}
