@@ -1,6 +1,25 @@
 use crate::renderer::WorldTransform;
 use nalgebra_glm::Vec3;
 
+pub const BODY_NAMES: [&str; 8] = [
+    "Siroco",
+    "Oquedad",
+    "Jovara",
+    "Boreal",
+    "Helios II",
+    "Flareon",
+    "Kepler-186f",
+    "Metis",
+];
+
+pub fn black_hole(galaxy: usize) -> crate::black_hole::BlackHole {
+    let mut hole = crate::black_hole::BLACK_HOLE;
+    if galaxy == 1 {
+        hole.position = Vec3::new(3000.0, 500.0, -2600.0);
+    }
+    hole
+}
+
 pub struct Galaxy {
     pub name: &'static str,
     pub artwork: usize,
@@ -34,13 +53,13 @@ pub const GALAXIES: [Galaxy; 3] = [
     Galaxy {
         name: "Aurora",
         artwork: 0,
-        subtitle: "CORREDOR DE POLVO ESTELAR",
+        subtitle: "SISTEMA DE HELIOS II",
         description: [
-            "Un archipielago entre nubes doradas.",
-            "Siroco y Jovara marcan el camino",
-            "a traves de un cinturon de asteroides.",
+            "Helios II ilumina cuatro planetas.",
+            "Metis acompana a Kepler-186f",
+            "entre orbitas amplias y separadas.",
         ],
-        planets: &[0, 2],
+        planets: &[4, 5, 0, 6, 7, 2],
         accent: 0xf1b671,
         sky: 0x26170f,
         map: (295.0, -145.0),
@@ -66,6 +85,22 @@ pub const GALAXIES: [Galaxy; 3] = [
 ];
 
 pub fn planet_transform(galaxy: usize, planet: usize) -> WorldTransform {
+    if planet >= 4 || (galaxy == 1 && GALAXIES[1].planets.contains(&planet)) {
+        let radius = match planet {
+            0 => 36.0,
+            2 => 95.0,
+            4 => 105.0,
+            5 => 48.0,
+            6 => 70.0,
+            7 => 17.0,
+            _ => unreachable!(),
+        };
+        return WorldTransform {
+            position: crate::orbit::aurora_motion(planet).offset(0.0),
+            radius,
+            yaw: if planet == 7 { 0.4 } else { 0.0 },
+        };
+    }
     let original = [
         ([-36.0, 7.0, -105.0], 22.0, 0.15),
         ([42.0, 3.0, -135.0], 25.0, -0.45),
@@ -73,8 +108,6 @@ pub fn planet_transform(galaxy: usize, planet: usize) -> WorldTransform {
         ([-145.0, -85.0, -235.0], 42.0, 0.35),
     ];
     let (position, radius, yaw) = match (galaxy, planet) {
-        (1, 0) => ([-48.0, -12.0, -150.0], 30.0, 0.8),
-        (1, 2) => ([65.0, 40.0, -235.0], 46.0, 0.2),
         (2, 1) => ([-42.0, 8.0, -145.0], 32.0, -0.7),
         (2, 3) => ([78.0, 20.0, -235.0], 49.0, 0.9),
         _ => original[planet],
