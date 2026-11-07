@@ -15,6 +15,7 @@ mod menus;
 mod model;
 mod nebula;
 mod noise;
+mod orbit;
 mod raster_batch;
 mod renderer;
 mod space;
@@ -214,7 +215,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
             if near_black_hole {
                 flight.position =
-                    black_hole::BLACK_HOLE.position + nalgebra_glm::Vec3::new(0.0, 0.0, 250.0);
+                    flight.black_hole.position + nalgebra_glm::Vec3::new(0.0, 0.0, 250.0);
             }
             flight.move_with_mouse(Some(mouse_target));
             for frame in 0..(seconds * 60.0).ceil() as u32 {
