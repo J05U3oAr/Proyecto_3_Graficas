@@ -96,8 +96,11 @@ La cámara está detrás y ligeramente por encima de la nave, mirando de la cola
 para colocar el amarillo o derecho para el verde, a 32 unidades frente a la proa.
 Coloca los dos en lugares separados y atraviesa cualquiera para salir por el otro,
 conservando la rapidez y adaptando el rumbo a la salida. Otro clic recoloca solo
-ese color. El HUD muestra si están enlazados. Se eliminan al cambiar de nave,
-regresar a destinos o reaparecer; inspeccionar pausa y conserva los portales.
+ese color. Cuando están enlazados, el interior muestra en tiempo real el mundo
+desde la salida, con perspectiva que responde al movimiento de la cámara y el
+borde animado de cada color. El HUD muestra si están enlazados. Se eliminan al
+cambiar de nave, regresar a destinos o reaparecer; inspeccionar pausa y conserva
+los portales.
 Usan las imágenes amarilla y verde proporcionadas por el usuario, incluido el GIF
 animado. [Controles, reglas y procedencia de las imágenes](assets/portals/README.md).
 
@@ -161,6 +164,7 @@ cargo run --release -- --render-travel output/viaje.png --galaxy 2 --time 1.4
 cargo run --release -- --render-inspector output/crucer-espacial.png --ship 3
 cargo run --release -- --render-flight output/vuelo.png --ship 1
 cargo run --release -- --render-flight output/portales.png --ship 3 --portal-demo --time 0.35
+cargo run --release -- --render-flight output/portal-boreal.png --ship 3 --portal-demo --target boreal --time 0.35
 cargo run --release -- --render-flight output/umbria.png --galaxy 3
 cargo run --release -- --render-flight output/giro.png --ship 2 --time 2 --mouse 0.65 -0.35
 cargo run --release -- --render-planet output/boreal.png --target boreal
