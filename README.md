@@ -83,6 +83,7 @@ La organización del mapa toma como referencia la navegación y la información 
 | `Espacio` | Frenar |
 | `1`, `2`, `3` | Cambiar de nave |
 | `I` | Inspeccionar la nave actual |
+| Clic izquierdo / derecho | Con Crucer espacial: colocar el portal amarillo / verde |
 | `Esc` | Volver al selector de galaxias |
 
 La nave comienza detenida y se desplaza mientras mantienes WASD. Puedes combinar teclas para moverte en diagonal sin aumentar la velocidad máxima; las teclas opuestas se cancelan. Al soltarlas, la nave desacelera suavemente hasta detenerse. `Shift` aumenta la velocidad mientras te desplazas y `Espacio` frena incluso si mantienes una tecla de movimiento.
@@ -90,6 +91,15 @@ La nave comienza detenida y se desplaza mientras mantienes WASD. Puedes combinar
 El mouse dirige la nave sin mantener clic. La posición del cursor respecto al centro controla el giro: cuanto más lo alejas, más rápido gira; al volver al centro, mantiene el rumbo. Una pequeña zona neutra evita movimientos involuntarios. Al salir el cursor de la ventana, el giro se suaviza hasta detenerse. Para subir o bajar, apunta con el mouse y avanza con `W`.
 
 La cámara está detrás y ligeramente por encima de la nave, mirando de la cola hacia la proa. Sigue los cambios de dirección con suavidad y la nave inclina las alas al girar. Las tres naves se dibujan en perspectiva y las estrellas se desplazan según la posición y velocidad reales, con estelas al avanzar. El HUD muestra posición y velocidad. El vuelo se pausa mientras inspeccionas la nave o la ventana pierde el foco.
+
+**Portales de Crucer espacial:** apunta orientando la nave y usa clic izquierdo
+para colocar el amarillo o derecho para el verde, a 32 unidades frente a la proa.
+Coloca los dos en lugares separados y atraviesa cualquiera para salir por el otro,
+conservando la rapidez y adaptando el rumbo a la salida. Otro clic recoloca solo
+ese color. El HUD muestra si están enlazados. Se eliminan al cambiar de nave,
+regresar a destinos o reaparecer; inspeccionar pausa y conserva los portales.
+Usan las imágenes amarilla y verde proporcionadas por el usuario, incluido el GIF
+animado. [Controles, reglas y procedencia de las imágenes](assets/portals/README.md).
 
 Al despegar en Aurora, Siroco aparece a la izquierda, Oquedad a la derecha y Jovara arriba,
 entre los dos. Boreal, el nuevo gigante helado turquesa, aparece abajo a la izquierda.
@@ -150,6 +160,7 @@ cargo run --release -- --render-galaxies output/detalle.png --galaxy 2 --details
 cargo run --release -- --render-travel output/viaje.png --galaxy 2 --time 1.4
 cargo run --release -- --render-inspector output/crucer-espacial.png --ship 3
 cargo run --release -- --render-flight output/vuelo.png --ship 1
+cargo run --release -- --render-flight output/portales.png --ship 3 --portal-demo --time 0.35
 cargo run --release -- --render-flight output/umbria.png --galaxy 3
 cargo run --release -- --render-flight output/giro.png --ship 2 --time 2 --mouse 0.65 -0.35
 cargo run --release -- --render-planet output/boreal.png --target boreal
@@ -194,6 +205,8 @@ Admite los cuatro nombres de planeta y es una alternativa a `--near-black-hole`.
 - `src/noise.rs`: ruido reproducible y funciones de interpolación de la nebulosa.
 - `src/travel.rs`: transición de viaje y mezcla con el cuadro de llegada.
 - `src/flight.rs`: posición, velocidad, impulso y controles de vuelo.
+- `src/portal.rs`: colocación, enlace y cruce continuo de los dos portales.
+- `src/portal_art.rs`: discos en perspectiva y animación de las imágenes de portales.
 - `src/collision.rs`: colisión continua con las mallas de los planetas y sus túneles.
 - `src/explosion.rs`: fuego, fragmentos y humo del impacto en coordenadas del mundo.
 - `src/space.rs`: carga, posición y rotación de los planetas.
