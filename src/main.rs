@@ -8,6 +8,7 @@ mod explosion;
 mod fleet;
 mod flight;
 mod framebuffer;
+mod galactic_portal;
 mod galaxy;
 mod galaxy_art;
 mod home;

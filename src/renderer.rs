@@ -134,6 +134,24 @@ impl FlightView {
         self.principal
     }
 
+    pub fn looking_at(&self, eye: Vec3, target: Vec3) -> Self {
+        let forward = (target - eye).try_normalize(1e-6).unwrap_or(self.forward);
+        let reference = if forward.y.abs() > 0.99 {
+            Vec3::z()
+        } else {
+            Vec3::y()
+        };
+        let right = forward.cross(&reference).normalize();
+        Self {
+            eye,
+            right,
+            up: right.cross(&forward),
+            forward,
+            exit_clip: None,
+            ..*self
+        }
+    }
+
     pub fn ray(&self, x: f32, y: f32) -> Vec3 {
         self.forward
             + self.right * ((x - self.principal.x) / FLIGHT_FOCAL)

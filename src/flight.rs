@@ -111,12 +111,25 @@ impl Flight {
     }
 
     fn portal_space_clear(&self, center: Vec3) -> bool {
-        let clearance = crate::portal::RADIUS + crate::collision::SHIP_RADIUS + 0.65;
+        self.portal_space_clear_for(center, crate::portal::RADIUS)
+    }
+
+    fn portal_space_clear_for(&self, center: Vec3, radius: f32) -> bool {
+        let clearance = radius + crate::collision::SHIP_RADIUS + 0.65;
         (center - self.black_hole.position).norm() > self.black_hole.horizon + clearance
             && self
                 .collisions
                 .as_ref()
                 .is_none_or(|world| world.sphere_clear(center, clearance, self.seconds))
+    }
+
+    pub fn can_open_galactic_gate(&self, center: Vec3, radius: f32) -> bool {
+        self.crash.is_none()
+            && !self.is_captured()
+            && radius.is_finite()
+            && radius > 0.0
+            && self.portal_space_clear_for(center, radius)
+            && self.portal_path_clear(self.position, center)
     }
 
     fn portal_path_clear(&self, start: Vec3, end: Vec3) -> bool {

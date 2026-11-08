@@ -39,6 +39,8 @@ impl Rect {
 pub const LAUNCH: Rect = Rect::new(1048, 733, 180, 56);
 pub const PAUSE: Rect = Rect::new(1030, 142, 198, 40);
 pub const BACK: Rect = Rect::new(52, 110, 182, 40);
+pub const GATE_CHOICES: [Rect; 2] = [Rect::new(376, 727, 238, 51), Rect::new(630, 727, 238, 51)];
+pub const GATE_ENTER: Rect = Rect::new(964, 727, 264, 51);
 #[derive(Clone, Copy, Default)]
 pub struct MenuView {
     pub selected: usize,
@@ -217,6 +219,7 @@ struct Star {
 impl Ui {
     pub fn new() -> Result<Self, Box<dyn Error>> {
         crate::galaxy_art::prepare();
+        crate::galactic_portal::prepare();
         let background = &crate::nebula::backgrounds().hangar;
         let mut stars = Vec::with_capacity(900);
         for index in 0..900 {
@@ -384,13 +387,14 @@ impl Ui {
         self.space.preview(fb, name, seconds)
     }
 
-    fn portal_destination(
+    fn scene_in_view(
         &self,
         fb: &mut Framebuffer,
         view: &renderer::FlightView,
         ship: &Ship,
         flight: &Flight,
         seconds: f32,
+        show_ship: bool,
     ) {
         fb.clear();
         if self.galaxy == 1 {
@@ -426,7 +430,7 @@ impl Ui {
         }
         self.space.draw_view(fb, view, seconds);
         self.portal_art.draw_view(fb, flight, view);
-        if flight.crash.is_none() {
+        if show_ship && flight.crash.is_none() {
             renderer::draw_ship_in_view(fb, ship, flight, view, self.space.sun_position(seconds));
         }
         self.deep_space
@@ -494,7 +498,7 @@ impl Ui {
 
         self.space.draw(fb, flight, seconds);
         self.portal_art.draw_linked(fb, flight, |image, view| {
-            self.portal_destination(image, view, ship, flight, seconds);
+            self.scene_in_view(image, view, ship, flight, seconds, true);
         });
         if flight.crash.is_none() {
             if let Some(solar) = self.space.solar_lighting(seconds) {
@@ -621,6 +625,9 @@ impl Ui {
         );
         self.fonts.text(fb, 22, 54, 56, ship.name, TEXT);
         if ship.portal_capable {
+            rounded(fb, Rect::new(34, 258, 340, 42), 10, 0x152139, 0x6653a0);
+            self.fonts
+                .text(fb, 16, 52, 271, "G  /  PORTAL GALACTICO", 0xb5b9ff);
             rounded(fb, Rect::new(34, 107, 340, 137), 12, 0x101d2c, 0x304154);
             self.fonts.text(fb, 16, 52, 121, "PORTALES", TEXT);
             self.fonts.text(
@@ -747,6 +754,123 @@ impl Ui {
             "W/S Avanzar/Retroceder  ·  A/D Lateral  ·  Mouse Dirigir  ·  SHIFT Turbo  ·  ESPACIO Freno  ·  I Vista  ·  ESC Galaxias",
             MUTED,
         );
+    }
+
+    pub fn galaxy_index(&self) -> usize {
+        self.galaxy
+    }
+
+    pub fn capture_galactic_arrival(
+        &mut self,
+        ship: &Ship,
+        destination: usize,
+        image: &mut Framebuffer,
+    ) {
+        let origin = self.galaxy;
+        self.select_galaxy(destination);
+        let mut flight = self.new_flight();
+        flight.portals.set_enabled(ship.portal_capable);
+        self.flight(image, ship, &flight, 0.0);
+        self.select_galaxy(origin);
+    }
+
+    pub fn galactic_gate(
+        &self,
+        fb: &mut Framebuffer,
+        ship: &Ship,
+        source: &Flight,
+        jump: &crate::galactic_portal::Jump,
+        arrival: &Framebuffer,
+    ) {
+        if jump.progress() >= 1.0 {
+            fb.pixels.copy_from_slice(&arrival.pixels);
+            fb.depth.copy_from_slice(&arrival.depth);
+            return;
+        }
+        let (pose, view) = jump.cinematic(source, fb.width, fb.height);
+        self.scene_in_view(fb, &view, ship, &pose, source.seconds, jump.ship_visible());
+        crate::galactic_portal::draw(fb, jump, &view);
+        crate::galactic_portal::finish(fb, jump, arrival);
+        if jump.progress() >= 0.80 {
+            return;
+        }
+        crate::menus::glass(fb, Rect::new(34, 25, 436, 105), 0x6653a0, 0.85);
+        self.fonts
+            .text(fb, 14, 54, 40, "SALTO INTERGALACTICO", 0xb5b9ff);
+        self.fonts.text(
+            fb,
+            28,
+            52,
+            68,
+            &format!(
+                "{} > {}",
+                crate::galaxy::GALAXIES[jump.origin].name,
+                crate::galaxy::GALAXIES[jump.destination].name
+            ),
+            TEXT,
+        );
+        crate::menus::glass(fb, Rect::new(34, 708, 1194, 108), 0x6653a0, 0.9);
+        self.fonts.text(fb, 18, 54, 735, jump.stage(), TEXT);
+        if !jump.entering() {
+            let destinations = [(jump.origin + 1) % 3, (jump.origin + 2) % 3];
+            for (i, destination) in destinations.into_iter().enumerate() {
+                let active = destination == jump.destination;
+                let rect = GATE_CHOICES[i];
+                rounded(
+                    fb,
+                    rect,
+                    8,
+                    if active { 0x30304f } else { 0x151d2f },
+                    if active { 0x9cf3ff } else { BORDER },
+                );
+                self.fonts.text(
+                    fb,
+                    22,
+                    rect.x + 20,
+                    rect.y + 12,
+                    crate::galaxy::GALAXIES[destination].name,
+                    TEXT,
+                );
+            }
+            rounded(
+                fb,
+                GATE_ENTER,
+                8,
+                if jump.ready() { 0x9cf3ff } else { 0x485463 },
+                0x9cf3ff,
+            );
+            self.fonts.text(
+                fb,
+                18,
+                GATE_ENTER.x + 26,
+                GATE_ENTER.y + 15,
+                if jump.ready() {
+                    "G / ENTER  ENTRAR"
+                } else {
+                    "ABRIENDO..."
+                },
+                0x101725,
+            );
+            self.fonts.text(
+                fb,
+                14,
+                54,
+                790,
+                "Flechas: elegir galaxia    |    G / ENTER: entrar    |    ESC: cancelar",
+                MUTED,
+            );
+        } else {
+            self.fonts
+                .text(fb, 14, 54, 786, "ESC: cancelar salto", MUTED);
+            rounded(fb, Rect::new(470, 746, 738, 10), 5, 0x27344a, 0x27344a);
+            rounded(
+                fb,
+                Rect::new(470, 746, (738.0 * jump.progress()) as i32, 10),
+                5,
+                0x9cf3ff,
+                0x9cf3ff,
+            );
+        }
     }
 }
 

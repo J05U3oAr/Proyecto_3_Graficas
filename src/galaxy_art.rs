@@ -111,6 +111,31 @@ pub fn prepare() {
     let _ = sprites();
 }
 
+/// Sample the cached galaxy illustration for the intergalactic portal's interior.
+pub fn sample(style: usize, x: f32, y: f32) -> u32 {
+    let sprite = &sprites()[style];
+    let x = (x * 0.5 + 0.5) * (sprite.width - 1) as f32;
+    let y = (y * 0.5 + 0.5) * (sprite.height - 1) as f32;
+    if x < 0.0 || y < 0.0 || x >= (sprite.width - 1) as f32 || y >= (sprite.height - 1) as f32 {
+        return 0;
+    }
+    let (left, top) = (x.floor() as usize, y.floor() as usize);
+    let (u, v) = (x - left as f32, y - top as f32);
+    mix(
+        mix(
+            sprite.pixels[top * sprite.width + left],
+            sprite.pixels[top * sprite.width + left + 1],
+            u,
+        ),
+        mix(
+            sprite.pixels[(top + 1) * sprite.width + left],
+            sprite.pixels[(top + 1) * sprite.width + left + 1],
+            u,
+        ),
+        v,
+    )
+}
+
 pub fn draw(fb: &mut Framebuffer, style: usize, center: (f32, f32), zoom: f32, seconds: f32) {
     let sprite = &sprites()[style];
     let scale = zoom * 0.86;
