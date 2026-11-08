@@ -229,9 +229,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             flight.portals.set_enabled(ships[selected].portal_capable);
             if portal_demo {
                 let (right, _, forward) = flight.heading.basis();
+                let lateral_spacing = portal::RADIUS + 4.0;
                 for (kind, lateral, ahead) in [
-                    (portal::Kind::Yellow, -11.0, 32.0),
-                    (portal::Kind::Green, 11.0, 38.0),
+                    (portal::Kind::Yellow, -lateral_spacing, 32.0),
+                    (portal::Kind::Green, lateral_spacing, 38.0),
                 ] {
                     if target.is_some() && kind == portal::Kind::Green {
                         continue;

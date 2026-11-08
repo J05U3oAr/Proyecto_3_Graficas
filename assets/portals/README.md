@@ -12,8 +12,8 @@ Crucer espacial es la única nave con esta habilidad. Durante el vuelo:
 | Teletransportarse | Atravesar cualquiera de los dos cuando estén enlazados |
 
 Los portales quedan fijos en el espacio, a 32 unidades frente a la proa, con un
-radio de 6.8 unidades. Se pueden atravesar desde ambas caras. Hace falta colocar
-los dos colores y separar sus centros al menos 16.6 unidades. Cada clic sustituye
+radio de 10.2 unidades. Se pueden atravesar desde ambas caras. Hace falta colocar
+los dos colores y separar sus centros al menos 23.4 unidades. Cada clic sustituye
 solo el portal de su color; mantener pulsado un botón no repite la colocación.
 
 El HUD indica el botón, color, estado y distancia de ambos portales. Los intentos

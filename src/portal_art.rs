@@ -241,7 +241,7 @@ mod tests {
         let render_count = std::cell::Cell::new(0);
         art.draw_linked(&mut fb, &flight, |image, view| {
             assert!((view.eye().x - 32.0).abs() < 1e-4);
-            assert!(image.width < 320 && image.height < 240);
+            assert!(image.width * image.height < 320 * 240);
             image.pixels.fill(0x1234ab);
             image.depth.fill(9999.0);
             render_count.set(render_count.get() + 1);

@@ -2,7 +2,7 @@
 use crate::collision::SHIP_RADIUS;
 use nalgebra_glm::Vec3;
 
-pub const RADIUS: f32 = 6.8;
+pub const RADIUS: f32 = 10.2;
 pub const PLACE_DISTANCE: f32 = 32.0;
 const EXIT_CLEARANCE: f32 = SHIP_RADIUS + 0.65;
 
@@ -243,9 +243,20 @@ mod tests {
             pair.crossing(Vec3::new(102.0, 20.0, 0.0), Vec3::new(98.0, 20.0, 0.0))
                 .is_some()
         );
+        let edge = RADIUS - SHIP_RADIUS;
         assert!(
-            pair.crossing(Vec3::new(6.0, 0.0, 2.0), Vec3::new(6.0, 0.0, -2.0))
-                .is_none()
+            pair.crossing(
+                Vec3::new(edge - 0.1, 0.0, 2.0),
+                Vec3::new(edge - 0.1, 0.0, -2.0)
+            )
+            .is_some()
+        );
+        assert!(
+            pair.crossing(
+                Vec3::new(edge + 0.1, 0.0, 2.0),
+                Vec3::new(edge + 0.1, 0.0, -2.0)
+            )
+            .is_none()
         );
         let mut single = Pair::default();
         single.set_enabled(true);
