@@ -291,6 +291,9 @@ impl Ui {
         if self.galaxy == index {
             return;
         }
+        if index == 1 {
+            crate::skybox::prepare();
+        }
         self.space.configure(index);
         self.galaxy = index;
     }
@@ -381,10 +384,14 @@ impl Ui {
 
     pub fn flight(&self, fb: &mut Framebuffer, ship: &Ship, flight: &Flight, seconds: f32) {
         fb.clear();
-        for y in 0..HEIGHT {
-            let t = y as f32 / HEIGHT as f32;
-            let color = mix(crate::galaxy::GALAXIES[self.galaxy].sky, 0x03060c, t);
-            fb.pixels[y * WIDTH..(y + 1) * WIDTH].fill(color);
+        if self.galaxy == 1 {
+            crate::skybox::draw(fb, &flight.camera);
+        } else {
+            for y in 0..HEIGHT {
+                let t = y as f32 / HEIGHT as f32;
+                let color = mix(crate::galaxy::GALAXIES[self.galaxy].sky, 0x03060c, t);
+                fb.pixels[y * WIDTH..(y + 1) * WIDTH].fill(color);
+            }
         }
 
         let (right, up, forward) = flight.camera.basis();
@@ -432,9 +439,28 @@ impl Ui {
 
         self.space.draw(fb, flight, seconds);
         if flight.crash.is_none() {
-            renderer::draw_flight_model(fb, &ship.model, flight, ship.finish);
+            if let Some(solar) = self.space.solar_lighting(seconds) {
+                renderer::draw_flight_model_lit(
+                    fb,
+                    &ship.model,
+                    flight,
+                    ship.finish,
+                    Some(&solar),
+                    Some(&ship.shadows),
+                    Some(&ship.lights),
+                );
+            } else {
+                renderer::draw_flight_model(
+                    fb,
+                    &ship.model,
+                    flight,
+                    ship.finish,
+                    Some(&ship.lights),
+                );
+            }
         }
         self.deep_space.draw(fb, flight);
+        crate::thrusters::draw(fb, ship, flight, seconds);
         self.space.draw_atmospheres(fb, flight, seconds);
         if let Some(crash) = &flight.crash {
             crate::explosion::draw(fb, &renderer::FlightView::new(flight, WIDTH, HEIGHT), crash);

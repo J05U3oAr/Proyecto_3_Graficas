@@ -1,6 +1,9 @@
 use crate::renderer::WorldTransform;
 use nalgebra_glm::Vec3;
 
+pub const KEPLER_RADIUS: f32 = 90.0;
+pub const SUN_RADIUS: f32 = 130.0;
+
 pub const BODY_NAMES: [&str; 8] = [
     "Siroco",
     "Oquedad",
@@ -89,9 +92,9 @@ pub fn planet_transform(galaxy: usize, planet: usize) -> WorldTransform {
         let radius = match planet {
             0 => 36.0,
             2 => 95.0,
-            4 => 105.0,
+            4 => SUN_RADIUS,
             5 => 48.0,
-            6 => 70.0,
+            6 => KEPLER_RADIUS,
             7 => 17.0,
             _ => unreachable!(),
         };

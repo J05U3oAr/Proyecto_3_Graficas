@@ -25,6 +25,29 @@ pub struct Planet {
 }
 
 impl Planet {
+    pub fn surface_effect(&self, seconds: f32) -> crate::shaders::SurfaceEffect {
+        use crate::shaders::SurfaceEffect;
+        match self.name {
+            "Kepler-186f" => SurfaceEffect::Kepler { seconds },
+            "Jovara" => SurfaceEffect::PolarClouds { seconds },
+            "Helios II" => SurfaceEffect::Solar { seconds },
+            "Boreal" => SurfaceEffect::Clouds {
+                seconds,
+                seed: 37.0,
+                flow: 0.018,
+            },
+            "Flareon" => SurfaceEffect::Lava { seconds },
+            "Metis" => SurfaceEffect::Rock {
+                seconds,
+                seed: 19.0,
+            },
+            "Oquedad" => SurfaceEffect::Rock {
+                seconds,
+                seed: 43.0,
+            },
+            _ => SurfaceEffect::None,
+        }
+    }
     pub fn world_transform(&self, seconds: f32) -> WorldTransform {
         let mut transform = self.transform;
         transform.position += self.motion.displacement(seconds);
@@ -106,6 +129,27 @@ pub struct Space {
 }
 
 impl Space {
+    pub fn solar_lighting(&self, seconds: f32) -> Option<crate::lighting::SolarLight> {
+        let sun = self.planets.iter().find(|p| p.active && p.is_sun)?;
+        let transform = sun.world_transform(seconds);
+        Some(crate::lighting::SolarLight {
+            position: transform.position,
+            radius: transform.radius,
+            occluders: self
+                .planets
+                .iter()
+                .filter(|p| p.active && !p.is_sun)
+                .map(|p| {
+                    let transform = p.world_transform(seconds);
+                    crate::lighting::Occluder {
+                        center: transform.position,
+                        radius: transform.radius,
+                    }
+                })
+                .collect(),
+        })
+    }
+
     pub fn load() -> Result<Self, Box<dyn Error>> {
         let models = load_models()?;
         let planets = vec![
@@ -310,12 +354,13 @@ impl Space {
         let view = FlightView::new(flight, fb.width, fb.height);
         for planet in self.active_planets() {
             let transform = planet.world_transform(seconds);
-            renderer::draw_world_model_lit(
+            renderer::draw_world_model_shaded(
                 fb,
                 &planet.model,
                 &view,
                 transform,
                 self.sun_position(seconds),
+                planet.surface_effect(seconds),
             );
         }
         for sun in self.active_planets().filter(|planet| planet.is_sun) {
@@ -347,12 +392,13 @@ impl Space {
         fb.clear();
         fb.pixels.fill(0x03060c);
         let view = FlightView::new(&flight, fb.width, fb.height);
-        renderer::draw_world_model_lit(
+        renderer::draw_world_model_shaded(
             fb,
             &planet.model,
             &view,
             transform,
             self.sun_position(seconds),
+            planet.surface_effect(seconds),
         );
         if planet.is_sun {
             draw_solar_halo(fb, &view, transform);
@@ -411,6 +457,122 @@ fn debris_model() -> Model {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn jovara_lava_and_sun_surfaces_move_without_orbital_or_camera_motion() {
+        let space = Space::load().unwrap();
+        for name in ["Jovara", "Flareon", "Helios II"] {
+            let planet = space.planets.iter().find(|p| p.name == name).unwrap();
+            let mut flight = Flight::new();
+            flight.camera.pitch = 0.0;
+            let transform = WorldTransform {
+                position: Vec3::new(0.0, 0.0, -600.0),
+                radius: 70.0,
+                yaw: 0.0,
+            };
+            let view = FlightView::new(&flight, 256, 192);
+            let render = |seconds| {
+                let mut frame = Framebuffer::new(256, 192);
+                frame.point(128, 96, 2.0, 0xff00ff, true);
+                renderer::draw_world_model_shaded(
+                    &mut frame,
+                    &planet.model,
+                    &view,
+                    transform,
+                    None,
+                    planet.surface_effect(seconds),
+                );
+                frame
+            };
+            let initial = render(0.0);
+            let animated = render(2.0);
+            assert_eq!(initial.depth, animated.depth);
+            let mut count = 0;
+            let mut difference = 0u64;
+            for ((&a, &b), &depth) in initial
+                .pixels
+                .iter()
+                .zip(&animated.pixels)
+                .zip(&initial.depth)
+            {
+                if !depth.is_finite() {
+                    continue;
+                }
+                count += 1;
+                difference += [0, 8, 16]
+                    .into_iter()
+                    .map(|shift| {
+                        ((a >> shift & 255) as i32 - (b >> shift & 255) as i32).unsigned_abs()
+                            as u64
+                    })
+                    .sum::<u64>();
+            }
+            assert!(count > 1000);
+            assert!(
+                difference as f32 / (count * 3) as f32 > 5.0,
+                "{name} needs visible surface motion"
+            );
+            assert_eq!(animated.pixels[96 * 256 + 128], 0xff00ff);
+        }
+    }
+
+    #[test]
+    fn kepler_surface_animates_with_fixed_geometry_and_respects_depth() {
+        let mut space = Space::load().unwrap();
+        space.configure(1);
+        let planet = &space.planets[6];
+        let transform = planet.world_transform(0.0);
+        assert_eq!(transform.radius, crate::galaxy::KEPLER_RADIUS);
+        assert!(
+            crate::orbit::METIS.radius - transform.radius - space.planets[7].transform.radius
+                > 80.0
+        );
+        let mut flight = Flight::new();
+        flight.camera.pitch = 0.0;
+        flight.position = transform.position + Vec3::new(0.0, -1.6, transform.radius * 8.0 - 8.0);
+        let view = FlightView::new(&flight, 256, 192);
+        let render = |seconds, threads| {
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap();
+            let mut frame = Framebuffer::new(256, 192);
+            frame.point(128, 96, 2.0, 0xff00ff, true);
+            pool.install(|| {
+                renderer::draw_world_model_shaded(
+                    &mut frame,
+                    &planet.model,
+                    &view,
+                    transform,
+                    space.sun_position(0.0),
+                    planet.surface_effect(seconds),
+                )
+            });
+            frame
+        };
+        let initial = render(0.0, 1);
+        let parallel = render(0.0, 4);
+        let animated = render(4.0, 4);
+        let mut reference = Framebuffer::new(256, 192);
+        reference.point(128, 96, 2.0, 0xff00ff, true);
+        renderer::draw_world_model_lit(
+            &mut reference,
+            &planet.model,
+            &view,
+            transform,
+            space.sun_position(0.0),
+        );
+        assert_eq!(initial.depth, reference.depth);
+        assert_eq!(initial.pixels, parallel.pixels);
+        assert_eq!(initial.depth, animated.depth);
+        let changed = initial
+            .pixels
+            .iter()
+            .zip(&animated.pixels)
+            .filter(|(a, b)| a != b)
+            .count();
+        assert!(changed > 1000);
+        assert_eq!(animated.pixels[96 * 256 + 128], 0xff00ff);
+    }
     #[test]
     fn aurora_draws_and_collides_at_the_same_orbital_positions() {
         let mut space = Space::load().unwrap();
@@ -493,6 +655,32 @@ mod tests {
                 .any(|contact| contact.planet == "Kepler-186f")
         );
         assert!((result.position - start).norm() > 0.01);
+    }
+    #[test]
+    fn planet_shadows_follow_orbits_and_surface_noise_excludes_siroco() {
+        use crate::shaders::SurfaceEffect;
+        let mut space = Space::load().unwrap();
+        for planet in &space.planets {
+            assert_eq!(
+                matches!(planet.surface_effect(4.0), SurfaceEffect::None),
+                planet.name == "Siroco",
+                "{}",
+                planet.name
+            );
+        }
+        space.configure(1);
+        for time in [0.0, 60.0, 120.0] {
+            let light = space.solar_lighting(time).unwrap();
+            let kepler = space.planets[6].world_transform(time);
+            assert!(light.occluders.iter().any(|p| p.center == kepler.position));
+            let outward = (kepler.position - light.position).normalize();
+            assert_eq!(
+                light.visibility(kepler.position + outward * (kepler.radius + 30.0)),
+                0.0
+            );
+        }
+        space.configure(0);
+        assert!(space.solar_lighting(0.0).is_none());
     }
     #[test]
     fn destinations_restore_layouts_reproduce_debris_and_keep_active_collisions() {

@@ -1,5 +1,7 @@
 use nalgebra_glm::Vec3;
 
+pub const ORBIT_SPEED_MULTIPLIER: f32 = 3.0;
+
 #[derive(Clone, Copy, Debug)]
 pub struct Orbit {
     pub radius: f32,
@@ -52,31 +54,31 @@ impl Motion {
 
 pub const FLAREON: Orbit = Orbit {
     radius: 450.0,
-    speed: 0.008,
+    speed: 0.008 * ORBIT_SPEED_MULTIPLIER,
     phase: -2.4,
     inclination: 0.025,
 };
 pub const SIROCO: Orbit = Orbit {
     radius: 720.0,
-    speed: 0.0058,
+    speed: 0.0058 * ORBIT_SPEED_MULTIPLIER,
     phase: -0.2,
     inclination: 0.04,
 };
 pub const KEPLER: Orbit = Orbit {
     radius: 1160.0,
-    speed: 0.0035,
+    speed: 0.0035 * ORBIT_SPEED_MULTIPLIER,
     phase: -1.35,
     inclination: -0.025,
 };
 pub const JOVARA: Orbit = Orbit {
-    radius: 1680.0,
-    speed: 0.0022,
+    radius: 2100.0,
+    speed: 0.0022 * ORBIT_SPEED_MULTIPLIER,
     phase: 3.95,
     inclination: -0.045,
 };
 pub const METIS: Orbit = Orbit {
     radius: 190.0,
-    speed: 0.024,
+    speed: 0.024 * ORBIT_SPEED_MULTIPLIER,
     phase: 1.0,
     inclination: 0.18,
 };
@@ -115,7 +117,7 @@ mod tests {
         }
         assert_eq!(aurora_motion(4).offset(100.0), Vec3::zeros());
         for (inner, outer, inner_extent, outer_extent) in [
-            (0.0, FLAREON.radius, 105.0, 48.0),
+            (0.0, FLAREON.radius, crate::galaxy::SUN_RADIUS, 48.0),
             (FLAREON.radius, SIROCO.radius, 48.0, 36.0),
             (SIROCO.radius, KEPLER.radius, 36.0, METIS.radius + 17.0),
             (KEPLER.radius, JOVARA.radius, METIS.radius + 17.0, 95.0),
