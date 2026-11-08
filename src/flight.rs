@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 pub const CRASH_SPEED: f32 = 28.0;
 pub const CRUISE_SPEED: f32 = 36.0;
-pub const BOOST_SPEED: f32 = 62.0;
+pub const BOOST_SPEED: f32 = 155.0;
 pub const SPAWN_POSITION: Vec3 = Vec3::new(88.0, -139.0, 579.0);
 
 pub struct Crash {
@@ -357,18 +357,21 @@ mod tests {
 
     #[test]
     fn boost_brake_and_frame_rate_preserve_control() {
-        let simulate = |fps: usize| {
+        let simulate = |fps: usize, boost: bool| {
             let mut flight = Flight::new();
             flight.move_with_mouse(Some((-0.5, 0.25)));
             for _ in 0..fps * 2 {
-                flight.advance(1.0 / fps as f32, (1.0, 0.0), true, false);
+                flight.advance(1.0 / fps as f32, (1.0, 0.0), boost, false);
             }
             flight
         };
-        let mut flight = simulate(60);
-        let slower_frames = simulate(30);
+        let mut flight = simulate(60, true);
+        let slower_frames = simulate(30, true);
         assert!((flight.position - slower_frames.position).norm() < 0.05);
-        assert!(flight.velocity.norm() > 55.0 && flight.velocity.norm() <= 62.0);
+        assert!(
+            flight.velocity.norm() > BOOST_SPEED * 0.88 && flight.velocity.norm() <= BOOST_SPEED
+        );
+        assert!(flight.velocity.norm() > simulate(60, false).velocity.norm() * 2.5);
         flight.move_with_mouse(None);
         for _ in 0..120 {
             flight.advance(1.0 / 60.0, (1.0, 0.0), true, true);

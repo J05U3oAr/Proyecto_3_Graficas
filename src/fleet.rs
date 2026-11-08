@@ -1,4 +1,4 @@
-use crate::{camera::Camera, color::Color, model::Model};
+use crate::{camera::Camera, color::Color, lighting::HullShadow, model::Model};
 use std::{error::Error, path::PathBuf};
 
 pub struct Ship {
@@ -6,32 +6,47 @@ pub struct Ship {
     pub accent: u32,
     pub finish: Option<Color>,
     pub model: Model,
+    pub shadows: HullShadow,
     pub camera: Camera,
+    pub lights: crate::lighting::ShipLights,
 }
 
 pub fn load() -> Result<Vec<Ship>, Box<dyn Error>> {
     let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/ships");
-    Ok(vec![
-        Ship {
-            name: "Guardgalaxy",
-            accent: 0xf1b671,
-            finish: Some(Color::new(218, 135, 62)),
-            model: Model::load(assets.join("Guardgalaxy.obj"))?,
+    [
+        (
+            "Guardgalaxy",
+            "Guardgalaxy.obj",
+            0xf1b671,
+            Some(Color::new(218, 135, 62)),
+        ),
+        ("TIE Silencer", "Galactwar.obj", 0x8eb3fa, None),
+        ("Lightflash", "Lightflash.obj", 0x6fe5d2, None),
+    ]
+    .into_iter()
+    .map(|(name, file, accent, finish)| {
+        let model = Model::load(assets.join(file))?;
+        let shadows = HullShadow::new(&model);
+        // Las salidas estan en la parte posterior de la cabina, en coordenadas del OBJ.
+        let exhausts = if name == "TIE Silencer" {
+            [-0.34, 0.34]
+                .map(|x| (nalgebra_glm::Vec3::new(x, 0.0, -1.78) - model.center) / model.radius)
+                .to_vec()
+        } else {
+            Vec::new()
+        };
+        Ok(Ship {
+            name,
+            accent,
+            finish,
+            model,
+            shadows,
             camera: Camera::new(),
-        },
-        Ship {
-            name: "Galactwar",
-            accent: 0x8eb3fa,
-            finish: None,
-            model: Model::load(assets.join("Galactwar.obj"))?,
-            camera: Camera::new(),
-        },
-        Ship {
-            name: "Lightflash",
-            accent: 0x6fe5d2,
-            finish: None,
-            model: Model::load(assets.join("Lightflash.obj"))?,
-            camera: Camera::new(),
-        },
-    ])
+            lights: crate::lighting::ShipLights {
+                accent: Color::new((accent >> 16) as u8, (accent >> 8) as u8, accent as u8),
+                exhausts,
+            },
+        })
+    })
+    .collect()
 }
