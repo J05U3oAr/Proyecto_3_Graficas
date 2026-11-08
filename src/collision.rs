@@ -58,12 +58,45 @@ fn rotate(v: Vec3, angle: f32) -> Vec3 {
 }
 
 impl Bounds {
+    fn intersects_segment(self, start: Vec3, delta: Vec3) -> bool {
+        let (mut near, mut far) = (0.0f32, 1.0f32);
+        for axis in 0..3 {
+            if delta[axis].abs() < 1e-10 {
+                if start[axis] < self.min[axis] || start[axis] > self.max[axis] {
+                    return false;
+                }
+            } else {
+                let a = (self.min[axis] - start[axis]) / delta[axis];
+                let b = (self.max[axis] - start[axis]) / delta[axis];
+                near = near.max(a.min(b));
+                far = far.min(a.max(b));
+                if near > far {
+                    return false;
+                }
+            }
+        }
+        true
+    }
     fn overlaps(self, other: Self) -> bool {
         (0..3).all(|i| self.min[i] <= other.max[i] && self.max[i] >= other.min[i])
     }
 }
 
 impl Node {
+    fn blocks_light(&self, start: Vec3, delta: Vec3) -> bool {
+        let bounds = match self {
+            Self::Leaf(bounds, _) | Self::Branch(bounds, _, _) => *bounds,
+        };
+        if !bounds.intersects_segment(start, delta) {
+            return false;
+        }
+        match self {
+            Self::Leaf(_, triangles) => triangles
+                .iter()
+                .any(|triangle| triangle.blocks_light(start, delta)),
+            Self::Branch(_, a, b) => a.blocks_light(start, delta) || b.blocks_light(start, delta),
+        }
+    }
     fn build(triangles: &mut [Triangle]) -> Self {
         let mut bounds = Bounds {
             min: Vec3::repeat(f32::INFINITY),
@@ -128,6 +161,29 @@ fn closest_segment(p: Vec3, a: Vec3, b: Vec3) -> Vec3 {
 }
 
 impl Triangle {
+    fn blocks_light(&self, start: Vec3, delta: Vec3) -> bool {
+        let [a, b, c] = self.0;
+        let edge_a = b - a;
+        let edge_b = c - a;
+        let h = delta.cross(&edge_b);
+        let determinant = edge_a.dot(&h);
+        if determinant.abs() < 1e-9 {
+            return false;
+        }
+        let inverse = 1.0 / determinant;
+        let relative = start - a;
+        let u = relative.dot(&h) * inverse;
+        if !(0.0..=1.0).contains(&u) {
+            return false;
+        }
+        let q = relative.cross(&edge_a);
+        let v = delta.dot(&q) * inverse;
+        if v < 0.0 || u + v > 1.0 {
+            return false;
+        }
+        let time = edge_b.dot(&q) * inverse;
+        (0.000001..0.999999).contains(&time)
+    }
     fn contains(&self, point: Vec3, n: Vec3) -> bool {
         (0..3).all(|i| {
             (self.0[(i + 1) % 3] - self.0[i])
@@ -243,6 +299,9 @@ fn first_root(a: f32, b: f32, c: f32) -> Option<f32> {
 }
 
 impl PlanetCollider {
+    pub fn blocks_model_light(&self, start: Vec3, end: Vec3) -> bool {
+        self.tree.blocks_light(start, end - start)
+    }
     pub fn new(
         name: &'static str,
         model: &Model,
