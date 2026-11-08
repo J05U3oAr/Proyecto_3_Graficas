@@ -308,9 +308,29 @@ impl PlanetCollider {
         transform: WorldTransform,
         rotation_speed: f32,
     ) -> Self {
+        Self::build(name, model, transform, rotation_speed, false)
+    }
+
+    pub fn new_opaque(
+        name: &'static str,
+        model: &Model,
+        transform: WorldTransform,
+        rotation_speed: f32,
+    ) -> Self {
+        Self::build(name, model, transform, rotation_speed, true)
+    }
+
+    fn build(
+        name: &'static str,
+        model: &Model,
+        transform: WorldTransform,
+        rotation_speed: f32,
+        opaque_only: bool,
+    ) -> Self {
         let mut triangles: Vec<_> = model
             .faces
             .iter()
+            .filter(|face| !opaque_only || face.opacity >= 1.0)
             .map(|face| {
                 Triangle(
                     face.indices

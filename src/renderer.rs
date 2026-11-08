@@ -470,7 +470,8 @@ pub fn draw_flight_model_lit(
             let local = ((model.vertices[i] + model.vertices[j] + model.vertices[k]) / 3.0
                 - model.center)
                 / model.radius;
-            let blocked = solar.is_some_and(|sun| facing.dot(&(sun.position - point)) > 0.0)
+            let blocked = face.opacity >= 1.0
+                && solar.is_some_and(|sun| facing.dot(&(sun.position - point)) > 0.0)
                 && hull.is_some_and(|hull| hull.occludes(local, local_sun));
             let mut color = solar
                 .map(|sun| {

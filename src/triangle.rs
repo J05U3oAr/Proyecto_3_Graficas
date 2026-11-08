@@ -1,5 +1,7 @@
 use crate::color::Color;
-use crate::{framebuffer::Framebuffer, texture::Texture};
+use crate::framebuffer::Framebuffer;
+#[cfg(test)]
+use crate::texture::Texture;
 use nalgebra_glm::{Vec2, Vec3};
 
 #[derive(Clone, Copy)]

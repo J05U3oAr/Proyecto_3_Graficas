@@ -168,7 +168,7 @@ pub struct HullShadow {
 impl HullShadow {
     pub fn new(model: &Model) -> Self {
         Self {
-            tree: PlanetCollider::new(
+            tree: PlanetCollider::new_opaque(
                 "Casco",
                 model,
                 WorldTransform {
@@ -273,5 +273,31 @@ mod tests {
         let hull = HullShadow::new(&model);
         assert!(hull.occludes(Vec3::new(-0.1, -0.1, 1.0), Vec3::new(-0.1, -0.1, -2.0)));
         assert!(!hull.occludes(Vec3::new(5.0, 5.0, 1.0), Vec3::new(5.0, 5.0, -2.0)));
+    }
+
+    #[test]
+    fn glass_does_not_cast_an_opaque_shadow_over_the_cockpit() {
+        let mut model = Model::load(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/uv-checker.obj"
+        ))
+        .unwrap();
+        model.faces[0].opacity = 0.22;
+        let hull = HullShadow::new(&model);
+        assert!(!hull.occludes(Vec3::new(-0.1, -0.1, 1.0), Vec3::new(-0.1, -0.1, -2.0)));
+        // The same geometry still participates in physical collisions.
+        let collider = PlanetCollider::new(
+            "Glass",
+            &model,
+            WorldTransform {
+                position: Vec3::zeros(),
+                radius: 1.0,
+                yaw: 0.0,
+            },
+            0.0,
+        );
+        assert!(
+            collider.blocks_model_light(Vec3::new(-0.1, -0.1, 1.0), Vec3::new(-0.1, -0.1, -2.0))
+        );
     }
 }
