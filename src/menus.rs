@@ -236,7 +236,7 @@ pub fn galaxies(ui: &Ui, fb: &mut Framebuffer, ship: &Ship, view: &GalaxyView) {
     for (index, galaxy) in GALAXIES.iter().enumerate() {
         let (cx, cy) = points[index];
         let active = view.details_open && index == view.selected;
-        crate::galaxy_art::draw(fb, index, (cx, cy), view.zoom, view.seconds);
+        crate::galaxy_art::draw(fb, galaxy.artwork, (cx, cy), view.zoom, view.seconds);
         if active || view.hover == Some(index) {
             for i in 0..160 {
                 let angle = i as f32 * TAU / 160.0;
@@ -281,17 +281,25 @@ pub fn galaxies(ui: &Ui, fb: &mut Framebuffer, ship: &Ship, view: &GalaxyView) {
         for (i, line) in selected.description.iter().enumerate() {
             ui.fonts.text(fb, 14, 942, 476 + i as i32 * 23, line, MUTED);
         }
-        ui.fonts
-            .text(fb, 14, 942, 560, "MUNDOS POR EXPLORAR", selected.accent);
+        ui.fonts.text(
+            fb,
+            14,
+            942,
+            560,
+            if view.selected == 1 {
+                "SOL, PLANETAS Y LUNA"
+            } else {
+                "MUNDOS POR EXPLORAR"
+            },
+            selected.accent,
+        );
         for (i, &planet) in selected.planets.iter().enumerate() {
-            ui.fonts.text(
-                fb,
-                18,
-                942,
-                586 + i as i32 * 25,
-                ["Siroco", "Oquedad", "Jovara", "Boreal"][planet],
-                TEXT,
-            );
+            let name = match planet {
+                4 => "Helios II (sol)",
+                7 => "Metis (luna de Kepler)",
+                _ => crate::galaxy::BODY_NAMES[planet],
+            };
+            ui.fonts.text(fb, 16, 942, 582 + i as i32 * 20, name, TEXT);
         }
         button(ui, fb, "VIAJAR", selected.accent, view.hover_button);
     }

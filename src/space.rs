@@ -7,32 +7,158 @@ use crate::{
     renderer::{self, FlightView, WorldTransform},
 };
 use nalgebra_glm::Vec3;
-use std::{error::Error, path::PathBuf, sync::Arc};
+use std::{
+    error::Error,
+    path::PathBuf,
+    sync::{Arc, OnceLock},
+};
 
 pub struct Planet {
     pub active: bool,
     pub name: &'static str,
-    pub model: Model,
+    pub model: Arc<Model>,
+    pub motion: crate::orbit::Motion,
+    pub is_sun: bool,
     pub transform: WorldTransform,
     pub rotation_speed: f32,
     pub dust: Option<DustStorm>,
 }
 
+impl Planet {
+    pub fn surface_effect(&self, seconds: f32) -> crate::shaders::SurfaceEffect {
+        use crate::shaders::SurfaceEffect;
+        match self.name {
+            "Kepler-186f" => SurfaceEffect::Kepler { seconds },
+            "Jovara" => SurfaceEffect::PolarClouds { seconds },
+            "Helios II" => SurfaceEffect::Solar { seconds },
+            "Boreal" => SurfaceEffect::Clouds {
+                seconds,
+                seed: 37.0,
+                flow: 0.018,
+            },
+            "Flareon" => SurfaceEffect::Lava { seconds },
+            "Metis" => SurfaceEffect::Rock {
+                seconds,
+                seed: 19.0,
+            },
+            "Oquedad" => SurfaceEffect::Rock {
+                seconds,
+                seed: 43.0,
+            },
+            _ => SurfaceEffect::None,
+        }
+    }
+    pub fn world_transform(&self, seconds: f32) -> WorldTransform {
+        let mut transform = self.transform;
+        transform.position += self.motion.displacement(seconds);
+        transform.yaw += seconds * self.rotation_speed;
+        transform
+    }
+}
+
+fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
+    static MODELS: OnceLock<Result<Vec<Arc<Model>>, String>> = OnceLock::new();
+    let result = MODELS.get_or_init(|| {
+        let load = || -> Result<Vec<Arc<Model>>, Box<dyn Error>> {
+            let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/planets");
+            let paths = [
+                "siroco.obj",
+                "oquedad.obj",
+                "jovara.obj",
+                "boreal.obj",
+                "runtime/helios-ii.obj",
+                "runtime/flareon.obj",
+                "runtime/kepler-186f.obj",
+                "runtime/metis.obj",
+            ];
+            paths
+                .iter()
+                .enumerate()
+                .map(|(index, path)| {
+                    let mut model = Model::load(assets.join(path))?;
+                    if index >= 3 {
+                        for texture in &mut model.textures {
+                            texture.blend_longitude_seam(if index == 3 { 0.035 } else { 0.015 });
+                        }
+                    }
+                    Ok(Arc::new(model))
+                })
+                .collect()
+        };
+        load().map_err(|error| error.to_string())
+    });
+    match result {
+        Ok(models) => Ok(models),
+        Err(message) => Err(message.clone().into()),
+    }
+}
+
+fn draw_solar_halo(fb: &mut Framebuffer, view: &FlightView, transform: WorldTransform) {
+    let Some(center) = view.project(transform.position) else {
+        return;
+    };
+    let radius = (transform.radius * renderer::FLIGHT_FOCAL * center.z).max(1.0);
+    let reach = radius * 1.8;
+    let bounds = (
+        (center.x - reach).max(0.0) as usize,
+        (center.y - reach).max(0.0) as usize,
+        (center.x + reach).ceil().max(0.0).min(fb.width as f32) as usize,
+        (center.y + reach).ceil().max(0.0).min(fb.height as f32) as usize,
+    );
+    fb.shade_rect(bounds, |x, y, pixel, depth| {
+        if center.z <= *depth {
+            return;
+        }
+        let distance = (((x as f32 + 0.5 - center.x).powi(2)
+            + (y as f32 + 0.5 - center.y).powi(2))
+            / radius.powi(2))
+        .sqrt();
+        let strength = (-((distance - 1.0) / 0.25).powi(2)).exp() * 0.4;
+        if distance > 0.9 && distance < 1.8 {
+            *pixel = crate::framebuffer::emission_color(*pixel, 0xff9d39, strength, 0.0);
+        }
+    });
+}
+
 pub struct Space {
     pub planets: Vec<Planet>,
     collisions: Arc<CollisionWorld>,
+    black_hole: crate::black_hole::BlackHole,
     debris_model: Model,
     debris: Vec<WorldTransform>,
 }
 
 impl Space {
+    pub fn solar_lighting(&self, seconds: f32) -> Option<crate::lighting::SolarLight> {
+        let sun = self.planets.iter().find(|p| p.active && p.is_sun)?;
+        let transform = sun.world_transform(seconds);
+        Some(crate::lighting::SolarLight {
+            position: transform.position,
+            radius: transform.radius,
+            occluders: self
+                .planets
+                .iter()
+                .filter(|p| p.active && !p.is_sun)
+                .map(|p| {
+                    let transform = p.world_transform(seconds);
+                    crate::lighting::Occluder {
+                        center: transform.position,
+                        radius: transform.radius,
+                    }
+                })
+                .collect(),
+        })
+    }
+
     pub fn load() -> Result<Self, Box<dyn Error>> {
-        let assets = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/planets");
+        let models = load_models()?;
         let planets = vec![
             Planet {
                 active: true,
                 name: "Siroco",
-                model: Model::load(assets.join("siroco.obj"))?,
+                model: Arc::clone(&models[0]),
+                motion: crate::orbit::Motion::default(),
+                is_sun: false,
                 transform: WorldTransform {
                     position: Vec3::new(-36.0, 7.0, -105.0),
                     radius: 22.0,
@@ -44,7 +170,9 @@ impl Space {
             Planet {
                 active: true,
                 name: "Oquedad",
-                model: Model::load(assets.join("oquedad.obj"))?,
+                model: Arc::clone(&models[1]),
+                motion: crate::orbit::Motion::default(),
+                is_sun: false,
                 transform: WorldTransform {
                     position: Vec3::new(42.0, 3.0, -135.0),
                     radius: 25.0,
@@ -56,7 +184,9 @@ impl Space {
             Planet {
                 active: true,
                 name: "Jovara",
-                model: Model::load(assets.join("jovara.obj"))?,
+                model: Arc::clone(&models[2]),
+                motion: crate::orbit::Motion::default(),
+                is_sun: false,
                 transform: WorldTransform {
                     position: Vec3::new(0.0, 57.0, -215.0),
                     radius: 35.0,
@@ -68,13 +198,9 @@ impl Space {
             Planet {
                 active: true,
                 name: "Boreal",
-                model: {
-                    let mut model = Model::load(assets.join("boreal.obj"))?;
-                    for texture in &mut model.textures {
-                        texture.blend_longitude_seam(0.035);
-                    }
-                    model
-                },
+                model: Arc::clone(&models[3]),
+                motion: crate::orbit::Motion::default(),
+                is_sun: false,
                 transform: WorldTransform {
                     position: Vec3::new(-145.0, -85.0, -235.0),
                     radius: 42.0,
@@ -83,30 +209,84 @@ impl Space {
                 rotation_speed: 0.012,
                 dust: None,
             },
+            Planet {
+                active: false,
+                name: "Helios II",
+                model: Arc::clone(&models[4]),
+                motion: crate::orbit::Motion::default(),
+                is_sun: true,
+                transform: crate::galaxy::planet_transform(1, 4),
+                rotation_speed: 0.045,
+                dust: None,
+            },
+            Planet {
+                active: false,
+                name: "Flareon",
+                model: Arc::clone(&models[5]),
+                motion: crate::orbit::Motion::default(),
+                is_sun: false,
+                transform: crate::galaxy::planet_transform(1, 5),
+                rotation_speed: 0.036,
+                dust: None,
+            },
+            Planet {
+                active: false,
+                name: "Kepler-186f",
+                model: Arc::clone(&models[6]),
+                motion: crate::orbit::Motion::default(),
+                is_sun: false,
+                transform: crate::galaxy::planet_transform(1, 6),
+                rotation_speed: 0.018,
+                dust: None,
+            },
+            Planet {
+                active: false,
+                name: "Metis",
+                model: Arc::clone(&models[7]),
+                motion: crate::orbit::Motion::default(),
+                is_sun: false,
+                transform: crate::galaxy::planet_transform(1, 7),
+                rotation_speed: 0.024,
+                dust: None,
+            },
         ];
         let collisions = Arc::new(CollisionWorld::new(
             planets
                 .iter()
-                .map(|p| PlanetCollider::new(p.name, &p.model, p.transform, p.rotation_speed))
+                .filter(|p| p.active)
+                .map(|p| {
+                    PlanetCollider::new(p.name, &p.model, p.transform, p.rotation_speed)
+                        .with_motion(p.motion)
+                })
                 .collect(),
         ));
         Ok(Self {
             planets,
             collisions,
+            black_hole: crate::galaxy::black_hole(0),
             debris_model: debris_model(),
             debris: Vec::new(),
         })
     }
 
     pub fn configure(&mut self, index: usize) {
+        self.black_hole = crate::galaxy::black_hole(index);
         let galaxy = &crate::galaxy::GALAXIES[index];
         for (planet_index, planet) in self.planets.iter_mut().enumerate() {
             planet.active = galaxy.planets.contains(&planet_index);
             planet.transform = crate::galaxy::planet_transform(index, planet_index);
+            planet.motion = if index == 1 {
+                crate::orbit::aurora_motion(planet_index)
+            } else {
+                crate::orbit::Motion::default()
+            };
         }
         self.collisions = Arc::new(CollisionWorld::new(
             self.active_planets()
-                .map(|p| PlanetCollider::new(p.name, &p.model, p.transform, p.rotation_speed))
+                .map(|p| {
+                    PlanetCollider::new(p.name, &p.model, p.transform, p.rotation_speed)
+                        .with_motion(p.motion)
+                })
                 .collect(),
         ));
         let mut seed = galaxy.seed;
@@ -117,12 +297,24 @@ impl Space {
         self.debris = (0..galaxy.debris)
             .map(|_| {
                 let angle = next() * std::f32::consts::TAU;
-                let distance = 82.0 + next() * 72.0;
+                let distance = if index == 1 {
+                    860.0 + next() * 40.0
+                } else {
+                    82.0 + next() * 72.0
+                };
                 WorldTransform {
                     position: Vec3::new(
                         angle.cos() * distance,
-                        -43.0 + next() * 18.0,
-                        -200.0 + angle.sin() * distance,
+                        if index == 1 {
+                            -15.0 + next() * 30.0
+                        } else {
+                            -43.0 + next() * 18.0
+                        },
+                        if index == 1 {
+                            angle.sin() * distance
+                        } else {
+                            -200.0 + angle.sin() * distance
+                        },
                     ),
                     radius: 0.8 + next() * 2.8,
                     yaw: next() * std::f32::consts::TAU,
@@ -135,8 +327,16 @@ impl Space {
         self.planets.iter().filter(|planet| planet.active)
     }
 
+    pub fn sun_position(&self, seconds: f32) -> Option<Vec3> {
+        self.active_planets()
+            .find(|planet| planet.is_sun)
+            .map(|sun| sun.world_transform(seconds).position)
+    }
+
     pub fn new_flight(&self) -> Flight {
-        Flight::with_collisions(Arc::clone(&self.collisions))
+        let mut flight = Flight::with_collisions(Arc::clone(&self.collisions));
+        flight.black_hole = self.black_hole;
+        flight
     }
 
     pub fn approach(&self, flight: &mut Flight, name: &str) -> Result<(), Box<dyn Error>> {
@@ -145,16 +345,26 @@ impl Space {
             .iter()
             .find(|p| p.active && p.name.eq_ignore_ascii_case(name))
             .ok_or_else(|| format!("Planeta desconocido: {name}"))?;
-        flight.position = planet.transform.position + Vec3::z() * (planet.transform.radius + 24.0);
+        let transform = planet.world_transform(flight.seconds);
+        flight.position = transform.position + Vec3::z() * (transform.radius + 24.0);
         Ok(())
     }
 
     pub fn draw(&self, fb: &mut Framebuffer, flight: &Flight, seconds: f32) {
         let view = FlightView::new(flight, fb.width, fb.height);
         for planet in self.active_planets() {
-            let mut transform = planet.transform;
-            transform.yaw += seconds * planet.rotation_speed;
-            renderer::draw_world_model(fb, &planet.model, &view, transform);
+            let transform = planet.world_transform(seconds);
+            renderer::draw_world_model_shaded(
+                fb,
+                &planet.model,
+                &view,
+                transform,
+                self.sun_position(seconds),
+                planet.surface_effect(seconds),
+            );
+        }
+        for sun in self.active_planets().filter(|planet| planet.is_sun) {
+            draw_solar_halo(fb, &view, sun.world_transform(seconds));
         }
         for &transform in &self.debris {
             renderer::draw_world_model(fb, &self.debris_model, &view, transform);
@@ -174,20 +384,25 @@ impl Space {
             .ok_or_else(|| format!("Planeta desconocido: {name}"))?;
         let mut flight = Flight::new();
         flight.camera.pitch = 0.0;
+        let transform = planet.world_transform(seconds);
         let target_radius = fb.width.min(fb.height) as f32 * 0.40;
         let distance = planet.transform.radius
             * (1.0 + (renderer::FLIGHT_FOCAL / target_radius).powi(2)).sqrt();
-        flight.position = planet.transform.position + Vec3::new(0.0, -1.6, distance - 8.0);
-        let mut transform = planet.transform;
-        transform.yaw += seconds * planet.rotation_speed;
+        flight.position = transform.position + Vec3::new(0.0, -1.6, distance - 8.0);
         fb.clear();
         fb.pixels.fill(0x03060c);
-        renderer::draw_world_model(
+        let view = FlightView::new(&flight, fb.width, fb.height);
+        renderer::draw_world_model_shaded(
             fb,
             &planet.model,
-            &FlightView::new(&flight, fb.width, fb.height),
+            &view,
             transform,
+            self.sun_position(seconds),
+            planet.surface_effect(seconds),
         );
+        if planet.is_sun {
+            draw_solar_halo(fb, &view, transform);
+        }
         Ok(())
     }
 
@@ -195,8 +410,7 @@ impl Space {
         let view = FlightView::new(flight, fb.width, fb.height);
         for planet in self.active_planets() {
             if let Some(dust) = &planet.dust {
-                let mut transform = planet.transform;
-                transform.yaw += seconds * planet.rotation_speed;
+                let transform = planet.world_transform(seconds);
                 dust.draw(fb, &view, transform, seconds);
             }
         }
@@ -244,12 +458,241 @@ fn debris_model() -> Model {
 mod tests {
     use super::*;
     #[test]
+    fn jovara_lava_and_sun_surfaces_move_without_orbital_or_camera_motion() {
+        let space = Space::load().unwrap();
+        for name in ["Jovara", "Flareon", "Helios II"] {
+            let planet = space.planets.iter().find(|p| p.name == name).unwrap();
+            let mut flight = Flight::new();
+            flight.camera.pitch = 0.0;
+            let transform = WorldTransform {
+                position: Vec3::new(0.0, 0.0, -600.0),
+                radius: 70.0,
+                yaw: 0.0,
+            };
+            let view = FlightView::new(&flight, 256, 192);
+            let render = |seconds| {
+                let mut frame = Framebuffer::new(256, 192);
+                frame.point(128, 96, 2.0, 0xff00ff, true);
+                renderer::draw_world_model_shaded(
+                    &mut frame,
+                    &planet.model,
+                    &view,
+                    transform,
+                    None,
+                    planet.surface_effect(seconds),
+                );
+                frame
+            };
+            let initial = render(0.0);
+            let animated = render(2.0);
+            assert_eq!(initial.depth, animated.depth);
+            let mut count = 0;
+            let mut difference = 0u64;
+            for ((&a, &b), &depth) in initial
+                .pixels
+                .iter()
+                .zip(&animated.pixels)
+                .zip(&initial.depth)
+            {
+                if !depth.is_finite() {
+                    continue;
+                }
+                count += 1;
+                difference += [0, 8, 16]
+                    .into_iter()
+                    .map(|shift| {
+                        ((a >> shift & 255) as i32 - (b >> shift & 255) as i32).unsigned_abs()
+                            as u64
+                    })
+                    .sum::<u64>();
+            }
+            assert!(count > 1000);
+            assert!(
+                difference as f32 / (count * 3) as f32 > 5.0,
+                "{name} needs visible surface motion"
+            );
+            assert_eq!(animated.pixels[96 * 256 + 128], 0xff00ff);
+        }
+    }
+
+    #[test]
+    fn kepler_surface_animates_with_fixed_geometry_and_respects_depth() {
+        let mut space = Space::load().unwrap();
+        space.configure(1);
+        let planet = &space.planets[6];
+        let transform = planet.world_transform(0.0);
+        assert_eq!(transform.radius, crate::galaxy::KEPLER_RADIUS);
+        assert!(
+            crate::orbit::METIS.radius - transform.radius - space.planets[7].transform.radius
+                > 80.0
+        );
+        let mut flight = Flight::new();
+        flight.camera.pitch = 0.0;
+        flight.position = transform.position + Vec3::new(0.0, -1.6, transform.radius * 8.0 - 8.0);
+        let view = FlightView::new(&flight, 256, 192);
+        let render = |seconds, threads| {
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap();
+            let mut frame = Framebuffer::new(256, 192);
+            frame.point(128, 96, 2.0, 0xff00ff, true);
+            pool.install(|| {
+                renderer::draw_world_model_shaded(
+                    &mut frame,
+                    &planet.model,
+                    &view,
+                    transform,
+                    space.sun_position(0.0),
+                    planet.surface_effect(seconds),
+                )
+            });
+            frame
+        };
+        let initial = render(0.0, 1);
+        let parallel = render(0.0, 4);
+        let animated = render(4.0, 4);
+        let mut reference = Framebuffer::new(256, 192);
+        reference.point(128, 96, 2.0, 0xff00ff, true);
+        renderer::draw_world_model_lit(
+            &mut reference,
+            &planet.model,
+            &view,
+            transform,
+            space.sun_position(0.0),
+        );
+        assert_eq!(initial.depth, reference.depth);
+        assert_eq!(initial.pixels, parallel.pixels);
+        assert_eq!(initial.depth, animated.depth);
+        let changed = initial
+            .pixels
+            .iter()
+            .zip(&animated.pixels)
+            .filter(|(a, b)| a != b)
+            .count();
+        assert!(changed > 1000);
+        assert_eq!(animated.pixels[96 * 256 + 128], 0xff00ff);
+    }
+    #[test]
+    fn aurora_draws_and_collides_at_the_same_orbital_positions() {
+        let mut space = Space::load().unwrap();
+        space.configure(1);
+        assert_eq!(space.active_planets().count(), 6);
+        assert_eq!(space.sun_position(600.0), Some(Vec3::zeros()));
+        let hole = space.new_flight().black_hole;
+        for seconds in [0.0, 120.0, 600.0] {
+            for body in space.active_planets() {
+                let transform = body.world_transform(seconds);
+                assert_eq!(hole.acceleration(transform.position), Vec3::zeros());
+                let start = transform.position + Vec3::z() * (transform.radius + 15.0);
+                let motion = space
+                    .collisions
+                    .move_ship(start, -Vec3::z() * 35.0, seconds, 0.0);
+                assert!(
+                    motion
+                        .contacts
+                        .iter()
+                        .any(|contact| contact.planet == body.name),
+                    "Colision ausente en {} a t={seconds}",
+                    body.name
+                );
+            }
+            let kepler = space.planets[6].world_transform(seconds);
+            let metis = space.planets[7].world_transform(seconds);
+            assert!(
+                ((metis.position - kepler.position).norm() - crate::orbit::METIS.radius).abs()
+                    < 0.001
+            );
+        }
+        assert!(
+            space
+                .collisions
+                .move_ship(crate::flight::SPAWN_POSITION, Vec3::zeros(), 0.0, 0.0)
+                .contacts
+                .is_empty()
+        );
+        for body in &space.planets[4..] {
+            assert!(body.model.faces.len() < 20000);
+            assert_eq!(body.model.textures.len(), 1);
+            assert!(
+                body.model
+                    .faces
+                    .iter()
+                    .all(|face| face.texture.is_some() && face.uv.is_some())
+            );
+        }
+        assert!(space.planets[4].model.faces.iter().all(|face| face.unlit));
+        let mut flight = space.new_flight();
+        flight.position = hole.position + Vec3::z() * 75.0;
+        for _ in 0..600 {
+            flight.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+            if flight.respawn_notice > 0.0 {
+                break;
+            }
+        }
+        assert!(flight.respawn_notice > 0.0);
+        assert_eq!(flight.position, crate::flight::SPAWN_POSITION);
+        assert_eq!(flight.black_hole.position, hole.position);
+    }
+
+    #[test]
+    fn an_orbiting_planet_can_contact_a_stationary_ship() {
+        let mut space = Space::load().unwrap();
+        space.configure(1);
+        let body = &space.planets[6];
+        let seconds = 120.0;
+        let transform = body.world_transform(seconds);
+        let direction = body.motion.velocity(seconds).normalize();
+        let start = transform.position
+            + direction * (transform.radius + crate::collision::SHIP_RADIUS + 0.05);
+        let result = space
+            .collisions
+            .move_ship(start, Vec3::zeros(), seconds, 0.1);
+        assert!(
+            result
+                .contacts
+                .iter()
+                .any(|contact| contact.planet == "Kepler-186f")
+        );
+        assert!((result.position - start).norm() > 0.01);
+    }
+    #[test]
+    fn planet_shadows_follow_orbits_and_surface_noise_excludes_siroco() {
+        use crate::shaders::SurfaceEffect;
+        let mut space = Space::load().unwrap();
+        for planet in &space.planets {
+            assert_eq!(
+                matches!(planet.surface_effect(4.0), SurfaceEffect::None),
+                planet.name == "Siroco",
+                "{}",
+                planet.name
+            );
+        }
+        space.configure(1);
+        for time in [0.0, 60.0, 120.0] {
+            let light = space.solar_lighting(time).unwrap();
+            let kepler = space.planets[6].world_transform(time);
+            assert!(light.occluders.iter().any(|p| p.center == kepler.position));
+            let outward = (kepler.position - light.position).normalize();
+            assert_eq!(
+                light.visibility(kepler.position + outward * (kepler.radius + 30.0)),
+                0.0
+            );
+        }
+        space.configure(0);
+        assert!(space.solar_lighting(0.0).is_none());
+    }
+    #[test]
     fn destinations_restore_layouts_reproduce_debris_and_keep_active_collisions() {
         let mut space = Space::load().unwrap();
         for galaxy in [1, 2, 0, 2, 1, 0] {
             space.configure(galaxy);
             let definition = &crate::galaxy::GALAXIES[galaxy];
             assert_eq!(space.active_planets().count(), definition.planets.len());
+            let mut flight = space.new_flight();
+            assert_eq!(flight.position, crate::flight::SPAWN_POSITION);
+            flight.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+            assert_eq!(flight.position, crate::flight::SPAWN_POSITION);
             assert_eq!(space.debris.len(), definition.debris);
             let first_debris: Vec<_> = space.debris.iter().map(|t| t.position).collect();
             space.configure(galaxy);
@@ -379,7 +822,7 @@ mod tests {
             fast.advance(1.0 / 60.0, (0.0, 0.0), false, false);
         }
         assert!(fast.crash.is_none() && fast.respawn_notice > 0.0);
-        assert_eq!(fast.position, Vec3::zeros());
+        assert_eq!(fast.position, crate::flight::SPAWN_POSITION);
         fast.position = start;
         fast.velocity = -normal * 62.0;
         fast.advance(1.0 / 60.0, (0.0, 0.0), true, false);

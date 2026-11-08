@@ -1,0 +1,4 @@
+newmtl Surface
+Kd 1 1 1
+illum 2
+map_Kd ../textures/aurora-kepler-186f-surface.png

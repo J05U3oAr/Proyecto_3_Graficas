@@ -162,6 +162,34 @@ pub fn draw_world_model(
     camera: &FlightView,
     transform: WorldTransform,
 ) {
+    draw_world_model_lit(fb, model, camera, transform, None);
+}
+
+pub fn draw_world_model_lit(
+    fb: &mut Framebuffer,
+    model: &Model,
+    camera: &FlightView,
+    transform: WorldTransform,
+    sun: Option<Vec3>,
+) {
+    draw_world_model_shaded(
+        fb,
+        model,
+        camera,
+        transform,
+        sun,
+        crate::shaders::SurfaceEffect::None,
+    );
+}
+
+pub fn draw_world_model_shaded(
+    fb: &mut Framebuffer,
+    model: &Model,
+    camera: &FlightView,
+    transform: WorldTransform,
+    sun: Option<Vec3>,
+    effect: crate::shaders::SurfaceEffect,
+) {
     if !camera.sphere_visible(transform.position, transform.radius) {
         return;
     }
@@ -175,19 +203,41 @@ pub fn draw_world_model(
             camera.view_point(transform.position + rotated)
         })
         .collect();
-    let light = Vec3::new(-0.4, 0.8, 1.0).normalize();
+    let light = sun
+        .map(|position| camera.view_direction(position - transform.position))
+        .filter(|direction| direction.norm_squared() > 0.001)
+        .unwrap_or_else(|| Vec3::new(-0.4, 0.8, 1.0))
+        .normalize();
     let half = (light + Vec3::new(0.0, 0.0, 1.0)).normalize();
     let mut primitives = Vec::with_capacity(model.faces.len());
+    let cull_closed = matches!(
+        effect,
+        crate::shaders::SurfaceEffect::Kepler { .. }
+            | crate::shaders::SurfaceEffect::Solar { .. }
+            | crate::shaders::SurfaceEffect::Lava { .. }
+    ) && camera.view_point(transform.position).norm_squared()
+        > transform.radius * transform.radius;
     for face in &model.faces {
         let [i, j, k] = face.indices;
         let [a, b, c] = [vertices[i], vertices[j], vertices[k]];
+        let normal = (b - a).cross(&(c - a));
+        // Estas superficies son cerradas; las caras posteriores no necesitan ejecutar el shader.
+        if cull_closed && normal.dot(&a) >= 0.0 {
+            continue;
+        }
         if let (Some(texture), Some(uv)) = (face.texture, face.uv) {
             let points = [a, b, c];
             let (polygon, count) = clip_near_textured(std::array::from_fn(|i| ClipVertex {
                 point: points[i],
                 uv: uv[i],
             }));
-            let intensity = texture_intensity((b - a).cross(&(c - a)), face.unlit);
+            let intensity = if sun.is_some() && !face.unlit && normal.norm_squared() > 0.001 {
+                let normal = normal.normalize();
+                let normal = if normal.z < 0.0 { -normal } else { normal };
+                0.18 + 0.95 * normal.dot(&light).max(0.0)
+            } else {
+                texture_intensity(normal, face.unlit)
+            };
             for index in 1..count.saturating_sub(1) {
                 let projected = [polygon[0], polygon[index], polygon[index + 1]].map(|vertex| {
                     let mut point = vertex.point;
@@ -206,6 +256,7 @@ pub fn draw_world_model(
                         texture: &model.textures[texture],
                         tint: face.color,
                         intensity,
+                        effect,
                     },
                 });
             }
@@ -221,13 +272,27 @@ pub fn draw_world_model(
                 p.z = p.z.min(-NEAR_PLANE);
                 camera.project_view(p).unwrap()
             };
+            let points = [polygon[0], polygon[index], polygon[index + 1]];
+            let projected = points.map(project);
+            let surface = if matches!(effect, crate::shaders::SurfaceEffect::Rock { .. }) {
+                let local = points.map(|point| {
+                    let world = camera.eye + camera.right * point.x + camera.up * point.y
+                        - camera.forward * point.z;
+                    let p = (world - transform.position) / transform.radius;
+                    Vec3::new(p.x * cos - p.z * sin, p.y, p.x * sin + p.z * cos)
+                });
+                Surface::ProceduralColor {
+                    local,
+                    reciprocal: projected.map(|p| p.z),
+                    color,
+                    effect,
+                }
+            } else {
+                Surface::Solid(color)
+            };
             primitives.push(Primitive {
-                vertices: [
-                    project(polygon[0]),
-                    project(polygon[index]),
-                    project(polygon[index + 1]),
-                ],
-                surface: Surface::Solid(color),
+                vertices: projected,
+                surface,
             });
         }
     }
@@ -316,6 +381,27 @@ pub fn draw_flight_model(
     model: &Model,
     flight: &Flight,
     fallback_color: Option<Color>,
+    onboard: Option<&crate::lighting::ShipLights>,
+) {
+    draw_flight_model_lit(
+        framebuffer,
+        model,
+        flight,
+        fallback_color,
+        None,
+        None,
+        onboard,
+    );
+}
+
+pub fn draw_flight_model_lit(
+    framebuffer: &mut Framebuffer,
+    model: &Model,
+    flight: &Flight,
+    fallback_color: Option<Color>,
+    solar: Option<&crate::lighting::SolarLight>,
+    hull: Option<&crate::lighting::HullShadow>,
+    onboard: Option<&crate::lighting::ShipLights>,
 ) {
     // All three source OBJs have their nose along +Z and their roof along +Y.
     let model_forward = Vec3::new(0.0, 0.0, 1.0);
@@ -347,6 +433,76 @@ pub fn draw_flight_model(
             )
         })
         .collect();
+    if solar.is_some() || onboard.is_some() {
+        let eye = flight.camera_position();
+        let world: Vec<Vec3> = view
+            .iter()
+            .map(|v| eye + right * v.x + up * v.y - forward * v.z)
+            .collect();
+        let relative_sun = solar
+            .map(|sun| (sun.position - flight.position) / crate::collision::SHIP_RADIUS)
+            .unwrap_or_default();
+        let local_sun = Vec3::new(
+            -relative_sun.dot(&ship_right),
+            relative_sun.dot(&ship_up),
+            relative_sun.dot(&ship_forward),
+        );
+        let mut primitives = Vec::with_capacity(model.faces.len());
+        for face in &model.faces {
+            let [i, j, k] = face.indices;
+            if [i, j, k].iter().any(|&index| view[index].z >= -0.1) {
+                continue;
+            }
+            let normal = (world[j] - world[i]).cross(&(world[k] - world[i]));
+            if normal.norm_squared() < 1e-12 {
+                continue;
+            }
+            let normal = normal.normalize();
+            let point = (world[i] + world[j] + world[k]) / 3.0;
+            let facing = if normal.dot(&(eye - point)) < 0.0 {
+                -normal
+            } else {
+                normal
+            };
+            // El rayo usa las coordenadas normalizadas del casco para reutilizar su arbol espacial.
+            let local = ((model.vertices[i] + model.vertices[j] + model.vertices[k]) / 3.0
+                - model.center)
+                / model.radius;
+            let blocked = solar.is_some_and(|sun| facing.dot(&(sun.position - point)) > 0.0)
+                && hull.is_some_and(|hull| hull.occludes(local, local_sun));
+            let mut color = solar
+                .map(|sun| {
+                    sun.shade(
+                        point,
+                        normal,
+                        eye,
+                        fallback_color.unwrap_or(face.color),
+                        blocked,
+                    )
+                })
+                .unwrap_or(Color::new(0, 0, 0));
+            if let Some(onboard) = onboard {
+                let local_direction =
+                    |v: Vec3| Vec3::new(-v.dot(&ship_right), v.dot(&ship_up), v.dot(&ship_forward));
+                let engine_power =
+                    (flight.velocity.norm() / crate::flight::CRUISE_SPEED).clamp(0.0, 3.0);
+                color = onboard.shade(
+                    color,
+                    fallback_color.unwrap_or(face.color),
+                    local,
+                    local_direction(normal),
+                    local_direction((eye - point).normalize()),
+                    engine_power,
+                );
+            }
+            primitives.push(Primitive {
+                vertices: [screen[i], screen[j], screen[k]],
+                surface: Surface::Solid(color),
+            });
+        }
+        raster_batch::draw(framebuffer, &primitives);
+        return;
+    }
     rasterize(
         framebuffer,
         model,
@@ -458,6 +614,140 @@ mod tests {
     }
 
     #[test]
+    fn solar_ship_render_darkens_in_eclipse_without_changing_depth() {
+        use crate::lighting::{Occluder, SolarLight};
+        let flight = Flight::new();
+        let sun = flight.position + Vec3::z() * 600.0 + Vec3::y() * 180.0;
+        let light = SolarLight {
+            position: sun,
+            radius: 130.0,
+            occluders: vec![],
+        };
+        let eclipse = SolarLight {
+            position: sun,
+            radius: 130.0,
+            occluders: vec![Occluder {
+                center: (flight.position + sun) * 0.5,
+                radius: 120.0,
+            }],
+        };
+        for ship in crate::fleet::load().unwrap() {
+            let mut lit = Framebuffer::new(1280, 840);
+            let mut dark = Framebuffer::new(1280, 840);
+            draw_flight_model_lit(
+                &mut lit,
+                &ship.model,
+                &flight,
+                ship.finish,
+                Some(&light),
+                Some(&ship.shadows),
+                None,
+            );
+            draw_flight_model_lit(
+                &mut dark,
+                &ship.model,
+                &flight,
+                ship.finish,
+                Some(&eclipse),
+                Some(&ship.shadows),
+                None,
+            );
+            assert_eq!(lit.depth, dark.depth);
+            let brightness = |fb: &Framebuffer| -> u64 {
+                fb.pixels
+                    .iter()
+                    .zip(&fb.depth)
+                    .filter(|(_, depth)| depth.is_finite())
+                    .map(|(&p, _)| ((p >> 16 & 255) + (p >> 8 & 255) + (p & 255)) as u64)
+                    .sum()
+            };
+            assert!(
+                brightness(&lit) > brightness(&dark) * 2,
+                "{} must darken during eclipse",
+                ship.name
+            );
+            lit.depth.fill(f32::INFINITY);
+            lit.pixels.fill(0x123456);
+            draw_flight_model_lit(
+                &mut lit,
+                &ship.model,
+                &flight,
+                ship.finish,
+                Some(&light),
+                Some(&ship.shadows),
+                None,
+            );
+            assert!(lit.pixels.iter().all(|&p| p == 0x123456));
+        }
+    }
+
+    #[test]
+    fn onboard_lights_keep_every_ship_visible_in_eclipse_and_without_a_sun() {
+        use crate::lighting::{Occluder, SolarLight};
+        let flight = Flight::new();
+        let sun = flight.position + Vec3::z() * 600.0;
+        let eclipse = SolarLight {
+            position: sun,
+            radius: 130.0,
+            occluders: vec![Occluder {
+                center: (flight.position + sun) * 0.5,
+                radius: 120.0,
+            }],
+        };
+        let clear = SolarLight {
+            position: sun,
+            radius: 130.0,
+            occluders: vec![],
+        };
+        for ship in crate::fleet::load().unwrap() {
+            let render = |sun, onboard| {
+                let mut frame = Framebuffer::new(1280, 840);
+                draw_flight_model_lit(
+                    &mut frame,
+                    &ship.model,
+                    &flight,
+                    ship.finish,
+                    sun,
+                    Some(&ship.shadows),
+                    onboard,
+                );
+                frame
+            };
+            let unassisted = render(Some(&eclipse), None);
+            let assisted = render(Some(&eclipse), Some(&ship.lights));
+            let sunlit = render(Some(&clear), Some(&ship.lights));
+            let dark_space = render(None, Some(&ship.lights));
+            let brightness = |frame: &Framebuffer| -> f32 {
+                let values: Vec<_> = frame
+                    .pixels
+                    .iter()
+                    .zip(&frame.depth)
+                    .filter(|(_, d)| d.is_finite())
+                    .map(|(&p, _)| ((p >> 16 & 255) + (p >> 8 & 255) + (p & 255)) as f32 / 3.0)
+                    .collect();
+                values.iter().sum::<f32>() / values.len() as f32
+            };
+            assert_eq!(assisted.depth, unassisted.depth);
+            assert_eq!(assisted.depth, dark_space.depth);
+            assert!(
+                brightness(&assisted) > brightness(&unassisted) * 3.0,
+                "{}",
+                ship.name
+            );
+            assert!(
+                brightness(&assisted) > 20.0 && brightness(&dark_space) > 20.0,
+                "{}",
+                ship.name
+            );
+            assert!(
+                brightness(&sunlit) > brightness(&assisted) * 1.1,
+                "El eclipse debe seguir siendo visible: {}",
+                ship.name
+            );
+        }
+    }
+
+    #[test]
     fn all_ships_stay_visible_below_the_reticle_during_turns() {
         let ships = crate::fleet::load().unwrap();
         let mut flight = Flight::new();
@@ -470,7 +760,13 @@ mod tests {
             }
             for ship in &ships {
                 fb.clear();
-                draw_flight_model(&mut fb, &ship.model, &flight, ship.finish);
+                draw_flight_model(
+                    &mut fb,
+                    &ship.model,
+                    &flight,
+                    ship.finish,
+                    Some(&ship.lights),
+                );
                 let mut visible = 0;
                 for (index, &pixel) in fb.pixels.iter().enumerate() {
                     if pixel != crate::framebuffer::BACKGROUND {

@@ -6,11 +6,18 @@ const BAND_HEIGHT: usize = 32;
 
 pub enum Surface<'a> {
     Solid(Color),
+    ProceduralColor {
+        local: [Vec3; 3],
+        reciprocal: [f32; 3],
+        color: Color,
+        effect: crate::shaders::SurfaceEffect,
+    },
     Textured {
         vertices: [TextureVertex; 3],
         texture: &'a Texture,
         tint: Color,
         intensity: f32,
+        effect: crate::shaders::SurfaceEffect,
     },
 }
 
@@ -27,11 +34,27 @@ impl Primitive<'_> {
     fn color(&self, weights: [f32; 3]) -> u32 {
         match &self.surface {
             Surface::Solid(color) => color.to_hex(),
+            Surface::ProceduralColor {
+                local,
+                reciprocal,
+                color,
+                effect,
+            } => {
+                let depth = reciprocal[0] * weights[0]
+                    + reciprocal[1] * weights[1]
+                    + reciprocal[2] * weights[2];
+                let point = (local[0] * (weights[0] * reciprocal[0])
+                    + local[1] * (weights[1] * reciprocal[1])
+                    + local[2] * (weights[2] * reciprocal[2]))
+                    / depth;
+                effect.modulate(*color, point).to_hex()
+            }
             Surface::Textured {
                 vertices: [a, b, c],
                 texture,
                 tint,
                 intensity,
+                effect,
             } => {
                 let [w0, w1, w2] = weights;
                 let reciprocal = a.inverse_w * w0 + b.inverse_w * w1 + c.inverse_w * w2;
@@ -39,7 +62,7 @@ impl Primitive<'_> {
                     + b.uv * (w1 * b.inverse_w)
                     + c.uv * (w2 * c.inverse_w))
                     / reciprocal;
-                let color = texture.sample(uv);
+                let color = effect.sample(texture, uv);
                 let channel = |value: u8, tint: u8| {
                     (value as f32 * tint as f32 / 255.0 * intensity)
                         .clamp(0.0, 255.0)
@@ -173,6 +196,7 @@ mod tests {
                     texture: &texture,
                     tint,
                     intensity: 0.8,
+                    effect: crate::shaders::SurfaceEffect::None,
                 },
             })
             .collect();

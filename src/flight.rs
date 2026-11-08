@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 pub const CRASH_SPEED: f32 = 28.0;
 pub const CRUISE_SPEED: f32 = 36.0;
-pub const BOOST_SPEED: f32 = 62.0;
+pub const BOOST_SPEED: f32 = 155.0;
+pub const SPAWN_POSITION: Vec3 = Vec3::new(88.0, -139.0, 579.0);
 
 pub struct Crash {
     pub position: Vec3,
@@ -18,6 +19,8 @@ pub struct Crash {
 /// Arcade flight with a mouse steering target and a camera following from behind.
 pub struct Flight {
     pub position: Vec3,
+    pub black_hole: crate::black_hole::BlackHole,
+    spawn_position: Vec3,
     pub velocity: Vec3,
     pub camera: Camera,
     pub heading: Camera,
@@ -42,6 +45,8 @@ impl Flight {
         };
         Self {
             position: Vec3::zeros(),
+            black_hole: crate::black_hole::BLACK_HOLE,
+            spawn_position: Vec3::zeros(),
             velocity: Vec3::zeros(),
             camera: Camera {
                 pitch: 0.14,
@@ -63,6 +68,8 @@ impl Flight {
 
     pub fn with_collisions(world: Arc<CollisionWorld>) -> Self {
         Self {
+            position: SPAWN_POSITION,
+            spawn_position: SPAWN_POSITION,
             collisions: Some(world),
             ..Self::new()
         }
@@ -70,8 +77,13 @@ impl Flight {
 
     fn respawn(&mut self) {
         let seconds = self.seconds;
+        let spawn_position = self.spawn_position;
+        let black_hole = self.black_hole;
         let collisions = self.collisions.take();
         *self = Self::new();
+        self.position = spawn_position;
+        self.spawn_position = spawn_position;
+        self.black_hole = black_hole;
         self.seconds = seconds;
         self.collisions = collisions;
         self.respawn_notice = 3.5;
@@ -167,7 +179,7 @@ impl Flight {
             // Thrusters damp their own motion; releasing WASD does not erase gravity.
             let mut controlled = self.velocity - self.gravity_velocity;
             controlled += (target_velocity - controlled) * (1.0 - (-acceleration * dt).exp());
-            self.gravity_velocity += crate::black_hole::BLACK_HOLE.acceleration(self.position) * dt;
+            self.gravity_velocity += self.black_hole.acceleration(self.position) * dt;
             // Brakes can help in the outer field but cannot cancel the attraction.
             if brake {
                 self.gravity_velocity *= (-0.25 * dt).exp();
@@ -208,7 +220,7 @@ impl Flight {
                     break;
                 }
             }
-            if crate::black_hole::BLACK_HOLE.captures(self.position, next) {
+            if self.black_hole.captures(self.position, next) {
                 self.captured_for = Some(0.0);
                 self.velocity = Vec3::zeros();
                 self.gravity_velocity = Vec3::zeros();
@@ -345,18 +357,21 @@ mod tests {
 
     #[test]
     fn boost_brake_and_frame_rate_preserve_control() {
-        let simulate = |fps: usize| {
+        let simulate = |fps: usize, boost: bool| {
             let mut flight = Flight::new();
             flight.move_with_mouse(Some((-0.5, 0.25)));
             for _ in 0..fps * 2 {
-                flight.advance(1.0 / fps as f32, (1.0, 0.0), true, false);
+                flight.advance(1.0 / fps as f32, (1.0, 0.0), boost, false);
             }
             flight
         };
-        let mut flight = simulate(60);
-        let slower_frames = simulate(30);
+        let mut flight = simulate(60, true);
+        let slower_frames = simulate(30, true);
         assert!((flight.position - slower_frames.position).norm() < 0.05);
-        assert!(flight.velocity.norm() > 55.0 && flight.velocity.norm() <= 62.0);
+        assert!(
+            flight.velocity.norm() > BOOST_SPEED * 0.88 && flight.velocity.norm() <= BOOST_SPEED
+        );
+        assert!(flight.velocity.norm() > simulate(60, false).velocity.norm() * 2.5);
         flight.move_with_mouse(None);
         for _ in 0..120 {
             flight.advance(1.0 / 60.0, (1.0, 0.0), true, true);

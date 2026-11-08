@@ -291,6 +291,9 @@ impl Ui {
         if self.galaxy == index {
             return;
         }
+        if index == 1 {
+            crate::skybox::prepare();
+        }
         self.space.configure(index);
         self.galaxy = index;
     }
@@ -381,10 +384,14 @@ impl Ui {
 
     pub fn flight(&self, fb: &mut Framebuffer, ship: &Ship, flight: &Flight, seconds: f32) {
         fb.clear();
-        for y in 0..HEIGHT {
-            let t = y as f32 / HEIGHT as f32;
-            let color = mix(crate::galaxy::GALAXIES[self.galaxy].sky, 0x03060c, t);
-            fb.pixels[y * WIDTH..(y + 1) * WIDTH].fill(color);
+        if self.galaxy == 1 {
+            crate::skybox::draw(fb, &flight.camera);
+        } else {
+            for y in 0..HEIGHT {
+                let t = y as f32 / HEIGHT as f32;
+                let color = mix(crate::galaxy::GALAXIES[self.galaxy].sky, 0x03060c, t);
+                fb.pixels[y * WIDTH..(y + 1) * WIDTH].fill(color);
+            }
         }
 
         let (right, up, forward) = flight.camera.basis();
@@ -432,9 +439,28 @@ impl Ui {
 
         self.space.draw(fb, flight, seconds);
         if flight.crash.is_none() {
-            renderer::draw_flight_model(fb, &ship.model, flight, ship.finish);
+            if let Some(solar) = self.space.solar_lighting(seconds) {
+                renderer::draw_flight_model_lit(
+                    fb,
+                    &ship.model,
+                    flight,
+                    ship.finish,
+                    Some(&solar),
+                    Some(&ship.shadows),
+                    Some(&ship.lights),
+                );
+            } else {
+                renderer::draw_flight_model(
+                    fb,
+                    &ship.model,
+                    flight,
+                    ship.finish,
+                    Some(&ship.lights),
+                );
+            }
         }
         self.deep_space.draw(fb, flight);
+        crate::thrusters::draw(fb, ship, flight, seconds);
         self.space.draw_atmospheres(fb, flight, seconds);
         if let Some(crash) = &flight.crash {
             crate::explosion::draw(fb, &renderer::FlightView::new(flight, WIDTH, HEIGHT), crash);
@@ -448,12 +474,20 @@ impl Ui {
         }
 
         let view = renderer::FlightView::new(flight, WIDTH, HEIGHT);
-        let hole = crate::black_hole::BLACK_HOLE;
+        let mut occupied_labels: Vec<Rect> = Vec::new();
+        let has_sun = self.space.sun_position(seconds).is_some();
+        let hole = flight.black_hole;
         let distance = (flight.position - hole.position).norm();
         if let Some(point) = view.project(hole.position) {
             let y = point.y + hole.horizon * renderer::FLIGHT_FOCAL * point.z + 22.0;
             let label = format!("Agujero negro  {:.0} u", distance);
             if (180.0..WIDTH as f32 - 180.0).contains(&point.x) && (145.0..650.0).contains(&y) {
+                occupied_labels.push(Rect::new(
+                    (point.x - self.fonts.width(14, &label) * 0.5) as i32,
+                    y as i32,
+                    self.fonts.width(14, &label) as i32,
+                    19,
+                ));
                 self.fonts.text(
                     fb,
                     14,
@@ -465,15 +499,43 @@ impl Ui {
             }
         }
         for planet in self.space.active_planets() {
-            if let Some(point) = view.project(planet.transform.position) {
+            let transform = planet.world_transform(seconds);
+            if let Some(point) = view.project(transform.position) {
                 let atmosphere = if planet.dust.is_some() { 1.22 } else { 1.0 };
                 let y = point.y
-                    + planet.transform.radius * atmosphere * renderer::FLIGHT_FOCAL * point.z
+                    + transform.radius * atmosphere * renderer::FLIGHT_FOCAL * point.z
                     + 14.0;
-                if (80.0..WIDTH as f32 - 80.0).contains(&point.x) && (145.0..730.0).contains(&y) {
-                    let x = point.x - self.fonts.width(14, planet.name) * 0.5;
-                    self.fonts
-                        .text(fb, 14, x as i32, y as i32, planet.name, MUTED);
+                if (0.0..WIDTH as f32).contains(&point.x) && (145.0..710.0).contains(&y) {
+                    let label = if has_sun {
+                        format!(
+                            "{}  {:.0} u",
+                            planet.name,
+                            (transform.position - flight.position).norm()
+                        )
+                    } else {
+                        planet.name.to_owned()
+                    };
+                    let width = self.fonts.width(14, &label).ceil() as i32;
+                    let x = (point.x - width as f32 * 0.5)
+                        .clamp(16.0, (WIDTH as i32 - width - 16) as f32)
+                        as i32;
+                    let mut rect = Rect::new(x, y as i32, width, 19);
+                    for _ in 0..5 {
+                        let overlaps = occupied_labels.iter().any(|other| {
+                            rect.x < other.x + other.w
+                                && rect.x + rect.w > other.x
+                                && rect.y < other.y + other.h
+                                && rect.y + rect.h > other.y
+                        });
+                        if !overlaps {
+                            break;
+                        }
+                        rect.y += 21;
+                    }
+                    if rect.y < 740 {
+                        self.fonts.text(fb, 14, rect.x, rect.y, &label, MUTED);
+                        occupied_labels.push(rect);
+                    }
                 }
             }
         }
