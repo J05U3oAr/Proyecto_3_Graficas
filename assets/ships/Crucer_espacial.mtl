@@ -1,0 +1,115 @@
+# Materials for Crucer espacial; dissolve is read by the CPU renderer.
+newmtl Hull
+Kd 0.48 0.49 0.44
+d 1
+illum 2
+
+newmtl HullLight
+Kd 0.53 0.54 0.49
+d 1
+illum 2
+
+newmtl HullDark
+Kd 0.43 0.45 0.4
+d 1
+illum 2
+
+newmtl Belly
+Kd 0.19 0.21 0.19
+d 1
+illum 2
+
+newmtl Rim
+Kd 0.27 0.29 0.26
+d 1
+illum 2
+
+newmtl Metal
+Kd 0.36 0.38 0.35
+d 1
+illum 2
+
+newmtl Rubber
+Kd 0.1 0.12 0.11
+d 1
+illum 2
+
+newmtl Engine
+Kd 0.32 0.34 0.32
+d 1
+illum 2
+
+newmtl EngineRib
+Kd 0.41 0.43 0.4
+d 1
+illum 2
+
+newmtl EngineInside
+Kd 0.15 0.17 0.16
+d 1
+illum 2
+
+newmtl Yellow
+Kd 0.91 0.69 0.14
+d 1
+illum 2
+
+newmtl StripeEdge
+Kd 0.45 0.35 0.1
+d 1
+illum 2
+
+newmtl Lamp
+Kd 0.94 0.88 0.39
+d 1
+illum 2
+
+newmtl Seat
+Kd 0.47 0.28 0.17
+d 1
+illum 2
+
+newmtl Cushion
+Kd 0.58 0.36 0.23
+d 1
+illum 2
+
+newmtl SeatSeam
+Kd 0.34 0.21 0.14
+d 1
+illum 2
+
+newmtl Dashboard
+Kd 0.26 0.31 0.29
+d 1
+illum 2
+
+newmtl Screen
+Kd 0.25 0.65 0.58
+d 1
+illum 2
+
+newmtl Glass
+Kd 0.69 0.83 0.85
+d 0.22
+illum 2
+
+newmtl GlassReflection
+Kd 0.9 0.96 0.95
+d 0.43
+illum 2
+
+newmtl Sticker
+Kd 0.55 0.78 0.77
+d 1
+illum 2
+
+newmtl Cream
+Kd 0.8 0.78 0.59
+d 1
+illum 2
+
+newmtl Red
+Kd 0.65 0.23 0.15
+d 1
+illum 2

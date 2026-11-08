@@ -21,7 +21,7 @@ pub fn load() -> Result<Vec<Ship>, Box<dyn Error>> {
             Some(Color::new(218, 135, 62)),
         ),
         ("TIE Silencer", "Galactwar.obj", 0x8eb3fa, None),
-        ("Lightflash", "Lightflash.obj", 0x6fe5d2, None),
+        ("Crucer espacial", "Crucer_espacial.obj", 0xe0b63d, None),
     ]
     .into_iter()
     .map(|(name, file, accent, finish)| {

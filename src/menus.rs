@@ -75,7 +75,7 @@ pub fn ships(ui: &Ui, fb: &mut Framebuffer, ships: &[Ship], view: &MenuView) {
     let descriptions = [
         "Casco cobrizo y silueta amplia",
         "Paneles oscuros y cabina roja",
-        "Perfil compacto y tonos frios",
+        "Platillo gris, cupula de cristal y franjas amarillas",
     ];
     for (index, entry) in ships.iter().enumerate() {
         let card = ui::card(index);

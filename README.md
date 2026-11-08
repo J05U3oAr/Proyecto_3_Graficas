@@ -34,7 +34,7 @@ Los menús usan el fondo procedural adaptado de `referencia.rs`: una nebulosa co
 
 | Tecla | Acción |
 | --- | --- |
-| `1`, `2`, `3` | Seleccionar Guardgalaxy, Galactwar o Lightflash |
+| `1`, `2`, `3` | Seleccionar Guardgalaxy, Galactwar o Crucer espacial |
 | `Tab` / `Shift+Tab` o flechas | Cambiar de selección |
 | `Enter` | Continuar al selector de galaxias |
 | `Espacio` o botón de pausa | Pausar / reanudar el giro de la nave principal |
@@ -130,7 +130,7 @@ El HUD muestra la distancia y avisa de la atracción. Puedes ver
 
 | Tecla | Acción |
 | --- | --- |
-| `1`, `2`, `3` | Elegir Guardgalaxy, Galactwar o Lightflash |
+| `1`, `2`, `3` | Elegir Guardgalaxy, Galactwar o Crucer espacial |
 | Flechas o `W`, `A`, `S`, `D` | Orbitar la cámara |
 | `Q`, `E` | Alejar o acercar |
 | `M` | Cambiar entre sólido, malla y holograma |
@@ -148,7 +148,7 @@ cargo run --release -- --render-menu output/hangar.png --time 4 --ship 1
 cargo run --release -- --render-galaxies output/atlas.png --galaxy 2
 cargo run --release -- --render-galaxies output/detalle.png --galaxy 2 --details --time 8
 cargo run --release -- --render-travel output/viaje.png --galaxy 2 --time 1.4
-cargo run --release -- --render-inspector output/lightflash.png --ship 3
+cargo run --release -- --render-inspector output/crucer-espacial.png --ship 3
 cargo run --release -- --render-flight output/vuelo.png --ship 1
 cargo run --release -- --render-flight output/umbria.png --galaxy 3
 cargo run --release -- --render-flight output/giro.png --ship 2 --time 2 --mouse 0.65 -0.35
@@ -213,6 +213,6 @@ La integración, el port a Rust y el menú se realizaron con asistencia de Codex
 
 - **Guardgalaxy**: modelo `Benatar.obj`, del proyecto [hmndzzl/Graficas_Lab4](https://github.com/hmndzzl/Graficas_Lab4). Su MTL original no define colores difusos, por lo que el hangar aplica un acabado cobrizo inspirado en el visualizador original.
 - **Galactwar**: modelo `nave-lab3-PC.obj`, del proyecto [Pxdro-410/lab4-Graficas-PC](https://github.com/Pxdro-410/lab4-Graficas-PC). El ZIP no incluía el MTL referenciado, así que `Galactwar.mtl` completa los cuatro materiales que aparecen en el OBJ.
-- **Lightflash**: modelo `Nave_Espacial.obj` y materiales `Sin_nombre.mtl`, del proyecto [J05U3oAr/Lab4-graficas](https://github.com/J05U3oAr/Lab4-graficas).
+- **Crucer espacial**: modelo original `Crucer_espacial.obj` y materiales `Crucer_espacial.mtl`, construidos a partir de la imagen de referencia de la nave de Rick Sánchez de *Rick y Morty* aportada por el usuario. Reemplaza la tercera nave de la flota. Incluye casco gris de platillo, franjas amarillas, dos motores acanalados, faros, asientos marrones y cúpula transparente. [Detalles y regeneración](assets/ships/README.md).
 
-El renderizador C++ del último proyecto se portó a módulos Rust: carga de OBJ/MTL, validación y triangulación de caras, rasterizado baricéntrico con profundidad, iluminación difusa y exportación PNG. La ventana y los controles usan `minifb`. No se conservaron archivos `.cpp`, `.h` ni dependencias de SDL.
+El renderizador C++ de [J05U3oAr/Lab4-graficas](https://github.com/J05U3oAr/Lab4-graficas) se portó a módulos Rust: carga de OBJ/MTL, validación y triangulación de caras, rasterizado baricéntrico con profundidad, iluminación difusa y exportación PNG. La ventana y los controles usan `minifb`. No se conservaron archivos `.cpp`, `.h` ni dependencias de SDL.
