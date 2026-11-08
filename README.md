@@ -84,6 +84,7 @@ La organización del mapa toma como referencia la navegación y la información 
 | `1`, `2`, `3` | Cambiar de nave |
 | `I` | Inspeccionar la nave actual |
 | Clic izquierdo / derecho | Con Crucer espacial: colocar el portal amarillo / verde |
+| `G` | Con Crucer espacial: abrir el portal galáctico para viajar a otra galaxia |
 | `Esc` | Volver al selector de galaxias |
 
 La nave comienza detenida y se desplaza mientras mantienes WASD. Puedes combinar teclas para moverte en diagonal sin aumentar la velocidad máxima; las teclas opuestas se cancelan. Al soltarlas, la nave desacelera suavemente hasta detenerse. `Shift` aumenta la velocidad mientras te desplazas y `Espacio` frena incluso si mantienes una tecla de movimiento.
@@ -103,6 +104,14 @@ cambiar de nave, regresar a destinos o reaparecer; inspeccionar pausa y conserva
 los portales.
 Usan las imágenes amarilla y verde proporcionadas por el usuario, incluido el GIF
 animado. [Controles, reglas y procedencia de las imágenes](assets/portals/README.md).
+
+**Salto intergaláctico:** con Crucer espacial, pulsa `G` para abrir un portal gigante
+de estrellas y nebulosas frente a la nave. Elige otra galaxia con flechas, `Tab` o
+clic y pulsa `G` / `Enter` para entrar. La nave avanza hacia el portal, la cámara
+la sigue y el cruce termina en el vuelo real del destino. `Esc` cancela y conserva
+la escena de salida. La apertura dura 0.85 segundos y la entrada 4.2 segundos;
+se pausan al perder el foco. Hace falta espacio libre frente a la nave.
+[Ver el portal y su animación](assets/portals/README.md#salto-intergaláctico-g).
 
 Al despegar en Aurora, Siroco aparece a la izquierda, Oquedad a la derecha y Jovara arriba,
 entre los dos. Boreal, el nuevo gigante helado turquesa, aparece abajo a la izquierda.
@@ -165,6 +174,8 @@ cargo run --release -- --render-inspector output/crucer-espacial.png --ship 3
 cargo run --release -- --render-flight output/vuelo.png --ship 1
 cargo run --release -- --render-flight output/portales.png --ship 3 --portal-demo --time 0.35
 cargo run --release -- --render-flight output/portal-boreal.png --ship 3 --portal-demo --target boreal --time 0.35
+cargo run --release -- --render-gate output/portal-galactico.png --ship 3 --galaxy 2 --gate-ready --time 1
+cargo run --release -- --render-gate output/entrada-galactica.png --ship 3 --galaxy 2 --time 1.6
 cargo run --release -- --render-flight output/umbria.png --galaxy 3
 cargo run --release -- --render-flight output/giro.png --ship 2 --time 2 --mouse 0.65 -0.35
 cargo run --release -- --render-planet output/boreal.png --target boreal
@@ -211,6 +222,7 @@ Admite los cuatro nombres de planeta y es una alternativa a `--near-black-hole`.
 - `src/flight.rs`: posición, velocidad, impulso y controles de vuelo.
 - `src/portal.rs`: colocación, enlace y cruce continuo de los dos portales.
 - `src/portal_art.rs`: discos en perspectiva y animación de las imágenes de portales.
+- `src/galactic_portal.rs`: portal galáctico gigante, selección de destino y cinemática de entrada.
 - `src/collision.rs`: colisión continua con las mallas de los planetas y sus túneles.
 - `src/explosion.rs`: fuego, fragmentos y humo del impacto en coordenadas del mundo.
 - `src/space.rs`: carga, posición y rotación de los planetas.

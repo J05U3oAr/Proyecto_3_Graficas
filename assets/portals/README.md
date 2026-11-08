@@ -55,6 +55,61 @@ con el vuelo. Se eliminan al cambiar a otra nave, volver a destinos, iniciar otr
 viaje o reaparecer tras una destrucción o absorción. No se pueden crear portales
 en los menús, sin foco, fuera del área del juego o mientras la nave está destruida.
 
+## Salto intergaláctico (G)
+
+![Portal galáctico gigante hacia Aurora](previews/galactic-gate.png)
+
+[Ver la animación de apertura, entrada y llegada](previews/galactic-travel.gif).
+
+Durante el vuelo de **Crucer espacial**, `G` abre un portal galáctico de 42 unidades
+de radio, a 110 unidades frente a la proa. Tiene estrellas, nebulosas y dos anillos
+violeta/cian; su interior reutiliza la ilustración de la galaxia de destino con
+un movimiento lento. Su diseño es distinto de los dos portales locales.
+
+| Acción | Control |
+| --- | --- |
+| Abrir el portal galáctico | `G` durante el vuelo |
+| Elegir otra galaxia | Flechas izquierda/derecha, `Tab` o clic sobre el destino |
+| Iniciar la entrada | `G`, `Enter` o botón **Entrar** |
+| Cancelar la apertura o el viaje | `Esc` |
+
+La apertura dura 0.85 segundos. Una vez abierto, se puede confirmar la entrada;
+la selección excluye la galaxia actual. La cinemática dura 4.2 segundos: primero
+la nave avanza, cruza el plano y desaparece dentro del portal; después la cámara
+se acerca y un destello mezcla la imagen con el primer cuadro real del destino.
+La nave elegida se conserva. Al llegar empieza detenida, con las colisiones y el
+agujero negro propios de la nueva región y sin portales locales colocados.
+
+La escena original y su física permanecen pausadas durante la selección y la
+cinemática. `Esc` regresa al mismo lugar, con la misma velocidad y portales locales.
+La animación también se pausa si la ventana pierde el foco. No se cambian naves
+ni se colocan portales locales durante el salto. La ruta se comprueba antes de
+abrir para evitar planetas y el horizonte del agujero negro; un aviso pide alejarse
+si no hay espacio. Una nave destruida o absorbida no puede abrir el portal.
+
+Las texturas se generan y conservan en memoria una sola vez, con las ilustraciones
+procedurales del mapa. No se necesitan imágenes nuevas ni dependencias adicionales.
+La vista animada enlazada arriba es una exportación reducida del renderizador.
+
+Para exportar las fases sin abrir una ventana:
+
+```powershell
+cargo run --release -- --render-gate output/abriendo.png --ship 3 --galaxy 2 --gate-ready --time 0.4
+cargo run --release -- --render-gate output/listo.png --ship 3 --galaxy 2 --gate-ready --time 1
+cargo run --release -- --render-gate output/entrando.png --ship 3 --galaxy 2 --time 1.6
+cargo run --release -- --render-gate output/cruce.png --ship 3 --galaxy 2 --time 3
+cargo run --release -- --render-gate output/llegada.png --ship 3 --galaxy 2 --time 4.2
+```
+
+`--galaxy` elige el destino y la exportación usa otra región como origen.
+`--gate-ready` interpreta `--time` como tiempo de apertura/selección; sin esa
+opción, indica el tiempo de la entrada. Solo se admite `--ship 3` para este portal.
+
+Las pruebas comprueban selección de otra galaxia, bloqueo de cambios al entrar,
+temporización a 10 y 60 FPS, poses finitas, cruce de la nave antes que la cámara,
+oclusión, apariencia reproducible, preservación exacta de la salida al cancelar,
+llegada idéntica al cuadro preparado y colisiones funcionales en el destino.
+
 ## Imágenes proporcionadas por el usuario
 
 - `yellow.png`: conversión del archivo adjunto `Portal_amarillo.webp`, con su alfa
