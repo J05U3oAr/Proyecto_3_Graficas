@@ -352,6 +352,10 @@ impl Space {
 
     pub fn draw(&self, fb: &mut Framebuffer, flight: &Flight, seconds: f32) {
         let view = FlightView::new(flight, fb.width, fb.height);
+        self.draw_view(fb, &view, seconds);
+    }
+
+    pub fn draw_view(&self, fb: &mut Framebuffer, view: &FlightView, seconds: f32) {
         for planet in self.active_planets() {
             let transform = planet.world_transform(seconds);
             renderer::draw_world_model_shaded(
@@ -408,6 +412,10 @@ impl Space {
 
     pub fn draw_atmospheres(&self, fb: &mut Framebuffer, flight: &Flight, seconds: f32) {
         let view = FlightView::new(flight, fb.width, fb.height);
+        self.draw_atmospheres_view(fb, &view, seconds);
+    }
+
+    pub fn draw_atmospheres_view(&self, fb: &mut Framebuffer, view: &FlightView, seconds: f32) {
         for planet in self.active_planets() {
             if let Some(dust) = &planet.dust {
                 let transform = planet.world_transform(seconds);

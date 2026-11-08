@@ -60,10 +60,14 @@ impl Portal {
         })
     }
 
-    fn rotate_to(self, exit: Self, vector: Vec3) -> Vec3 {
+    pub fn rotate_to(self, exit: Self, vector: Vec3) -> Vec3 {
         // A half-turn around local up makes incoming velocity point out of the exit.
         -exit.right * vector.dot(&self.right) + exit.up * vector.dot(&self.up)
             - exit.normal * vector.dot(&self.normal)
+    }
+
+    pub fn point_to(self, exit: Self, point: Vec3) -> Vec3 {
+        exit.center + self.rotate_to(exit, point - self.center)
     }
 }
 
@@ -114,6 +118,10 @@ impl Pair {
 
     pub fn linked(&self) -> bool {
         self.slots.iter().all(Option::is_some)
+    }
+
+    pub fn connection(&self, kind: Kind) -> Option<(Portal, Portal)> {
+        Some((self.get(kind)?, self.slots[1 - kind as usize]?))
     }
 
     pub fn notify(&mut self, text: &'static str) {

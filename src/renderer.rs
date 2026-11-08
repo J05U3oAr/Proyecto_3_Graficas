@@ -95,6 +95,7 @@ pub struct WorldTransform {
     pub yaw: f32,
 }
 
+#[derive(Clone, Copy)]
 pub struct FlightView {
     eye: Vec3,
     right: Vec3,
@@ -102,6 +103,8 @@ pub struct FlightView {
     forward: Vec3,
     width: f32,
     height: f32,
+    principal: Vec2,
+    exit_clip: Option<(Vec3, Vec3)>,
 }
 
 impl FlightView {
@@ -114,7 +117,89 @@ impl FlightView {
             forward,
             width: width as f32,
             height: height as f32,
+            principal: Vec2::new(width as f32 * 0.5, height as f32 * 0.5),
+            exit_clip: None,
         }
+    }
+
+    pub fn eye(&self) -> Vec3 {
+        self.eye
+    }
+
+    pub fn basis(&self) -> (Vec3, Vec3, Vec3) {
+        (self.right, self.up, self.forward)
+    }
+
+    pub fn ray(&self, x: f32, y: f32) -> Vec3 {
+        self.forward
+            + self.right * ((x - self.principal.x) / FLIGHT_FOCAL)
+            + self.up * ((self.principal.y - y) / FLIGHT_FOCAL)
+    }
+
+    pub fn through(&self, entry: crate::portal::Portal, exit: crate::portal::Portal) -> Self {
+        let side = if (self.eye - entry.center).dot(&entry.normal) >= 0.0 {
+            1.0
+        } else {
+            -1.0
+        };
+        let normal = exit.normal * side;
+        Self {
+            eye: entry.point_to(exit, self.eye),
+            right: entry.rotate_to(exit, self.right),
+            up: entry.rotate_to(exit, self.up),
+            forward: entry.rotate_to(exit, self.forward),
+            exit_clip: Some((exit.center + normal * 0.015, normal)),
+            ..*self
+        }
+    }
+
+    /// Preserve the full-screen rays in a small off-axis portal render target.
+    pub fn cropped(&self, bounds: (usize, usize, usize, usize)) -> Self {
+        Self {
+            width: (bounds.2 - bounds.0) as f32,
+            height: (bounds.3 - bounds.1) as f32,
+            principal: self.principal - Vec2::new(bounds.0 as f32, bounds.1 as f32),
+            ..*self
+        }
+    }
+
+    pub fn contains_world(&self, point: Vec3) -> bool {
+        self.exit_clip
+            .is_none_or(|(origin, normal)| (point - origin).dot(&normal) >= 0.0)
+    }
+
+    fn clip_triangle(&self, triangle: [ClipVertex; 3]) -> ([ClipVertex; 5], usize) {
+        let (near, count) = clip_near_textured(triangle);
+        let mut result = [near[0]; 5];
+        let Some((origin, normal)) = self.exit_clip else {
+            result[..count].copy_from_slice(&near[..count]);
+            return (result, count);
+        };
+        if count == 0 {
+            return (result, 0);
+        }
+        let normal = self.view_direction(normal);
+        let origin = self.view_point(origin);
+        let distance = |v: ClipVertex| (v.point - origin).dot(&normal);
+        let mut result_count = 0;
+        let mut previous = near[count - 1];
+        for &current in &near[..count] {
+            let (before, now) = (distance(previous), distance(current));
+            if (before >= 0.0) != (now >= 0.0) {
+                let t = before / (before - now);
+                result[result_count] = ClipVertex {
+                    point: previous.point + (current.point - previous.point) * t,
+                    uv: previous.uv + (current.uv - previous.uv) * t,
+                };
+                result_count += 1;
+            }
+            if now >= 0.0 {
+                result[result_count] = current;
+                result_count += 1;
+            }
+            previous = current;
+        }
+        (result, result_count)
     }
 
     pub fn view_point(&self, world: Vec3) -> Vec3 {
@@ -133,25 +218,38 @@ impl FlightView {
         let depth = -point.z;
         (depth >= NEAR_PLANE).then(|| {
             Vec3::new(
-                self.width * 0.5 + point.x * FLIGHT_FOCAL / depth,
-                self.height * 0.5 - point.y * FLIGHT_FOCAL / depth,
+                self.principal.x + point.x * FLIGHT_FOCAL / depth,
+                self.principal.y - point.y * FLIGHT_FOCAL / depth,
                 1.0 / depth,
             )
         })
     }
 
     pub fn project(&self, world: Vec3) -> Option<Vec3> {
+        if !self.contains_world(world) {
+            return None;
+        }
         self.project_view(self.view_point(world))
     }
 
     pub fn sphere_visible(&self, center: Vec3, radius: f32) -> bool {
+        if self
+            .exit_clip
+            .is_some_and(|(origin, normal)| (center - origin).dot(&normal) < -radius)
+        {
+            return false;
+        }
         let point = self.view_point(center);
         let depth = -point.z;
-        let horizontal = self.width * 0.5 / FLIGHT_FOCAL;
-        let vertical = self.height * 0.5 / FLIGHT_FOCAL;
+        let left = self.principal.x / FLIGHT_FOCAL;
+        let right = (self.width - self.principal.x) / FLIGHT_FOCAL;
+        let top = self.principal.y / FLIGHT_FOCAL;
+        let bottom = (self.height - self.principal.y) / FLIGHT_FOCAL;
         depth + radius >= NEAR_PLANE
-            && point.x.abs() <= depth * horizontal + radius * (1.0 + horizontal * horizontal).sqrt()
-            && point.y.abs() <= depth * vertical + radius * (1.0 + vertical * vertical).sqrt()
+            && point.x >= -depth * left - radius * (1.0 + left * left).sqrt()
+            && point.x <= depth * right + radius * (1.0 + right * right).sqrt()
+            && point.y <= depth * top + radius * (1.0 + top * top).sqrt()
+            && point.y >= -depth * bottom - radius * (1.0 + bottom * bottom).sqrt()
     }
 }
 
@@ -190,6 +288,43 @@ pub fn draw_world_model_shaded(
     sun: Option<Vec3>,
     effect: crate::shaders::SurfaceEffect,
 ) {
+    draw_world_with_basis(fb, model, camera, transform, sun, effect, None, None);
+}
+
+pub fn draw_ship_in_view(
+    fb: &mut Framebuffer,
+    ship: &crate::fleet::Ship,
+    flight: &Flight,
+    camera: &FlightView,
+    sun: Option<Vec3>,
+) {
+    let (right, up, forward) = flight.ship_basis();
+    draw_world_with_basis(
+        fb,
+        &ship.model,
+        camera,
+        WorldTransform {
+            position: flight.position,
+            radius: crate::collision::SHIP_RADIUS,
+            yaw: 0.0,
+        },
+        sun,
+        crate::shaders::SurfaceEffect::None,
+        Some([-right, up, forward]),
+        ship.finish,
+    );
+}
+
+fn draw_world_with_basis(
+    fb: &mut Framebuffer,
+    model: &Model,
+    camera: &FlightView,
+    transform: WorldTransform,
+    sun: Option<Vec3>,
+    effect: crate::shaders::SurfaceEffect,
+    basis: Option<[Vec3; 3]>,
+    finish: Option<Color>,
+) {
     if !camera.sphere_visible(transform.position, transform.radius) {
         return;
     }
@@ -199,7 +334,10 @@ pub fn draw_world_model_shaded(
         .iter()
         .map(|vertex| {
             let p = (vertex - model.center) * (transform.radius / model.radius);
-            let rotated = Vec3::new(p.x * cos + p.z * sin, p.y, p.z * cos - p.x * sin);
+            let rotated = basis.map_or_else(
+                || Vec3::new(p.x * cos + p.z * sin, p.y, p.z * cos - p.x * sin),
+                |[right, up, forward]| right * p.x + up * p.y + forward * p.z,
+            );
             camera.view_point(transform.position + rotated)
         })
         .collect();
@@ -227,7 +365,7 @@ pub fn draw_world_model_shaded(
         }
         if let (Some(texture), Some(uv)) = (face.texture, face.uv) {
             let points = [a, b, c];
-            let (polygon, count) = clip_near_textured(std::array::from_fn(|i| ClipVertex {
+            let (polygon, count) = camera.clip_triangle(std::array::from_fn(|i| ClipVertex {
                 point: points[i],
                 uv: uv[i],
             }));
@@ -263,17 +401,29 @@ pub fn draw_world_model_shaded(
             }
             continue;
         }
-        let Some(color) = lit_color((b - a).cross(&(c - a)), face.color, &light, &half) else {
+        let Some(color) = lit_color(
+            (b - a).cross(&(c - a)),
+            finish.unwrap_or(face.color),
+            &light,
+            &half,
+        ) else {
             continue;
         };
-        let (polygon, count) = clip_near([a, b, c]);
+        let (polygon, count) = camera.clip_triangle([a, b, c].map(|point| ClipVertex {
+            point,
+            uv: Vec2::zeros(),
+        }));
         for index in 1..count.saturating_sub(1) {
             // Clipping guarantees positive depth; clamp roundoff at the near plane.
             let project = |mut p: Vec3| {
                 p.z = p.z.min(-NEAR_PLANE);
                 camera.project_view(p).unwrap()
             };
-            let points = [polygon[0], polygon[index], polygon[index + 1]];
+            let points = [
+                polygon[0].point,
+                polygon[index].point,
+                polygon[index + 1].point,
+            ];
             let projected = points.map(project);
             let surface = if matches!(effect, crate::shaders::SurfaceEffect::Rock { .. }) {
                 let local = points.map(|point| {
@@ -301,6 +451,7 @@ pub fn draw_world_model_shaded(
     raster_batch::draw(fb, &primitives);
 }
 
+#[cfg(test)]
 fn clip_near(triangle: [Vec3; 3]) -> ([Vec3; 4], usize) {
     let (polygon, count) = clip_near_textured(triangle.map(|point| ClipVertex {
         point,
@@ -589,6 +740,67 @@ fn rasterize(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn portal_camera_preserves_projection_parallax_and_oblique_orientation() {
+        use crate::portal::Portal;
+        let mut flight = Flight::new();
+        flight.position = Vec3::new(2.0, 3.0, 4.0);
+        let source = FlightView::new(&flight, 1280, 840);
+        let entry = Portal::new(Vec3::new(0.0, 0.0, -20.0), Vec3::z()).unwrap();
+        let exit = Portal::new(Vec3::new(100.0, 40.0, -200.0), Vec3::new(1.0, 0.4, -0.2)).unwrap();
+        let remote = source.through(entry, exit);
+        let point = entry.center - entry.normal * 10.0 + entry.right * 2.0 + entry.up;
+        let expected = source.project(point).unwrap();
+        let actual = remote.project(entry.point_to(exit, point)).unwrap();
+        assert!((expected - actual).norm() < 0.001);
+        assert!((exit.point_to(entry, remote.eye()) - source.eye()).norm() < 1e-4);
+        assert!(
+            (remote.ray(713.5, 382.5) - entry.rotate_to(exit, source.ray(713.5, 382.5))).norm()
+                < 1e-5
+        );
+        let cropped = remote.cropped((400, 200, 850, 650));
+        assert!((cropped.ray(52.5, 71.5) - remote.ray(452.5, 271.5)).norm() < 1e-6);
+        let moved = FlightView {
+            eye: source.eye + Vec3::x(),
+            ..source
+        }
+        .through(entry, exit);
+        assert!((moved.eye() - remote.eye()).norm() > 0.99);
+        assert_ne!(moved.project(entry.point_to(exit, point)), Some(actual));
+    }
+
+    #[test]
+    fn exit_plane_clips_triangles_and_interpolates_uvs_instead_of_showing_objects_before_exit() {
+        let mut flight = Flight::new();
+        flight.camera.pitch = 0.0;
+        let mut view = FlightView::new(&flight, 320, 240);
+        view.exit_clip = Some((Vec3::new(0.0, 0.0, -5.0), -Vec3::z()));
+        let world = [
+            Vec3::new(-1.0, 0.0, -4.0),
+            Vec3::new(1.0, 0.0, -6.0),
+            Vec3::new(0.0, 2.0, -6.0),
+        ];
+        let uv = [Vec2::zeros(), Vec2::x(), Vec2::y()];
+        let (polygon, count) = view.clip_triangle(std::array::from_fn(|i| ClipVertex {
+            point: view.view_point(world[i]),
+            uv: uv[i],
+        }));
+        assert_eq!(count, 4);
+        for v in &polygon[..count] {
+            let p =
+                view.eye + view.right * v.point.x + view.up * v.point.y - view.forward * v.point.z;
+            assert!(p.z <= -5.0 + 1e-5);
+        }
+        assert!(
+            polygon[..count]
+                .iter()
+                .any(|v| (v.uv - Vec2::new(0.5, 0.0)).norm() < 1e-5)
+        );
+        assert!(!view.sphere_visible(Vec3::zeros(), 1.0));
+        assert!(view.project(Vec3::zeros()).is_none());
+        assert!(view.project(Vec3::new(0.0, 0.0, -10.0)).is_some());
+    }
 
     #[test]
     fn near_plane_clipping_preserves_uvs_at_new_vertices() {

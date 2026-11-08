@@ -127,9 +127,35 @@ pub fn draw(fb: &mut Framebuffer, camera: &Camera) {
         });
 }
 
+pub fn draw_view(fb: &mut Framebuffer, view: &crate::renderer::FlightView) {
+    let cube = cubemap();
+    fb.shade_rect((0, 0, fb.width, fb.height), |x, y, pixel, _| {
+        *pixel = sample(cube, view.ray(x as f32 + 0.5, y as f32 + 0.5));
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cropped_sky_uses_the_same_rays_as_the_full_view() {
+        let flight = crate::flight::Flight::new();
+        let view = crate::renderer::FlightView::new(&flight, 320, 240);
+        let mut full = Framebuffer::new(320, 240);
+        draw_view(&mut full, &view);
+        let bounds = (110, 40, 210, 150);
+        let mut crop = Framebuffer::new(100, 110);
+        draw_view(&mut crop, &view.cropped(bounds));
+        for y in 0..110 {
+            for x in 0..100 {
+                assert_eq!(
+                    crop.pixels[y * 100 + x],
+                    full.pixels[(y + 40) * 320 + x + 110]
+                );
+            }
+        }
+    }
     #[test]
     fn skybox_closes_cube_edges_rotates_with_camera_and_preserves_depth() {
         let cube = cubemap();
