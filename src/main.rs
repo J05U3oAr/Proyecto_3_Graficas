@@ -17,6 +17,7 @@ mod model;
 mod nebula;
 mod noise;
 mod orbit;
+mod portal;
 mod raster_batch;
 mod renderer;
 mod shaders;

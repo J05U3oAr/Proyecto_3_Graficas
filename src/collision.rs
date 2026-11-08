@@ -394,6 +394,14 @@ impl CollisionWorld {
         Self { planets }
     }
 
+    /// Floating portals need a clear disk and room for the ship at their exit.
+    /// Conservative bounding spheres also reject portals buried inside a planet.
+    pub fn sphere_clear(&self, center: Vec3, radius: f32, time: f32) -> bool {
+        self.planets
+            .iter()
+            .all(|planet| (planet.center(time) - center).norm() > planet.transform.radius + radius)
+    }
+
     pub fn move_ship(&self, start: Vec3, displacement: Vec3, time: f32, dt: f32) -> Motion {
         let mut position = start;
         let mut remaining = displacement;

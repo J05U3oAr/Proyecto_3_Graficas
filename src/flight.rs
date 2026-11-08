@@ -31,6 +31,7 @@ pub struct Flight {
     pub respawn_notice: f32,
     pub crash: Option<Crash>,
     pub contact_notice: f32,
+    pub portals: crate::portal::Pair,
     collisions: Option<Arc<CollisionWorld>>,
     steering: (f32, f32),
     mouse_target: (f32, f32),
@@ -60,6 +61,7 @@ impl Flight {
             respawn_notice: 0.0,
             crash: None,
             contact_notice: 0.0,
+            portals: crate::portal::Pair::default(),
             collisions: None,
             steering: (0.0, 0.0),
             mouse_target: (0.0, 0.0),
@@ -80,12 +82,14 @@ impl Flight {
         let spawn_position = self.spawn_position;
         let black_hole = self.black_hole;
         let collisions = self.collisions.take();
+        let portals_enabled = self.portals.enabled();
         *self = Self::new();
         self.position = spawn_position;
         self.spawn_position = spawn_position;
         self.black_hole = black_hole;
         self.seconds = seconds;
         self.collisions = collisions;
+        self.portals.set_enabled(portals_enabled);
         self.respawn_notice = 3.5;
     }
 
@@ -104,6 +108,42 @@ impl Flight {
     pub fn reset_steering(&mut self) {
         self.mouse_target = (0.0, 0.0);
         self.steering = (0.0, 0.0);
+    }
+
+    fn portal_space_clear(&self, center: Vec3) -> bool {
+        let clearance = crate::portal::RADIUS + crate::collision::SHIP_RADIUS + 0.65;
+        (center - self.black_hole.position).norm() > self.black_hole.horizon + clearance
+            && self
+                .collisions
+                .as_ref()
+                .is_none_or(|world| world.sphere_clear(center, clearance, self.seconds))
+    }
+
+    fn portal_path_clear(&self, start: Vec3, end: Vec3) -> bool {
+        !self.black_hole.captures(start, end)
+            && self.collisions.as_ref().is_none_or(|world| {
+                world
+                    .move_ship(start, end - start, self.seconds, 0.0)
+                    .contacts
+                    .is_empty()
+            })
+    }
+
+    pub fn place_portal(&mut self, kind: crate::portal::Kind) -> bool {
+        if !self.portals.enabled() || self.crash.is_some() || self.is_captured() {
+            return false;
+        }
+        let forward = self.heading.basis().2;
+        let center = self.position + forward * crate::portal::PLACE_DISTANCE;
+        if !self.portal_space_clear(center) || !self.portal_path_clear(self.position, center) {
+            self.portals
+                .notify("No hay espacio libre. Apunta lejos de los planetas.");
+            return false;
+        }
+        let Some(portal) = crate::portal::Portal::new(center, -forward) else {
+            return false;
+        };
+        self.portals.place(kind, portal)
     }
 
     pub fn capture_progress(&self) -> f32 {
@@ -136,6 +176,7 @@ impl Flight {
         self.seconds += dt;
         self.respawn_notice = (self.respawn_notice - dt).max(0.0);
         self.contact_notice = (self.contact_notice - dt).max(0.0);
+        self.portals.tick(dt);
         if let Some(crash) = self.crash.as_mut() {
             crash.age += dt;
             if crash.age >= 2.0 {
@@ -220,7 +261,34 @@ impl Flight {
                     break;
                 }
             }
-            if self.black_hole.captures(self.position, next) {
+            let mut segment_start = self.position;
+            if let Some(transit) = self.portals.crossing(self.position, next) {
+                if self.portal_space_clear(transit.exit_center())
+                    && self.portal_path_clear(transit.exit_start, transit.position)
+                    && !self.black_hole.captures(self.position, transit.entry_point)
+                {
+                    let rotated_right = transit.rotate(self.ship_basis().0);
+                    self.velocity = transit.rotate(self.velocity);
+                    self.gravity_velocity = transit.rotate(self.gravity_velocity);
+                    let rotate_camera = |camera: &mut Camera| {
+                        let backward = -transit.rotate(camera.basis().2);
+                        camera.yaw = backward.z.atan2(backward.x).rem_euclid(TAU);
+                        camera.pitch = backward.y.clamp(-1.0, 1.0).asin();
+                    };
+                    rotate_camera(&mut self.heading);
+                    rotate_camera(&mut self.camera);
+                    let (right, up, _) = self.heading.basis();
+                    self.bank = rotated_right.dot(&up).atan2(rotated_right.dot(&right));
+                    self.reset_steering();
+                    next = transit.position;
+                    segment_start = transit.exit_start;
+                    self.portals.complete_transit();
+                } else {
+                    self.portals
+                        .notify("Salida bloqueada. Recoloca ese portal.");
+                }
+            }
+            if self.black_hole.captures(segment_start, next) {
                 self.captured_for = Some(0.0);
                 self.velocity = Vec3::zeros();
                 self.gravity_velocity = Vec3::zeros();
@@ -239,6 +307,97 @@ impl Flight {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn portal_flight() -> Flight {
+        use crate::portal::{Kind, Portal};
+        let mut flight = Flight::new();
+        flight.portals.set_enabled(true);
+        flight.portals.place(
+            Kind::Yellow,
+            Portal::new(Vec3::new(0.0, 0.0, -12.0), Vec3::z()).unwrap(),
+        );
+        flight.portals.place(
+            Kind::Green,
+            Portal::new(Vec3::new(100.0, 0.0, 0.0), Vec3::x()).unwrap(),
+        );
+        flight
+    }
+
+    #[test]
+    fn boost_crosses_portals_at_low_fps_without_losing_speed_or_camera_alignment() {
+        let simulate = |fps| {
+            let mut flight = portal_flight();
+            for _ in 0..fps * 2 {
+                flight.advance(1.0 / fps as f32, (1.0, 0.0), true, false);
+            }
+            flight
+        };
+        let fast = simulate(60);
+        let slow = simulate(10);
+        assert_eq!(fast.portals.traversals, 1);
+        assert_eq!(slow.portals.traversals, 1);
+        assert!(fast.position.x > 250.0 && fast.position.z.abs() < 0.1);
+        assert!((fast.position - slow.position).norm() < 0.1);
+        assert!(fast.velocity.norm() > 150.0);
+        assert!(fast.heading.basis().2.dot(&Vec3::x()) > 0.99);
+        assert!(fast.camera.basis().2.dot(&Vec3::x()) > 0.98);
+    }
+
+    #[test]
+    fn teleport_does_not_sweep_the_empty_space_between_portals_through_the_black_hole() {
+        let mut flight = portal_flight();
+        flight.black_hole.position = Vec3::new(50.0, 0.0, -6.0);
+        flight.black_hole.horizon = 8.0;
+        flight.black_hole.influence = 12.0;
+        for _ in 0..120 {
+            flight.advance(1.0 / 60.0, (1.0, 0.0), false, false);
+        }
+        assert_eq!(flight.portals.traversals, 1);
+        assert!(!flight.is_captured());
+    }
+
+    #[test]
+    fn placement_requires_capability_and_rejects_the_black_hole_without_erasing_old_portal() {
+        use crate::portal::Kind;
+        let mut flight = Flight::new();
+        assert!(!flight.place_portal(Kind::Yellow));
+        flight.portals.set_enabled(true);
+        assert!(flight.place_portal(Kind::Yellow));
+        let old = flight.portals.get(Kind::Yellow).unwrap().center;
+        flight.black_hole.position = old;
+        assert!(!flight.place_portal(Kind::Yellow));
+        assert_eq!(flight.portals.get(Kind::Yellow).unwrap().center, old);
+        assert!(!flight.place_portal(Kind::Green));
+    }
+
+    #[test]
+    fn a_planet_at_the_exit_prevents_teleport_and_respawning_clears_the_pair() {
+        let model = crate::model::Model::load(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/uv-checker.obj"
+        ))
+        .unwrap();
+        let collider = crate::collision::PlanetCollider::new(
+            "Blocked exit",
+            &model,
+            crate::renderer::WorldTransform {
+                position: Vec3::new(100.0, 0.0, 0.0),
+                radius: 10.0,
+                yaw: 0.0,
+            },
+            0.0,
+        );
+        let mut flight = portal_flight();
+        flight.collisions = Some(Arc::new(CollisionWorld::new(vec![collider])));
+        for _ in 0..120 {
+            flight.advance(1.0 / 60.0, (1.0, 0.0), false, false);
+        }
+        assert_eq!(flight.portals.traversals, 0);
+        assert!(flight.position.x.abs() < 0.1);
+        flight.respawn();
+        assert!(flight.portals.enabled());
+        assert!(!flight.portals.linked());
+    }
 
     #[test]
     fn gravity_pulls_an_idle_ship_and_remains_consistent_between_frame_rates() {
