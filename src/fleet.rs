@@ -5,6 +5,7 @@ pub struct Ship {
     pub name: &'static str,
     pub accent: u32,
     pub finish: Option<Color>,
+    pub portal_capable: bool,
     pub model: Model,
     pub shadows: HullShadow,
     pub camera: Camera,
@@ -19,12 +20,19 @@ pub fn load() -> Result<Vec<Ship>, Box<dyn Error>> {
             "Guardgalaxy.obj",
             0xf1b671,
             Some(Color::new(218, 135, 62)),
+            false,
         ),
-        ("TIE Silencer", "Galactwar.obj", 0x8eb3fa, None),
-        ("Crucer espacial", "Crucer_espacial.obj", 0xe0b63d, None),
+        ("TIE Silencer", "Galactwar.obj", 0x8eb3fa, None, false),
+        (
+            "Crucer espacial",
+            "Crucer_espacial.obj",
+            0xe0b63d,
+            None,
+            true,
+        ),
     ]
     .into_iter()
-    .map(|(name, file, accent, finish)| {
+    .map(|(name, file, accent, finish, portal_capable)| {
         let model = Model::load(assets.join(file))?;
         let shadows = HullShadow::new(&model);
         // Las salidas estan en la parte posterior de la cabina, en coordenadas del OBJ.
@@ -39,6 +47,7 @@ pub fn load() -> Result<Vec<Ship>, Box<dyn Error>> {
             name,
             accent,
             finish,
+            portal_capable,
             model,
             shadows,
             camera: Camera::new(),

@@ -18,6 +18,7 @@ mod nebula;
 mod noise;
 mod orbit;
 mod portal;
+mod portal_art;
 mod raster_batch;
 mod renderer;
 mod shaders;
@@ -86,6 +87,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut target = None;
         let mut near_black_hole = false;
         let mut near_planet = None;
+        let mut portal_demo = false;
         let mut mouse_target = (0.0f32, 0.0f32);
         let mut args = args.iter();
         while let Some(argument) = args.next() {
@@ -146,6 +148,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     target = Some(args.next().ok_or("Falta el nombre del escenario")?.as_str());
                 }
                 "--near-black-hole" => near_black_hole = true,
+                "--portal-demo" => portal_demo = true,
                 "--near-planet" => {
                     near_planet = Some(args.next().ok_or("Falta el nombre del planeta")?)
                 }
@@ -171,6 +174,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 "--help" => {
                     println!(
+                        "--render-flight admite --portal-demo --ship 3 para revisar los dos portales."
+                    );
+                    println!(
                         "Beyond the Interstellar\ncargo run --release -- --render-home salida.png [--home-section principal|controles|instrucciones]"
                     );
                     println!(
@@ -194,6 +200,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         if benchmark_frames > 0 && export_screen != Screen::Flight {
             return Err("La medicion requiere --render-flight".into());
         }
+        if portal_demo
+            && (export_screen != Screen::Flight
+                || !ships[selected].portal_capable
+                || near_planet.is_some()
+                || near_black_hole)
+        {
+            return Err("--portal-demo requiere --render-flight --ship 3 y espacio libre".into());
+        }
         if export_screen == Screen::Home {
             home::draw(
                 &ui,
@@ -212,6 +226,19 @@ fn main() -> Result<(), Box<dyn Error>> {
                 return Err("La exportación de vuelo admite hasta 600 segundos".into());
             }
             let mut flight = ui.new_flight();
+            flight.portals.set_enabled(ships[selected].portal_capable);
+            if portal_demo {
+                let (right, _, forward) = flight.heading.basis();
+                for (kind, lateral, ahead) in [
+                    (portal::Kind::Yellow, -11.0, 32.0),
+                    (portal::Kind::Green, 11.0, 38.0),
+                ] {
+                    let center = flight.position + forward * ahead + right * lateral;
+                    flight
+                        .portals
+                        .place(kind, portal::Portal::new(center, -forward).unwrap());
+                }
+            }
             if let Some(name) = near_planet {
                 if near_black_hole {
                     return Err("Elige --near-planet o --near-black-hole".into());
@@ -311,12 +338,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut clock = AnimationClock::default();
     let mut previous = Instant::now();
     let mut mouse_was_down = false;
+    let mut right_mouse_was_down = false;
+    let mut window_was_active = window.is_active();
     let mut emphasis = [1.0, 0.0, 0.0];
 
     while window.is_open() {
         let now = Instant::now();
         let dt = (now - previous).as_secs_f32().min(0.1);
         previous = now;
+        let focused_input = window.is_active() && window_was_active;
+        window_was_active = window.is_active();
         if window.is_key_pressed(Key::Escape, KeyRepeat::No) {
             match screen {
                 Screen::Home => home_menu.back(),
@@ -349,6 +380,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mouse_down = window.get_mouse_down(MouseButton::Left);
         let clicked = mouse_down && !mouse_was_down;
         mouse_was_down = mouse_down;
+        let right_down = window.get_mouse_down(MouseButton::Right);
+        let right_clicked = right_down && !right_mouse_was_down;
+        right_mouse_was_down = right_down;
         let hover = mouse.and_then(|p| (0..3).find(|&index| ui::card(index).contains(p)));
         let galaxy_hover = mouse.and_then(|point| atlas.hit(point));
         let hover_button = mouse.is_some_and(|p| ui::LAUNCH.contains(p))
@@ -364,6 +398,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         let hover_close = screen == Screen::Galaxy
             && atlas.details_open
             && mouse.is_some_and(|p| menus::DESTINATION_CLOSE.contains(p));
+
+        flight.portals.set_enabled(
+            matches!(screen, Screen::Flight | Screen::Inspector) && ships[selected].portal_capable,
+        );
 
         if screen == Screen::Home {
             if home_menu.page == home::Page::Main {
@@ -530,6 +568,14 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         } else {
             if window.is_active() {
+                if focused_input && mouse.is_some() {
+                    if clicked {
+                        flight.place_portal(portal::Kind::Yellow);
+                    }
+                    if right_clicked {
+                        flight.place_portal(portal::Kind::Green);
+                    }
+                }
                 flight.move_with_mouse(mouse.map(|(x, y)| {
                     (
                         x / (WIDTH as f32 * 0.5) - 1.0,

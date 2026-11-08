@@ -163,7 +163,7 @@ pub fn draw(ui: &Ui, fb: &mut Framebuffer, home: &Home) {
         if controls {
             ui.fonts.text(fb, 22, 116, 259, "MENUS Y DESTINOS", ACCENT);
             ui.fonts.text(fb, 22, 660, 259, "VUELO ESPACIAL", ACCENT);
-            let menus = [
+            let menus: &[(&str, &str)] = &[
                 ("Flechas / TAB / Clic", "Seleccionar una opcion"),
                 ("ENTER", "Confirmar o iniciar el viaje"),
                 ("1 / 2 / 3", "Elegir nave o galaxia"),
@@ -171,17 +171,18 @@ pub fn draw(ui: &Ui, fb: &mut Framebuffer, home: &Home) {
                 ("WASD / R", "Mover mapa / restablecer vista"),
                 ("ESC", "Volver al menu anterior"),
             ];
-            let flight = [
+            let flight: &[(&str, &str)] = &[
                 ("Mouse", "Orientar la nave"),
                 ("W / S", "Avanzar / retroceder"),
                 ("A / D", "Desplazarse lateralmente"),
                 ("SHIFT / ESPACIO", "Turbo / frenar"),
                 ("I", "Inspeccionar la nave"),
+                ("Clic izq / der", "Crucer: portal amarillo / verde"),
                 ("Flechas / Q-E / M", "En inspeccion: orbita / zoom / vista"),
             ];
-            for (column, rows) in [(116, &menus), (660, &flight)] {
+            for (column, rows) in [(116, menus), (660, flight)] {
                 for (index, (keys, action)) in rows.iter().enumerate() {
-                    let y = 311 + index as i32 * 59;
+                    let y = 311 + index as i32 * 51;
                     ui.fonts.text(fb, 18, column, y, keys, TEXT);
                     ui.fonts.text(fb, 16, column, y + 25, action, MUTED);
                 }
@@ -213,9 +214,14 @@ pub fn draw(ui: &Ui, fb: &mut Framebuffer, home: &Home) {
                     "Cuida tu trayectoria",
                     "Los impactos fuertes destruyen la nave. El agujero negro puede atraerte.",
                 ),
+                (
+                    "06",
+                    "Conecta dos portales",
+                    "Con Crucer: clic izquierdo amarillo, derecho verde. Atraviesa uno para saltar.",
+                ),
             ];
             for (index, (number, title, detail)) in steps.iter().enumerate() {
-                let y = 262 + index as i32 * 82;
+                let y = 262 + index as i32 * 70;
                 ui.fonts.text(fb, 28, 116, y + 4, number, ACCENT);
                 ui.fonts.text(fb, 22, 184, y, title, TEXT);
                 ui.fonts.text(fb, 18, 184, y + 31, detail, MUTED);

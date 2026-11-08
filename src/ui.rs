@@ -205,6 +205,7 @@ pub struct Ui {
     stars: Vec<Star>,
     space: crate::space::Space,
     deep_space: crate::deep_space::DeepSpace,
+    portal_art: &'static crate::portal_art::Art,
     galaxy: usize,
 }
 
@@ -245,6 +246,7 @@ impl Ui {
             stars,
             space: crate::space::Space::load()?,
             deep_space: crate::deep_space::DeepSpace::new(),
+            portal_art: crate::portal_art::Art::load()?,
         })
     }
 
@@ -438,6 +440,7 @@ impl Ui {
         }
 
         self.space.draw(fb, flight, seconds);
+        self.portal_art.draw(fb, flight);
         if flight.crash.is_none() {
             if let Some(solar) = self.space.solar_lighting(seconds) {
                 renderer::draw_flight_model_lit(
@@ -473,6 +476,13 @@ impl Ui {
             }
         }
 
+        if flight.portals.flash > 0.0 {
+            let alpha = (flight.portals.flash / 0.45).clamp(0.0, 1.0) * 0.16;
+            fb.shade_rect((0, 0, WIDTH, HEIGHT), |_, _, pixel, _| {
+                *pixel = mix(*pixel, 0xc6f77b, alpha);
+            });
+        }
+
         let view = renderer::FlightView::new(flight, WIDTH, HEIGHT);
         let mut occupied_labels: Vec<Rect> = Vec::new();
         let has_sun = self.space.sun_position(seconds).is_some();
@@ -506,6 +516,11 @@ impl Ui {
                     + transform.radius * atmosphere * renderer::FLIGHT_FOCAL * point.z
                     + 14.0;
                 if (0.0..WIDTH as f32).contains(&point.x) && (145.0..710.0).contains(&y) {
+                    // A nearby portal can cover a distant planet and its label anchor.
+                    let anchor = y as usize * WIDTH + point.x as usize;
+                    if fb.depth[anchor] > point.z {
+                        continue;
+                    }
                     let label = if has_sun {
                         format!(
                             "{}  {:.0} u",
@@ -550,6 +565,49 @@ impl Ui {
             TEAL,
         );
         self.fonts.text(fb, 22, 54, 56, ship.name, TEXT);
+        if ship.portal_capable {
+            rounded(fb, Rect::new(34, 107, 340, 137), 12, 0x101d2c, 0x304154);
+            self.fonts.text(fb, 16, 52, 121, "PORTALES", TEXT);
+            self.fonts.text(
+                fb,
+                14,
+                210,
+                122,
+                if flight.portals.linked() {
+                    "ENLAZADOS"
+                } else {
+                    "INCOMPLETOS"
+                },
+                MUTED,
+            );
+            for (i, kind) in crate::portal::Kind::ALL.into_iter().enumerate() {
+                let y = 152 + i as i32 * 28;
+                let button = if kind == crate::portal::Kind::Yellow {
+                    "IZQ"
+                } else {
+                    "DER"
+                };
+                self.fonts.text(
+                    fb,
+                    14,
+                    52,
+                    y,
+                    &format!("{button} / {}", kind.label()),
+                    kind.color(),
+                );
+                let state = flight.portals.get(kind).map_or_else(
+                    || "SIN COLOCAR".to_owned(),
+                    |portal| format!("LISTO / {:.0} u", (portal.center - flight.position).norm()),
+                );
+                self.fonts.text(fb, 14, 218, y, &state, TEXT);
+            }
+            self.fonts
+                .text(fb, 14, 52, 216, "Apunta con el mouse y haz clic.", MUTED);
+            if let Some(notice) = flight.portals.notice {
+                rounded(fb, Rect::new(390, 121, 554, 43), 10, 0x152331, 0x536940);
+                self.fonts.text(fb, 14, 406, 135, notice, TEXT);
+            }
+        }
         rounded(fb, Rect::new(970, 25, 276, 92), 12, 0x101d2c, 0x304154);
         self.fonts.text(
             fb,
