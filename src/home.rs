@@ -178,11 +178,12 @@ pub fn draw(ui: &Ui, fb: &mut Framebuffer, home: &Home) {
                 ("SHIFT / ESPACIO", "Turbo / frenar"),
                 ("I", "Inspeccionar la nave"),
                 ("Clic izq / der", "Crucer: portal amarillo / verde"),
+                ("G", "Crucer: portal a otra galaxia"),
                 ("Flechas / Q-E / M", "En inspeccion: orbita / zoom / vista"),
             ];
             for (column, rows) in [(116, menus), (660, flight)] {
                 for (index, (keys, action)) in rows.iter().enumerate() {
-                    let y = 311 + index as i32 * 51;
+                    let y = 311 + index as i32 * 47;
                     ui.fonts.text(fb, 18, column, y, keys, TEXT);
                     ui.fonts.text(fb, 16, column, y + 25, action, MUTED);
                 }
@@ -219,9 +220,14 @@ pub fn draw(ui: &Ui, fb: &mut Framebuffer, home: &Home) {
                     "Conecta dos portales",
                     "Con Crucer: clic izquierdo amarillo, derecho verde. Atraviesa uno para saltar.",
                 ),
+                (
+                    "07",
+                    "Salta a otra galaxia",
+                    "Con Crucer: G abre el portal galactico. Elige con flechas y entra con G o ENTER.",
+                ),
             ];
             for (index, (number, title, detail)) in steps.iter().enumerate() {
-                let y = 262 + index as i32 * 70;
+                let y = 262 + index as i32 * 60;
                 ui.fonts.text(fb, 28, 116, y + 4, number, ACCENT);
                 ui.fonts.text(fb, 22, 184, y, title, TEXT);
                 ui.fonts.text(fb, 18, 184, y + 31, detail, MUTED);

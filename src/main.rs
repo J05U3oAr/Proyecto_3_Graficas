@@ -46,6 +46,7 @@ enum Screen {
     Menu,
     Galaxy,
     Travel,
+    GalacticGate,
     Inspector,
     Flight,
 }
@@ -66,6 +67,18 @@ impl AnimationClock {
 fn launch_flight(ui: &ui::Ui, flight: &mut flight::Flight, screen: &mut Screen) {
     *flight = ui.new_flight();
     *screen = Screen::Flight;
+}
+
+fn complete_galactic_jump(
+    ui: &mut ui::Ui,
+    flight: &mut flight::Flight,
+    screen: &mut Screen,
+    ship: &fleet::Ship,
+    destination: usize,
+) {
+    ui.select_galaxy(destination);
+    launch_flight(ui, flight, screen);
+    flight.portals.set_enabled(ship.portal_capable);
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -89,6 +102,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut near_black_hole = false;
         let mut near_planet = None;
         let mut portal_demo = false;
+        let mut gate_ready = false;
         let mut mouse_target = (0.0f32, 0.0f32);
         let mut args = args.iter();
         while let Some(argument) = args.next() {
@@ -102,12 +116,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 "--render-home" | "--render-menu" | "--render-galaxies" | "--render-travel"
                 | "--render-inspector" | "--render-flight" | "--render-landmark"
-                | "--render-planet" => {
+                | "--render-planet" | "--render-gate" => {
                     landmark = argument == "--render-landmark";
                     planet = argument == "--render-planet";
                     export_screen = match argument.as_str() {
                         "--render-home" => Screen::Home,
                         "--render-flight" => Screen::Flight,
+                        "--render-gate" => Screen::GalacticGate,
                         "--render-galaxies" => Screen::Galaxy,
                         "--render-travel" => Screen::Travel,
                         "--render-inspector" => Screen::Inspector,
@@ -150,6 +165,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 "--near-black-hole" => near_black_hole = true,
                 "--portal-demo" => portal_demo = true,
+                "--gate-ready" => gate_ready = true,
                 "--near-planet" => {
                     near_planet = Some(args.next().ok_or("Falta el nombre del planeta")?)
                 }
@@ -175,6 +191,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 "--help" => {
                     println!(
+                        "--render-gate salida.png --ship 3 --galaxy 2 --time 1.5 [--gate-ready]"
+                    );
+                    println!(
                         "--render-flight admite --portal-demo --ship 3 para revisar los dos portales."
                     );
                     println!(
@@ -198,6 +217,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             "Especifica --render-home, --render-menu, --render-galaxies, --render-travel, --render-inspector, --render-flight, --render-landmark o --render-planet",
         )?;
         ui.select_galaxy(galaxy_index);
+        if gate_ready && export_screen != Screen::GalacticGate {
+            return Err("--gate-ready requiere --render-gate".into());
+        }
         if benchmark_frames > 0 && export_screen != Screen::Flight {
             return Err("La medicion requiere --render-flight".into());
         }
@@ -209,7 +231,20 @@ fn main() -> Result<(), Box<dyn Error>> {
         {
             return Err("--portal-demo requiere --render-flight --ship 3 y espacio libre".into());
         }
-        if export_screen == Screen::Home {
+        if export_screen == Screen::GalacticGate {
+            if !ships[selected].portal_capable {
+                return Err("El portal galactico requiere --ship 3".into());
+            }
+            let origin = if galaxy_index == 0 { 1 } else { 0 };
+            ui.select_galaxy(origin);
+            let flight = ui.new_flight();
+            let jump =
+                galactic_portal::Jump::preview(origin, galaxy_index, &flight, seconds, gate_ready)
+                    .ok_or("No hay espacio para el portal galactico")?;
+            let mut arrival = Framebuffer::new(WIDTH, HEIGHT);
+            ui.capture_galactic_arrival(&ships[selected], galaxy_index, &mut arrival);
+            ui.galactic_gate(&mut framebuffer, &ships[selected], &flight, &jump, &arrival);
+        } else if export_screen == Screen::Home {
             home::draw(
                 &ui,
                 &mut framebuffer,
@@ -353,6 +388,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut transit = travel::Travel::new(0);
     let mut arrival = Framebuffer::new(WIDTH, HEIGHT);
     let mut screen = Screen::Home;
+    let mut galactic_gate: Option<galactic_portal::Jump> = None;
     let mut home_menu = home::Home::default();
     let mut previous_mouse = None;
     let mut selected = 0usize;
@@ -377,6 +413,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                 Screen::Menu => screen = Screen::Home,
                 Screen::Galaxy => screen = Screen::Menu,
                 Screen::Travel => screen = Screen::Galaxy,
+                Screen::GalacticGate => {
+                    galactic_gate = None;
+                    flight.reset_steering();
+                    screen = Screen::Flight;
+                }
                 Screen::Flight => screen = Screen::Galaxy,
                 Screen::Inspector => {
                     flight.reset_steering();
@@ -423,8 +464,27 @@ fn main() -> Result<(), Box<dyn Error>> {
             && mouse.is_some_and(|p| menus::DESTINATION_CLOSE.contains(p));
 
         flight.portals.set_enabled(
-            matches!(screen, Screen::Flight | Screen::Inspector) && ships[selected].portal_capable,
+            matches!(
+                screen,
+                Screen::Flight | Screen::Inspector | Screen::GalacticGate
+            ) && ships[selected].portal_capable,
         );
+
+        if screen == Screen::Flight
+            && focused_input
+            && ships[selected].portal_capable
+            && window.is_key_pressed(Key::G, KeyRepeat::No)
+        {
+            if let Some(jump) = galactic_portal::Jump::new(ui.galaxy_index(), &flight) {
+                flight.reset_steering();
+                galactic_gate = Some(jump);
+                screen = Screen::GalacticGate;
+            } else {
+                flight
+                    .portals
+                    .notify("No hay espacio para el portal galactico. Alejate.");
+            }
+        }
 
         if screen == Screen::Home {
             if home_menu.page == home::Page::Main {
@@ -570,6 +630,57 @@ fn main() -> Result<(), Box<dyn Error>> {
             if window.is_active() && transit.advance(dt) {
                 launch_flight(&ui, &mut flight, &mut screen);
             }
+        } else if screen == Screen::GalacticGate {
+            let jump = galactic_gate
+                .as_mut()
+                .expect("La pantalla galactica necesita un salto activo");
+            let mut completed = None;
+            if window.is_active() {
+                if focused_input && !jump.entering() {
+                    if window.is_key_pressed(Key::Left, KeyRepeat::Yes) {
+                        jump.select(-1);
+                    }
+                    if window.is_key_pressed(Key::Right, KeyRepeat::Yes)
+                        || window.is_key_pressed(Key::Tab, KeyRepeat::No)
+                    {
+                        jump.select(1);
+                    }
+                    if clicked
+                        && let Some(index) =
+                            mouse.and_then(|p| ui::GATE_CHOICES.iter().position(|r| r.contains(p)))
+                    {
+                        let destination = (jump.origin + index + 1) % galaxy::GALAXIES.len();
+                        if jump.destination != destination {
+                            jump.select(1);
+                        }
+                    }
+                    let enter = window.is_key_pressed(Key::Enter, KeyRepeat::No)
+                        || window.is_key_pressed(Key::G, KeyRepeat::No)
+                        || (clicked && mouse.is_some_and(|p| ui::GATE_ENTER.contains(p)));
+                    if enter && jump.begin() {
+                        ui.capture_galactic_arrival(
+                            &ships[selected],
+                            jump.destination,
+                            &mut arrival,
+                        );
+                    }
+                }
+                if jump.advance(dt) {
+                    completed = Some(jump.destination);
+                }
+            }
+            if let Some(destination) = completed {
+                complete_galactic_jump(
+                    &mut ui,
+                    &mut flight,
+                    &mut screen,
+                    &ships[selected],
+                    destination,
+                );
+                atlas.selected = destination;
+                atlas.details_open = false;
+                galactic_gate = None;
+            }
         } else if screen == Screen::Inspector {
             if clicked && hover_back {
                 flight.reset_steering();
@@ -640,10 +751,19 @@ fn main() -> Result<(), Box<dyn Error>> {
             galaxy_hover.is_some() || hover_button || hover_back || hover_close
         } else if screen == Screen::Inspector {
             hover_back
+        } else if screen == Screen::GalacticGate {
+            galactic_gate.as_ref().is_some_and(|j| !j.entering())
+                && mouse.is_some_and(|p| {
+                    ui::GATE_ENTER.contains(p) || ui::GATE_CHOICES.iter().any(|r| r.contains(p))
+                })
         } else {
             false
         };
-        window.set_cursor_visibility(screen != Screen::Travel);
+        window.set_cursor_visibility(
+            screen != Screen::Travel
+                && !(screen == Screen::GalacticGate
+                    && galactic_gate.as_ref().is_some_and(|j| j.entering())),
+        );
         window.set_cursor_style(if screen == Screen::Flight {
             CursorStyle::Crosshair
         } else if actionable {
@@ -677,6 +797,13 @@ fn main() -> Result<(), Box<dyn Error>> {
                 },
             ),
             Screen::Travel => ui.travel(&mut framebuffer, &transit, &arrival),
+            Screen::GalacticGate => ui.galactic_gate(
+                &mut framebuffer,
+                &ships[selected],
+                &flight,
+                galactic_gate.as_ref().expect("Salto galactico activo"),
+                &arrival,
+            ),
             Screen::Inspector => ui.inspector(&mut framebuffer, &ships[selected], mode, hover_back),
             Screen::Flight => {
                 ui.flight(&mut framebuffer, &ships[selected], &flight, flight.seconds)
@@ -693,6 +820,64 @@ fn main() -> Result<(), Box<dyn Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn galactic_preview_preserves_departure_and_completion_loads_the_real_destination() {
+        let ships = fleet::load().unwrap();
+        let mut ui = ui::Ui::new().unwrap();
+        ui.select_galaxy(1);
+        let mut flight = ui.new_flight();
+        flight.seconds = 17.5;
+        flight.velocity = nalgebra_glm::Vec3::new(2.0, 0.0, 0.0);
+        flight.portals.set_enabled(true);
+        assert!(flight.place_portal(portal::Kind::Yellow));
+        let position = flight.position;
+        let yellow = flight.portals.get(portal::Kind::Yellow).unwrap().center;
+        let mut before = Framebuffer::new(WIDTH, HEIGHT);
+        ui.flight(&mut before, &ships[2], &flight, flight.seconds);
+        let mut arrival = Framebuffer::new(WIDTH, HEIGHT);
+        ui.capture_galactic_arrival(&ships[2], 2, &mut arrival);
+        assert_eq!(ui.galaxy_index(), 1);
+        let jump = galactic_portal::Jump::preview(1, 2, &flight, 2.0, false).unwrap();
+        let mut frame = Framebuffer::new(WIDTH, HEIGHT);
+        ui.galactic_gate(&mut frame, &ships[2], &flight, &jump, &arrival);
+        assert_eq!(flight.position, position);
+        assert_eq!(flight.seconds, 17.5);
+        assert_eq!(
+            flight.portals.get(portal::Kind::Yellow).unwrap().center,
+            yellow
+        );
+        ui.flight(&mut frame, &ships[2], &flight, flight.seconds);
+        assert_eq!(
+            frame.pixels, before.pixels,
+            "Canceling must restore the unchanged departure scene"
+        );
+        let mut screen = Screen::GalacticGate;
+        complete_galactic_jump(&mut ui, &mut flight, &mut screen, &ships[2], 2);
+        assert!(screen == Screen::Flight);
+        assert_eq!(ui.galaxy_index(), 2);
+        assert_eq!(flight.seconds, 0.0);
+        assert_eq!(flight.velocity, nalgebra_glm::Vec3::zeros());
+        assert!(flight.portals.enabled());
+        assert!(flight.portals.get(portal::Kind::Yellow).is_none());
+        assert_eq!(flight.black_hole.position, galaxy::black_hole(2).position);
+        ui.flight(&mut frame, &ships[2], &flight, 0.0);
+        assert_eq!(
+            frame.pixels, arrival.pixels,
+            "The cinematic must arrive at the exact flight scene"
+        );
+        ui.approach_planet(&mut flight, "Boreal").unwrap();
+        for _ in 0..180 {
+            flight.advance(1.0 / 60.0, (1.0, 0.0), true, false);
+            if flight.crash.is_some() {
+                break;
+            }
+        }
+        assert_eq!(
+            flight.crash.as_ref().map(|crash| crash.planet),
+            Some("Boreal")
+        );
+    }
 
     #[test]
     fn hangar_launch_and_relaunch_keep_planet_collisions_and_impact_explosions() {

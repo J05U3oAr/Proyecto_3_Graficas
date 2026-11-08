@@ -128,7 +128,7 @@ impl Jump {
         ship.black_hole = source.black_hole;
         ship.seconds = source.seconds;
         ship.velocity = forward * (p * 100.0);
-        let start = source.camera_position();
+        let start = source.camera_position() - source.heading.basis().1 * self.opening();
         let end = self.portal.center + forward * 12.0;
         let eye = start + (end - start) * noise::smoothstep(0.40, 0.94, p);
         let align = self.opening();

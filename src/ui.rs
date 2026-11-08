@@ -812,7 +812,8 @@ impl Ui {
         crate::menus::glass(fb, Rect::new(34, 708, 1194, 108), 0x6653a0, 0.9);
         self.fonts.text(fb, 18, 54, 735, jump.stage(), TEXT);
         if !jump.entering() {
-            let destinations = [(jump.origin + 1) % 3, (jump.origin + 2) % 3];
+            let count = crate::galaxy::GALAXIES.len();
+            let destinations = [(jump.origin + 1) % count, (jump.origin + 2) % count];
             for (i, destination) in destinations.into_iter().enumerate() {
                 let active = destination == jump.destination;
                 let rect = GATE_CHOICES[i];
