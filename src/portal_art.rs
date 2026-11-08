@@ -1,4 +1,4 @@
-//! Perspective-correct portal disks using the supplied yellow art and green GIF atlas.
+//! Live destination windows with perspective-correct animated reference-art rims.
 use crate::{
     flight::Flight,
     framebuffer::Framebuffer,
@@ -88,10 +88,35 @@ impl Art {
         }
     }
 
+    #[cfg(test)]
     pub fn draw(&self, fb: &mut Framebuffer, flight: &Flight) {
         let camera = FlightView::new(flight, fb.width, fb.height);
-        let eye = flight.camera_position();
-        let (right, up, forward) = flight.camera.basis();
+        self.draw_view(fb, flight, &camera);
+    }
+
+    /// One remote scene per visible linked portal. Nested views stop at the swirl.
+    pub fn draw_linked(
+        &self,
+        fb: &mut Framebuffer,
+        flight: &Flight,
+        render: impl Fn(&mut Framebuffer, &FlightView),
+    ) {
+        let camera = FlightView::new(flight, fb.width, fb.height);
+        self.paint(fb, flight, &camera, Some(&render));
+    }
+
+    pub fn draw_view(&self, fb: &mut Framebuffer, flight: &Flight, camera: &FlightView) {
+        self.paint(fb, flight, camera, None);
+    }
+
+    fn paint(
+        &self,
+        fb: &mut Framebuffer,
+        flight: &Flight,
+        camera: &FlightView,
+        render: Option<&dyn Fn(&mut Framebuffer, &FlightView)>,
+    ) {
+        let eye = camera.eye();
         let mut portals: Vec<_> = Kind::ALL
             .into_iter()
             .filter_map(|kind| flight.portals.get(kind).map(|portal| (kind, portal)))
@@ -132,6 +157,17 @@ impl Art {
             if clipped {
                 bounds = (0, 0, fb.width, fb.height);
             }
+            if bounds.0 >= bounds.2 || bounds.1 >= bounds.3 {
+                continue;
+            }
+            let destination = flight.portals.connection(kind).and_then(|(entry, exit)| {
+                render.map(|render| {
+                    let remote_view = camera.through(entry, exit).cropped(bounds);
+                    let mut image = Framebuffer::new(bounds.2 - bounds.0, bounds.3 - bounds.1);
+                    render(&mut image, &remote_view);
+                    image
+                })
+            });
             let frame = self.frame(kind, flight.seconds);
             let angle = if kind == Kind::Yellow {
                 flight.seconds * 0.32
@@ -139,12 +175,8 @@ impl Art {
                 0.0
             };
             let (sin, cos) = angle.sin_cos();
-            let width = fb.width as f32;
-            let height = fb.height as f32;
             fb.shade_rect(bounds, |x, y, pixel, depth| {
-                let ray = forward
-                    + right * ((x as f32 + 0.5 - width * 0.5) / crate::renderer::FLIGHT_FOCAL)
-                    + up * ((height * 0.5 - y as f32 - 0.5) / crate::renderer::FLIGHT_FOCAL);
+                let ray = camera.ray(x as f32 + 0.5, y as f32 + 0.5);
                 let denominator = ray.dot(&portal.normal);
                 if denominator.abs() < 1e-6 {
                     return;
@@ -154,6 +186,9 @@ impl Art {
                     return;
                 }
                 let offset = ray * distance - to_center;
+                if !camera.contains_world(eye + ray * distance) {
+                    return;
+                }
                 let local = Vec2::new(offset.dot(&portal.right), offset.dot(&portal.up)) / RADIUS;
                 let radius = local.norm();
                 if radius > 1.22 {
@@ -169,6 +204,16 @@ impl Art {
                         *depth = 1.0 / distance;
                     }
                 }
+                if let Some(destination) = &destination {
+                    let weight = 1.0 - crate::noise::smoothstep(0.74, 0.90, radius);
+                    if weight > 0.0 {
+                        let target = (y - bounds.1) * destination.width + x - bounds.0;
+                        *pixel = crate::ui::mix(*pixel, destination.pixels[target], weight);
+                        if weight > 0.98 {
+                            *depth = 1.0 / distance;
+                        }
+                    }
+                }
             });
         }
     }
@@ -179,6 +224,121 @@ mod tests {
     use super::*;
     use crate::portal::Portal;
     use nalgebra_glm::Vec3;
+
+    #[test]
+    fn linked_center_uses_the_destination_but_keeps_portal_depth_and_foreground_occlusion() {
+        let art = Art::load().unwrap();
+        let mut flight = Flight::new();
+        flight.camera.pitch = 0.0;
+        flight.portals.set_enabled(true);
+        let entry = Portal::new(Vec3::new(0.0, 1.6, -60.0), Vec3::z()).unwrap();
+        flight.portals.place(Kind::Yellow, entry);
+        flight.portals.place(
+            Kind::Green,
+            Portal::new(Vec3::new(100.0, 1.6, 0.0), Vec3::x()).unwrap(),
+        );
+        let mut fb = Framebuffer::new(320, 240);
+        let render_count = std::cell::Cell::new(0);
+        art.draw_linked(&mut fb, &flight, |image, view| {
+            assert!((view.eye().x - 32.0).abs() < 1e-4);
+            assert!(image.width < 320 && image.height < 240);
+            image.pixels.fill(0x1234ab);
+            image.depth.fill(9999.0);
+            render_count.set(render_count.get() + 1);
+        });
+        assert_eq!(render_count.get(), 1);
+        let center = 120 * 320 + 160;
+        assert_eq!(fb.pixels[center], 0x1234ab);
+        let depth = FlightView::new(&flight, 320, 240)
+            .project(entry.center)
+            .unwrap()
+            .z;
+        assert!((fb.depth[center] - depth).abs() < 1e-6);
+        assert_eq!(fb.pixels[0], crate::framebuffer::BACKGROUND);
+        fb.pixels.fill(0xabcdef);
+        fb.depth.fill(f32::INFINITY);
+        art.draw_linked(&mut fb, &flight, |image, _| image.pixels.fill(0xffffff));
+        assert!(fb.pixels.iter().all(|&p| p == 0xabcdef));
+        flight.portals.set_enabled(false);
+        flight.portals.set_enabled(true);
+        flight.portals.place(Kind::Yellow, entry);
+        art.draw_linked(&mut fb, &flight, |_, _| {
+            panic!("An unlinked portal has no destination view")
+        });
+    }
+
+    #[test]
+    fn a_live_portal_clips_the_scene_before_the_exit_plane() {
+        use crate::{
+            color::Color,
+            model::{Face, Model},
+            renderer::{self, WorldTransform},
+        };
+        let quad = |color| Model {
+            vertices: vec![
+                Vec3::new(-1.0, -1.0, 0.0),
+                Vec3::new(1.0, -1.0, 0.0),
+                Vec3::new(1.0, 1.0, 0.0),
+                Vec3::new(-1.0, 1.0, 0.0),
+            ],
+            faces: [[0, 1, 2], [0, 2, 3]]
+                .map(|indices| Face {
+                    indices,
+                    color,
+                    uv: None,
+                    texture: None,
+                    unlit: false,
+                    opacity: 1.0,
+                })
+                .to_vec(),
+            center: Vec3::zeros(),
+            radius: 2.0f32.sqrt(),
+            textures: Vec::new(),
+        };
+        let red = quad(Color::new(255, 0, 0));
+        let blue = quad(Color::new(0, 0, 255));
+        let mut flight = Flight::new();
+        flight.camera.pitch = 0.0;
+        flight.portals.set_enabled(true);
+        flight.portals.place(
+            Kind::Yellow,
+            Portal::new(Vec3::new(0.0, 1.6, -60.0), Vec3::z()).unwrap(),
+        );
+        flight.portals.place(
+            Kind::Green,
+            Portal::new(Vec3::new(100.0, 1.6, -100.0), -Vec3::z()).unwrap(),
+        );
+        let mut fb = Framebuffer::new(320, 240);
+        Art::load()
+            .unwrap()
+            .draw_linked(&mut fb, &flight, |image, view| {
+                renderer::draw_world_model(
+                    image,
+                    &red,
+                    view,
+                    WorldTransform {
+                        position: Vec3::new(100.0, 1.6, -90.0),
+                        radius: 8.0,
+                        yaw: 0.0,
+                    },
+                );
+                renderer::draw_world_model(
+                    image,
+                    &blue,
+                    view,
+                    WorldTransform {
+                        position: Vec3::new(100.0, 1.6, -120.0),
+                        radius: 8.0,
+                        yaw: 0.0,
+                    },
+                );
+            });
+        let color = fb.pixels[120 * 320 + 160];
+        assert!(
+            (color & 255) > 150 && (color >> 16 & 255) < 80,
+            "The red surface before the exit must be clipped: {color:x}"
+        );
+    }
 
     #[test]
     fn reference_atlas_keeps_transparent_corners_and_animated_green_frames() {

@@ -130,6 +130,10 @@ impl FlightView {
         (self.right, self.up, self.forward)
     }
 
+    pub fn projection_center(&self) -> Vec2 {
+        self.principal
+    }
+
     pub fn ray(&self, x: f32, y: f32) -> Vec3 {
         self.forward
             + self.right * ((x - self.principal.x) / FLIGHT_FOCAL)
@@ -800,6 +804,23 @@ mod tests {
         assert!(!view.sphere_visible(Vec3::zeros(), 1.0));
         assert!(view.project(Vec3::zeros()).is_none());
         assert!(view.project(Vec3::new(0.0, 0.0, -10.0)).is_some());
+    }
+
+    #[test]
+    fn looking_through_the_back_face_keeps_the_opposite_exit_half_space() {
+        use crate::portal::Portal;
+        let entry = Portal::new(Vec3::zeros(), Vec3::z()).unwrap();
+        let exit = Portal::new(Vec3::new(100.0, 40.0, 0.0), Vec3::x()).unwrap();
+        let mut flight = Flight::new();
+        flight.camera.yaw += std::f32::consts::PI;
+        let view = FlightView {
+            eye: -Vec3::z() * 20.0,
+            ..FlightView::new(&flight, 320, 240)
+        }
+        .through(entry, exit);
+        assert!(view.contains_world(exit.center - exit.normal * 10.0));
+        assert!(!view.contains_world(exit.center + exit.normal * 10.0));
+        assert!(view.project(exit.center - exit.normal * 10.0).is_some());
     }
 
     #[test]

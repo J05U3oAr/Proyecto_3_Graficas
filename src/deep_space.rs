@@ -55,10 +55,9 @@ impl DeepSpace {
         let (_, _, forward) = view.basis();
         let relative = hole.position - eye;
         let depth = relative.dot(&forward);
-        let bounds = if depth > hole.disk_radius * 1.5 {
-            let Some(center) = view.project(hole.position) else {
-                return;
-            };
+        let bounds = if depth > hole.disk_radius * 1.5
+            && let Some(center) = view.project(hole.position)
+        {
             // El limite incluye el borde cercano del disco inclinado.
             let size = hole.disk_radius * FLIGHT_FOCAL / (depth - hole.disk_radius);
             (

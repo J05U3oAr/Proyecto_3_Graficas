@@ -384,6 +384,59 @@ impl Ui {
         self.space.preview(fb, name, seconds)
     }
 
+    fn portal_destination(
+        &self,
+        fb: &mut Framebuffer,
+        view: &renderer::FlightView,
+        ship: &Ship,
+        flight: &Flight,
+        seconds: f32,
+    ) {
+        fb.clear();
+        if self.galaxy == 1 {
+            crate::skybox::draw_view(fb, view);
+        } else {
+            for y in 0..fb.height {
+                let full_y = y as f32 + HEIGHT as f32 * 0.5 - view.projection_center().y;
+                let color = mix(
+                    crate::galaxy::GALAXIES[self.galaxy].sky,
+                    0x03060c,
+                    full_y / HEIGHT as f32,
+                );
+                fb.pixels[y * fb.width..(y + 1) * fb.width].fill(color);
+            }
+        }
+        for star in &self.stars {
+            let relative =
+                (star.position - view.eye()).map(|v| (v + 280.0).rem_euclid(560.0) - 280.0);
+            let Some(point) = view.project(view.eye() + relative) else {
+                continue;
+            };
+            if !(3.0..280.0).contains(&(1.0 / point.z)) {
+                continue;
+            }
+            let twinkle = 0.65 + ((seconds * 1.7 + star.phase).sin() + 1.0) * 0.16;
+            blend_pixel(
+                fb,
+                point.x.round() as i32,
+                point.y.round() as i32,
+                mix(0x26364a, star.color, twinkle),
+                0.8,
+            );
+        }
+        self.space.draw_view(fb, view, seconds);
+        self.portal_art.draw_view(fb, flight, view);
+        if flight.crash.is_none() {
+            renderer::draw_ship_in_view(fb, ship, flight, view, self.space.sun_position(seconds));
+        }
+        self.deep_space
+            .draw_view(fb, view, flight.black_hole, seconds);
+        self.space.draw_atmospheres_view(fb, view, seconds);
+        if let Some(crash) = &flight.crash {
+            crate::explosion::draw(fb, view, crash);
+        }
+    }
+
     pub fn flight(&self, fb: &mut Framebuffer, ship: &Ship, flight: &Flight, seconds: f32) {
         fb.clear();
         if self.galaxy == 1 {
@@ -440,7 +493,9 @@ impl Ui {
         }
 
         self.space.draw(fb, flight, seconds);
-        self.portal_art.draw(fb, flight);
+        self.portal_art.draw_linked(fb, flight, |image, view| {
+            self.portal_destination(image, view, ship, flight, seconds);
+        });
         if flight.crash.is_none() {
             if let Some(solar) = self.space.solar_lighting(seconds) {
                 renderer::draw_flight_model_lit(
@@ -793,6 +848,63 @@ pub(crate) fn ellipse(fb: &mut Framebuffer, center: (f32, f32), radius: (f32, f3
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn portal_shows_the_destination_planet_and_its_current_animation_without_advancing_flight() {
+        use crate::portal::{Kind, Portal};
+        let ui = Ui::new().unwrap();
+        let ships = crate::fleet::load().unwrap();
+        let mut flight = ui.new_flight();
+        flight.camera.pitch = 0.0;
+        flight.portals.set_enabled(true);
+        let entry = Portal::new(
+            flight.camera_position() + flight.camera.basis().2 * 40.0,
+            -flight.camera.basis().2,
+        )
+        .unwrap();
+        let planet = ui
+            .space
+            .active_planets()
+            .find(|p| p.name == "Boreal")
+            .unwrap()
+            .world_transform(0.0);
+        let exit = Portal::new(
+            planet.position + Vec3::z() * (planet.radius + 250.0),
+            -Vec3::z(),
+        )
+        .unwrap();
+        flight.portals.place(Kind::Yellow, entry);
+        flight.portals.place(Kind::Green, exit);
+        let original = flight.position;
+        let mut before = Framebuffer::new(WIDTH, HEIGHT);
+        let mut after = Framebuffer::new(WIDTH, HEIGHT);
+        ui.flight(&mut before, &ships[2], &flight, 0.0);
+        ui.flight(&mut after, &ships[2], &flight, 3.0);
+        let area: Vec<_> = (370..470)
+            .flat_map(|y| (590..690).map(move |x| y * WIDTH + x))
+            .collect();
+        let blue = area
+            .iter()
+            .filter(|&&i| {
+                let p = before.pixels[i];
+                (p & 255) > (p >> 16 & 255) + 30 && (p >> 8 & 255) > (p >> 16 & 255) + 30
+            })
+            .count();
+        assert!(
+            blue > 1000,
+            "The exit faces Boreal, not a yellow swirl: {blue}"
+        );
+        assert!(
+            area.iter()
+                .filter(|&&i| before.pixels[i] != after.pixels[i])
+                .count()
+                > 200
+        );
+        assert_eq!(flight.position, original);
+        assert_eq!(flight.seconds, 0.0);
+        assert_eq!(flight.portals.traversals, 0);
+        assert_eq!(flight.portals.get(Kind::Green).unwrap().center, exit.center);
+    }
     #[test]
     fn moving_through_space_changes_the_visible_star_field() {
         let ships = crate::fleet::load().unwrap();

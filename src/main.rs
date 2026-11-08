@@ -233,10 +233,31 @@ fn main() -> Result<(), Box<dyn Error>> {
                     (portal::Kind::Yellow, -11.0, 32.0),
                     (portal::Kind::Green, 11.0, 38.0),
                 ] {
-                    let center = flight.position + forward * ahead + right * lateral;
+                    if target.is_some() && kind == portal::Kind::Green {
+                        continue;
+                    }
+                    let (center, normal) = if target.is_some() {
+                        let direction = flight.camera.basis().2;
+                        (flight.camera_position() + direction * 40.0, -direction)
+                    } else {
+                        (
+                            flight.position + forward * ahead + right * lateral,
+                            -forward,
+                        )
+                    };
                     flight
                         .portals
-                        .place(kind, portal::Portal::new(center, -forward).unwrap());
+                        .place(kind, portal::Portal::new(center, normal).unwrap());
+                }
+                if let Some(name) = target {
+                    let mut destination = ui.new_flight();
+                    ui.approach_planet(&mut destination, name)?;
+                    let exit = portal::Portal::new(
+                        destination.position + nalgebra_glm::Vec3::z() * 170.0,
+                        -nalgebra_glm::Vec3::z(),
+                    )
+                    .unwrap();
+                    flight.portals.place(portal::Kind::Green, exit);
                 }
             }
             if let Some(name) = near_planet {
