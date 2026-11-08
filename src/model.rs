@@ -12,6 +12,7 @@ pub struct Face {
     pub uv: Option<[Vec2; 3]>,
     pub texture: Option<usize>,
     pub unlit: bool,
+    pub opacity: f32,
 }
 
 pub struct Model {
@@ -27,6 +28,7 @@ struct Material {
     color: Color,
     texture: Option<usize>,
     unlit: bool,
+    opacity: f32,
 }
 
 impl Default for Material {
@@ -35,6 +37,7 @@ impl Default for Material {
             color: Color::new(175, 185, 200),
             texture: None,
             unlit: false,
+            opacity: 1.0,
         }
     }
 }
@@ -134,6 +137,7 @@ impl Model {
                             },
                             texture: current.texture,
                             unlit: current.unlit,
+                            opacity: current.opacity,
                         });
                     }
                 }
@@ -202,6 +206,21 @@ fn load_materials(
                     );
                 }
             }
+            Some(kind @ ("d" | "Tr")) => {
+                let value: f32 = fields.next().ok_or("Falta la opacidad MTL")?.parse()?;
+                if !value.is_finite() || !(0.0..=1.0).contains(&value) {
+                    return Err(format!(
+                        "Opacidad invalida en {}:{}",
+                        path.display(),
+                        line_index + 1
+                    )
+                    .into());
+                }
+                if let Some(name) = &current_name {
+                    materials.get_mut(name).unwrap().opacity =
+                        if kind == "Tr" { 1.0 - value } else { value };
+                }
+            }
             Some("map_Kd") => {
                 if let Some(name) = &current_name {
                     let filename = fields.collect::<Vec<_>>().join(" ");
@@ -234,6 +253,20 @@ fn load_materials(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mtl_dissolve_and_transparency_preserve_opaque_defaults() {
+        let model = Model::parse(
+            "mtllib glass.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\n\
+             usemtl opaque\nf 1 2 3\nusemtl glass\nf 1 2 3\n\
+             usemtl inverse_glass\nf 1 2 3\n",
+            &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures"),
+        )
+        .unwrap();
+        for (face, expected) in model.faces.iter().zip([1.0, 0.2, 0.35]) {
+            assert!((face.opacity - expected).abs() < 1e-6);
+        }
+    }
 
     #[test]
     fn material_library_names_with_spaces_load_the_provided_solar_model() {

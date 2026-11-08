@@ -17,6 +17,7 @@ pub fn fill(framebuffer: &mut Framebuffer, a: &Vec3, b: &Vec3, c: &Vec3, color: 
     rasterize(framebuffer, [*a, *b, *c], |_, _, _| color);
 }
 
+#[cfg(test)]
 pub fn fill_textured(
     framebuffer: &mut Framebuffer,
     vertices: [TextureVertex; 3],

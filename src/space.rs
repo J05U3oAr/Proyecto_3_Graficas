@@ -443,6 +443,7 @@ fn debris_model() -> Model {
         uv: None,
         texture: None,
         unlit: false,
+        opacity: 1.0,
     })
     .collect();
     Model {

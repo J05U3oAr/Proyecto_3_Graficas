@@ -24,6 +24,7 @@ pub enum Surface<'a> {
 pub struct Primitive<'a> {
     pub vertices: [Vec3; 3],
     pub surface: Surface<'a>,
+    pub opacity: f32,
 }
 
 fn edge(a: Vec3, b: Vec3, x: f32, y: f32) -> f32 {
@@ -87,8 +88,9 @@ struct Prepared<'a, 'b> {
 
 pub fn draw(fb: &mut Framebuffer, primitives: &[Primitive<'_>]) {
     let (left, top, right, bottom) = fb.clip;
-    let prepared: Vec<_> = primitives
+    let mut prepared: Vec<_> = primitives
         .iter()
+        .filter(|primitive| primitive.opacity > 0.0)
         .filter_map(|primitive| {
             let [a, b, c] = primitive.vertices;
             let area = edge(a, b, c.x, c.y);
@@ -110,6 +112,22 @@ pub fn draw(fb: &mut Framebuffer, primitives: &[Primitive<'_>]) {
             })
         })
         .collect();
+    // Opaque geometry establishes depth first. Glass blends from far to near
+    // without hiding the cockpit or changing the opaque depth buffer.
+    prepared.sort_by(|a, b| {
+        let transparent_a = a.primitive.opacity < 1.0;
+        let transparent_b = b.primitive.opacity < 1.0;
+        transparent_a.cmp(&transparent_b).then_with(|| {
+            if transparent_a && transparent_b {
+                let depth = |item: &Prepared<'_, '_>| {
+                    item.primitive.vertices.iter().map(|v| v.z).sum::<f32>()
+                };
+                depth(a).total_cmp(&depth(b))
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        })
+    });
     let mut bins = vec![Vec::new(); fb.height.div_ceil(BAND_HEIGHT)];
     // Cada franja conserva el orden de los triángulos y escribe en memoria exclusiva.
     for (index, item) in prepared.iter().enumerate() {
@@ -132,12 +150,38 @@ pub fn draw(fb: &mut Framebuffer, primitives: &[Primitive<'_>]) {
                     let w1 = edge(c, a, px, py) / item.area;
                     let w2 = edge(a, b, px, py) / item.area;
                     if w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0 {
+                        let opacity = item.primitive.opacity;
+                        if opacity < 1.0 {
+                            // Half-open edges avoid blending twice along a glass seam.
+                            let inclusive = |mut from: Vec3, mut to: Vec3| {
+                                if item.area < 0.0 {
+                                    std::mem::swap(&mut from, &mut to);
+                                }
+                                to.y < from.y || (to.y == from.y && to.x > from.x)
+                            };
+                            if (w0 == 0.0 && !inclusive(b, c))
+                                || (w1 == 0.0 && !inclusive(c, a))
+                                || (w2 == 0.0 && !inclusive(a, b))
+                            {
+                                continue;
+                            }
+                        }
                         let z = w0 * a.z + w1 * b.z + w2 * c.z;
                         let offset = (y - band_y) * width + x;
                         // Las superficies ocultas se descartan antes de muestrear la textura.
                         if z > depth[offset] {
-                            depth[offset] = z;
-                            pixels[offset] = item.primitive.color([w0, w1, w2]);
+                            let color = item.primitive.color([w0, w1, w2]);
+                            if opacity >= 1.0 {
+                                depth[offset] = z;
+                                pixels[offset] = color;
+                            } else {
+                                let blend = |shift: u32| {
+                                    let from = ((pixels[offset] >> shift) & 255) as f32;
+                                    let to = ((color >> shift) & 255) as f32;
+                                    (from + (to - from) * opacity).round() as u32
+                                };
+                                pixels[offset] = blend(16) << 16 | blend(8) << 8 | blend(0);
+                            }
                         }
                     }
                 }
@@ -163,6 +207,51 @@ pub fn draw(fb: &mut Framebuffer, primitives: &[Primitive<'_>]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn glass_sorts_layers_keeps_opaque_depth_and_blends_shared_edges_once() {
+        let quad = |z, color, opacity| {
+            let points = [
+                Vec3::new(0.0, 0.0, z),
+                Vec3::new(8.0, 0.0, z),
+                Vec3::new(8.0, 8.0, z),
+                Vec3::new(0.0, 8.0, z),
+            ];
+            [[0, 1, 2], [0, 3, 2]].map(|indices| Primitive {
+                vertices: indices.map(|i| points[i]),
+                surface: Surface::Solid(color),
+                opacity,
+            })
+        };
+        // Deliberately submit near glass before the cockpit and far glass.
+        let mut primitives = Vec::from(quad(3.0, Color::new(0, 0, 200), 0.5));
+        for _ in 0..70 {
+            primitives.extend(quad(1.0, Color::new(0, 0, 0), 1.0));
+        }
+        primitives.extend(quad(2.0, Color::new(200, 0, 0), 0.5));
+        primitives.extend(quad(4.0, Color::new(0, 255, 0), 0.0));
+        for threads in [1, 4] {
+            let pool = rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap();
+            let mut fb = Framebuffer::new(8, 8);
+            fb.set_clip(1, 1, 6, 6);
+            fb.point(2, 3, 2.5, 0x00c800, true);
+            fb.point(3, 2, 5.0, 0xabcdef, true);
+            pool.install(|| draw(&mut fb, &primitives));
+            // Includes both windings and the shared diagonal.
+            for (x, y) in [(1, 1), (4, 4), (5, 2), (2, 5)] {
+                assert_eq!(fb.pixels[y * 8 + x], 0x320064);
+                assert_eq!(fb.depth[y * 8 + x], 1.0);
+            }
+            assert_eq!(fb.pixels[3 * 8 + 2], 0x006464);
+            assert_eq!(fb.depth[3 * 8 + 2], 2.5);
+            assert_eq!(fb.pixels[2 * 8 + 3], 0xabcdef);
+            assert_eq!(fb.pixels[0], crate::framebuffer::BACKGROUND);
+        }
+    }
+
     #[test]
     fn parallel_bands_match_reference_with_textures_clipping_and_depth() {
         let texture = Texture::load(concat!(
@@ -191,6 +280,7 @@ mod tests {
         let primitives: Vec<_> = (0..140)
             .map(|_| Primitive {
                 vertices: vertices.map(|v| v.screen),
+                opacity: 1.0,
                 surface: Surface::Textured {
                     vertices,
                     texture: &texture,

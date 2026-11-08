@@ -251,6 +251,7 @@ pub fn draw_world_model_shaded(
                 });
                 primitives.push(Primitive {
                     vertices: projected.map(|v| v.screen),
+                    opacity: face.opacity,
                     surface: Surface::Textured {
                         vertices: projected,
                         texture: &model.textures[texture],
@@ -293,6 +294,7 @@ pub fn draw_world_model_shaded(
             primitives.push(Primitive {
                 vertices: projected,
                 surface,
+                opacity: face.opacity,
             });
         }
     }
@@ -498,6 +500,7 @@ pub fn draw_flight_model_lit(
             primitives.push(Primitive {
                 vertices: [screen[i], screen[j], screen[k]],
                 surface: Surface::Solid(color),
+                opacity: face.opacity,
             });
         }
         raster_batch::draw(framebuffer, &primitives);
@@ -525,6 +528,7 @@ fn rasterize(
 ) {
     let light = Vec3::new(-0.4, 0.8, 1.0).normalize();
     let half = (light + Vec3::new(0.0, 0.0, 1.0)).normalize();
+    let mut primitives = Vec::with_capacity(model.faces.len());
     for face in &model.faces {
         let [i, j, k] = face.indices;
         let [a, b, c] = [screen[i], screen[j], screen[k]];
@@ -540,13 +544,17 @@ fn rasterize(
                 });
                 let intensity =
                     texture_intensity((view[j] - view[i]).cross(&(view[k] - view[i])), face.unlit);
-                triangle::fill_textured(
-                    framebuffer,
-                    vertices,
-                    &model.textures[texture],
-                    face.color,
-                    intensity,
-                );
+                primitives.push(Primitive {
+                    vertices: points,
+                    surface: Surface::Textured {
+                        vertices,
+                        texture: &model.textures[texture],
+                        tint: face.color,
+                        intensity,
+                        effect: crate::shaders::SurfaceEffect::None,
+                    },
+                    opacity: face.opacity,
+                });
                 continue;
             }
             let base = fallback_color.unwrap_or(face.color);
@@ -556,7 +564,11 @@ fn rasterize(
                 &light,
                 &half,
             ) {
-                triangle::fill(framebuffer, &a, &b, &c, color);
+                primitives.push(Primitive {
+                    vertices: [a, b, c],
+                    surface: Surface::Solid(color),
+                    opacity: face.opacity,
+                });
             }
         } else {
             let color = if mode == RenderMode::Hologram {
@@ -570,6 +582,7 @@ fn rasterize(
             triangle::line(framebuffer, &c, &a, color, depth);
         }
     }
+    raster_batch::draw(framebuffer, &primitives);
 }
 
 #[cfg(test)]

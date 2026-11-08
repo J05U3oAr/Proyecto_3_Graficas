@@ -1,0 +1,10 @@
+newmtl opaque
+Kd 1 1 1
+
+newmtl glass
+Kd 0.7 0.85 0.9
+d 0.2
+
+newmtl inverse_glass
+Kd 0.7 0.85 0.9
+Tr 0.65
