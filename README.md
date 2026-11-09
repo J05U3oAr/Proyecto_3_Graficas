@@ -12,6 +12,12 @@ Instala Rust y Cargo y, desde esta carpeta, ejecuta:
 cargo run --release
 ```
 
+En macOS, `src/window_state.rs` corrige la lectura invertida del foco de ventana
+del backend de `minifb 0.26`. Así, el viaje y el vuelo avanzan cuando la ventana
+está activa y se pausan al cambiar de aplicación. Windows y Linux conservan la
+lectura original de sus backends. La visibilidad del cursor se actualiza solo al
+cambiar de estado, equilibrando las llamadas de ocultar/mostrar en macOS.
+
 El primer inicio compila las dependencias declaradas en `Cargo.toml`. Rayon reparte la rasterización de planetas, la mezcla del polvo y el cálculo por píxel del agujero negro entre los núcleos disponibles. El pipeline gráfico y la física siguen implementados en el proyecto; Rayon no proporciona modelos, cámaras ni funciones de dibujo.
 
 ## Menú principal
@@ -232,6 +238,7 @@ Admite los cuatro nombres de planeta y es una alternativa a `--near-black-hole`.
 - `src/raster_batch.rs`: rasterización de lotes por franjas con Rayon.
 - `src/ui.rs`: composición, tipografía, interacción con las tarjetas y mapeo del ratón.
 - `src/main.rs`: navegación, entradas y reloj de animación.
+- `src/window_state.rs`: normalización del foco de ventana para macOS, Windows y Linux.
 - `assets/ui/`: atlas de glifos integrado en el ejecutable; no requiere instalar fuentes.
 
 Las pruebas de `cargo test` comprueban los giros completos del hangar, pausa/reanudación, selección con ventana redimensionada y animación de cada nave en la vista principal sin modificar la columna lateral. También verifican la selección del mapa al moverlo, girarlo o ampliarlo; la restauración de destinos con sus colisiones; la decoración reproducible; y la igualdad del renderizado entre uno y varios hilos. El vuelo tiene pruebas de dirección sostenida con mouse, movimiento sin saltos, WASD sin avance automático ni ventaja diagonal, desaceleración, turbo/freno, respuesta a distintas tasas de cuadros, cámara trasera y desplazamiento del campo estelar. Los planetas tienen comprobaciones de visibilidad, profundidad independiente del orden de dibujo, recorte cerca de la cámara y movimiento de la nube sin desplazar la nave.

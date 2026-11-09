@@ -30,6 +30,7 @@ mod thrusters;
 mod travel;
 mod triangle;
 mod ui;
+mod window_state;
 
 use camera::Camera;
 use framebuffer::Framebuffer;
@@ -398,15 +399,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut previous = Instant::now();
     let mut mouse_was_down = false;
     let mut right_mouse_was_down = false;
-    let mut window_was_active = window.is_active();
+    let mut window_was_active = window_state::is_active(&mut window);
+    let mut cursor_visible = true;
     let mut emphasis = [1.0, 0.0, 0.0];
 
     while window.is_open() {
         let now = Instant::now();
         let dt = (now - previous).as_secs_f32().min(0.1);
         previous = now;
-        let focused_input = window.is_active() && window_was_active;
-        window_was_active = window.is_active();
+        let window_active = window_state::is_active(&mut window);
+        let focused_input = window_active && window_was_active;
+        window_was_active = window_active;
         if window.is_key_pressed(Key::Escape, KeyRepeat::No) {
             match screen {
                 Screen::Home => home_menu.back(),
@@ -547,7 +550,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             if window.is_key_pressed(Key::Space, KeyRepeat::No) || (clicked && hover_pause) {
                 clock.paused = !clock.paused;
             }
-            if window.is_active() {
+            if window_active {
                 clock.advance(dt);
             }
             for (index, value) in emphasis.iter_mut().enumerate() {
@@ -568,7 +571,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 screen = Screen::Home;
             }
         } else if screen == Screen::Galaxy {
-            if window.is_active() {
+            if window_active {
                 atlas.advance(dt);
                 let axis = |positive, negative| {
                     i32::from(window.is_key_down(positive))
@@ -627,7 +630,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
         } else if screen == Screen::Travel {
-            if window.is_active() && transit.advance(dt) {
+            if window_active && transit.advance(dt) {
                 launch_flight(&ui, &mut flight, &mut screen);
             }
         } else if screen == Screen::GalacticGate {
@@ -635,7 +638,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .as_mut()
                 .expect("La pantalla galactica necesita un salto activo");
             let mut completed = None;
-            if window.is_active() {
+            if window_active {
                 if focused_input && !jump.entering() {
                     if window.is_key_pressed(Key::Left, KeyRepeat::Yes) {
                         jump.select(-1);
@@ -701,7 +704,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 mode = mode.next();
             }
         } else {
-            if window.is_active() {
+            if window_active {
                 if focused_input && mouse.is_some() {
                     if clicked {
                         flight.place_portal(portal::Kind::Yellow);
@@ -759,11 +762,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         } else {
             false
         };
-        window.set_cursor_visibility(
-            screen != Screen::Travel
-                && !(screen == Screen::GalacticGate
-                    && galactic_gate.as_ref().is_some_and(|j| j.entering())),
-        );
+        let next_cursor_visible = screen != Screen::Travel
+            && !(screen == Screen::GalacticGate
+                && galactic_gate.as_ref().is_some_and(|j| j.entering()));
+        // En macOS NSCursor hide/unhide se cuenta: equilibrar cada cambio una sola vez.
+        if next_cursor_visible != cursor_visible {
+            window.set_cursor_visibility(next_cursor_visible);
+            cursor_visible = next_cursor_visible;
+        }
         window.set_cursor_style(if screen == Screen::Flight {
             CursorStyle::Crosshair
         } else if actionable {
@@ -813,6 +819,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             framebuffer.save_png("render.png")?;
         }
         window.update_with_buffer(&framebuffer.pixels, WIDTH, HEIGHT)?;
+    }
+    if !cursor_visible {
+        window.set_cursor_visibility(true);
     }
     Ok(())
 }
