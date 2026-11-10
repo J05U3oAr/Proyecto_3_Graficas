@@ -84,7 +84,8 @@ def main():
     gas.use_nodes = True
     nodes,links = gas.node_tree.nodes,gas.node_tree.links
     bsdf = nodes.get("Principled BSDF")
-    bsdf.inputs["Roughness"].default_value = 0.82
+    bsdf.inputs["Roughness"].default_value = 1.0
+    bsdf.inputs["Specular IOR Level"].default_value = 0.0
     coords = nodes.new("ShaderNodeTexCoord")
     turbulence = nodes.new("ShaderNodeTexNoise")
     turbulence.inputs["Scale"].default_value = 7
@@ -101,11 +102,11 @@ def main():
     links.new(distortion.outputs[0],warp.inputs[1])
     stretch = nodes.new("ShaderNodeVectorMath")
     stretch.operation = "MULTIPLY"
-    stretch.inputs[1].default_value = (4.5,4.5,19.0)
+    stretch.inputs[1].default_value = (7.0,7.0,35.0)
     links.new(warp.outputs[0],stretch.inputs[0])
     clouds = nodes.new("ShaderNodeTexNoise")
     clouds.inputs["Scale"].default_value = 1.0
-    clouds.inputs["Detail"].default_value = 3
+    clouds.inputs["Detail"].default_value = 5
     links.new(stretch.outputs[0],clouds.inputs["Vector"])
     ramp = nodes.new("ShaderNodeValToRGB")
     ramp.color_ramp.elements[0].position = 0.22
@@ -118,7 +119,7 @@ def main():
     links.new(ramp.outputs["Color"],bsdf.inputs["Base Color"])
     body.data.materials.append(gas)
     body["radio_en_juego"] = 155.0
-    body["diseno"] = "Gigante oblato; conveccion y vortices blancos animados en el rasterizador CPU"
+    body["diseno"] = "Gigante oblato; nubes multiescala deformadas en remolinos, iluminacion difusa CPU sin brillo plastico"
     ring_materials = []
     for name,rgb,alpha in ANILLOS:
         mat = bpy.data.materials.new(name)
@@ -127,11 +128,20 @@ def main():
         shader = mat.node_tree.nodes.get("Principled BSDF")
         shader.inputs["Base Color"].default_value = (*rgb,1)
         shader.inputs["Alpha"].default_value = alpha
-        shader.inputs["Roughness"].default_value = 0.5
+        shader.inputs["Roughness"].default_value = 0.95
+        grain = mat.node_tree.nodes.new("ShaderNodeTexNoise")
+        grain.inputs["Scale"].default_value = 180.0
+        grain.inputs["Detail"].default_value = 2.0
+        tint = mat.node_tree.nodes.new("ShaderNodeMixRGB")
+        tint.blend_type = "MULTIPLY"
+        tint.inputs[0].default_value = 0.65
+        tint.inputs[1].default_value = (*rgb,1)
+        mat.node_tree.links.new(grain.outputs["Fac"],tint.inputs[2])
+        mat.node_tree.links.new(tint.outputs[0],shader.inputs["Base Color"])
         ring_materials.append(mat)
     # Independent collections and exports keep the rings editable without touching the body.
-    body_collection = bpy.data.collections.new("UMBriel | planeta")
-    ring_collection = bpy.data.collections.new("UMBriel | anillos independientes")
+    body_collection = bpy.data.collections.new("Umbriel | planeta")
+    ring_collection = bpy.data.collections.new("Umbriel | anillos independientes")
     scene.collection.children.link(body_collection)
     scene.collection.children.link(ring_collection)
     scene.collection.objects.unlink(body)
