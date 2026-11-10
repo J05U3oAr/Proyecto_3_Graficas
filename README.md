@@ -276,18 +276,25 @@ Admite los cuatro nombres de planeta y es una alternativa a `--near-black-hole`.
 
 ## Mundos de Umbría
 
+El sistema está distribuido alrededor de la salida, con planetas hacia delante,
+a ambos lados y por detrás de la nave. Las órbitas abarcan de 620 a 1,690 unidades
+respecto a Asterion. Al comenzar, todos los planetas están a menos de 1,800 unidades
+de la nave y sus direcciones horizontales están separadas por más de 20 grados.
+Las órbitas mantienen espacio libre entre las superficies durante toda la vuelta.
+
+
 **Asterion** es el sol del sistema: tiene un radio de 360 unidades, más de cinco
 veces el de Nivalis. Su modelo editable y su OBJ se generan con
 `scripts/blender/create_asterion.py`, sin crear imágenes. El shader CPU anima
 la convección de su superficie blanca azulada y su corona es cian. Su modelo
 está en `assets/planets/asterion/asterion.blend`.
 
-Nivalis orbita Asterion a 1,400 unidades, con posición y velocidad calculadas
+Nivalis orbita Asterion a 860 unidades, con posición y velocidad calculadas
 a partir del tiempo transcurrido. La iluminación, las colisiones y la navegación
-local siguen esa posición orbital. Los asteroides quedan entre el sol y la
-órbita; el agujero negro permanece en la periferia del sistema.
+local siguen esa posición orbital. Los asteroides quedan entre las órbitas de Ónice y
+Nivalis; el agujero negro permanece en la periferia del sistema.
 
-**Ónice** orbita a 800 unidades de Asterion y rota sobre su eje. Tiene basalto
+**Ónice** orbita a 620 unidades de Asterion y rota sobre su eje. Tiene basalto
 oscuro, nueve cráteres de impacto con hielo azul y tres arcos naturales de roca.
 Los arcos permiten volar por debajo; sus bóvedas y paredes tienen colisión real.
 El shader CPU añade escarcha y granulado estáticos sobre los materiales de roca.
@@ -300,7 +307,7 @@ El juego y los comandos de acercamiento usan el nombre `onice` sin tilde.
 
 **Véspera** es un desierto de nieve gris azulada, con siete mesetas aisladas, cinco
 cauces de cañones curvos y cuatro campos de dunas. Su relieve y sus paredes
-forman parte de la malla de colisión. Orbita Asterion a 1,900 unidades, con un
+forman parte de la malla de colisión. Orbita Asterion a 1,120 unidades, con un
 radio de 84 unidades. La malla tiene 25,280 triángulos y conserva estratos
 de pizarra oscura en los cañones y escarcha casi blanca en las cimas. Las dunas
 tienen crestas de viento asimétricas y el shader añade granulado de nieve compacta.
@@ -322,7 +329,7 @@ sesenta crecimientos minerales anchos y entrelazados. Sus contornos tienen entre
 cinco y ocho lados irregulares, raíces ensanchadas, fracturas y terminaciones
 partidas de distintas alturas. Conserva pasos abiertos entre las formaciones.
 El modelo tiene 9,800 triángulos y un radio de 78 unidades; orbita Asterion a
-2,450 unidades.
+1,390 unidades.
 
 `scripts/blender/create_prisma.py` genera `assets/planets/prisma/prisma.blend`,
 OBJ y MTL sin imágenes. Cada grupo es un objeto editable separado. La semilla
@@ -343,20 +350,22 @@ después de los planetas opacos y de la nave, con mezcla de atrás hacia delante
 prueba de profundidad. La transparencia no permite atravesar el cristal: tanto
 la corteza como la cubierta exterior participan en las colisiones.
 
-**Nácar** es un océano congelado con 48 placas de hielo separadas por canales
-azul profundo. La red de fracturas se genera con celdas Voronoi sobre la esfera
-y la semilla fija **88421**. Los canales están hundidos en la malla, mientras que
+**Nácar** es un océano congelado con placas de tamaños desiguales y canales
+azul profundo. La red de fracturas parte de 48 semillas aleatorias ponderadas,
+con distorsión de coordenadas, anchura variable y puentes recongelados que
+interrumpen los contornos. La semilla fija es **88421**. Los canales están hundidos en la malla, mientras que
 las placas conservan pequeñas variaciones de altura y pendiente.
 
-Dieciséis icebergs tabulares tienen contornos irregulares, cubiertas planas
+Dieciséis icebergs tabulares se distribuyen en grupos desiguales y zonas
+despejadas, con tamaños variados, contornos irregulares, cubiertas planas
 inclinadas y bases sumergidas. Son obstáculos con colisión real; también hay
 colisión sobre las placas y los canales. El shader CPU añade granulado al hielo
 y un brillo sutil animado en los canales, sin desplazar la geometría.
 
 `scripts/blender/create_nacar.py` genera el archivo editable
 `assets/planets/nacar/nacar.blend`, el OBJ y el MTL. La banquisa y cada iceberg
-son objetos separados en Blender. El modelo tiene 20,720 triángulos, un radio de
-96 unidades y una órbita de 3,100 unidades alrededor de Asterion. El nombre para
+son objetos separados en Blender. El modelo tiene 20,792 triángulos, un radio de
+96 unidades y una órbita de 1,690 unidades alrededor de Asterion. El nombre para
 los comandos de acercamiento es `nacar`, sin tilde.
 
 En **Umbría**, Nivalis ocupa el lugar de Boreal y presenta una superficie sólida
