@@ -59,7 +59,7 @@ Las galaxias del mapa tienen ilustraciones procedurales diferentes: Aurora es un
 | --- | --- | --- |
 | Aurora | Siroco, Oquedad, Jovara y Boreal | Campo estelar y tormenta de arena; distribución original |
 | Hélice | Siroco y Jovara | Fondo cálido y 42 asteroides decorativos |
-| Umbría | Asterion y Nivalis | Sol blanco azulado masivo, planeta glaciar en órbita y cinturón de 64 asteroides |
+| Umbría | Asterion, Ónice y Nivalis | Sol blanco azulado masivo, mundos de roca y hielo en órbita y cinturón de 64 asteroides |
 
 Los asteroides se generan con una semilla fija por región y no tienen colisión. El agujero negro está presente en los tres destinos. Las mallas y texturas de los planetas se cargan una sola vez; al confirmar otro destino se actualizan las transformaciones y se reconstruyen sus colisiones antes del despegue. El acercamiento a un planeta conserva la misma escena de vuelo.
 
@@ -274,7 +274,7 @@ La integración utiliza [iteradores y fragmentos de memoria independientes de Ra
 revisar el acercamiento, la colisión y la explosión usando la física del juego.
 Admite los cuatro nombres de planeta y es una alternativa a `--near-black-hole`.
 
-## Nivalis: planeta de hielo de Umbría
+## Mundos de Umbría
 
 **Asterion** es el sol del sistema: tiene un radio de 360 unidades, más de cinco
 veces el de Nivalis. Su modelo editable y su OBJ se generan con
@@ -286,6 +286,17 @@ Nivalis orbita Asterion a 1,400 unidades, con posición y velocidad calculadas
 a partir del tiempo transcurrido. La iluminación, las colisiones y la navegación
 local siguen esa posición orbital. Los asteroides quedan entre el sol y la
 órbita; el agujero negro permanece en la periferia del sistema.
+
+**Ónice** orbita a 800 unidades de Asterion y rota sobre su eje. Tiene basalto
+oscuro, nueve cráteres de impacto con hielo azul y tres arcos naturales de roca.
+Los arcos permiten volar por debajo; sus bóvedas y paredes tienen colisión real.
+El shader CPU añade escarcha y granulado estáticos sobre los materiales de roca.
+Su radio es de 72 unidades y su malla tiene 26,060 triángulos.
+
+El modelo editable está en `assets/planets/onice/onice.blend`, con la corteza y
+los arcos como objetos separados. Para regenerar el `.blend`, OBJ y MTL, ejecuta
+`scripts/blender/create_onice.py` con Blender. No necesita texturas de imagen.
+El juego y los comandos de acercamiento usan el nombre `onice` sin tilde.
 
 En **Umbría**, Nivalis ocupa el lugar de Boreal y presenta una superficie sólida
 de nieve, macizos glaciares irregulares y un lago congelado. Su modelo se genera
