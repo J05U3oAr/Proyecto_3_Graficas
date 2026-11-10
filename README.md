@@ -59,7 +59,7 @@ Las galaxias del mapa tienen ilustraciones procedurales diferentes: Aurora es un
 | --- | --- | --- |
 | Aurora | Siroco, Oquedad, Jovara y Boreal | Campo estelar y tormenta de arena; distribución original |
 | Hélice | Siroco y Jovara | Fondo cálido y 42 asteroides decorativos |
-| Umbría | Asterion, Ónice, Nivalis, Véspera, Prisma y Nácar | Sol blanco azulado masivo, mundos de roca, hielo, cristales y océano congelado |
+| Umbría | Asterion, Ónice, Nivalis, Véspera, Prisma, Nácar y Umbriel | Sol blanco azulado masivo, mundos de roca, hielo y cristal, y un gigante gaseoso anillado |
 
 Los asteroides se generan con una semilla fija por región y no tienen colisión. El agujero negro está presente en los tres destinos. Las mallas y texturas de los planetas se cargan una sola vez; al confirmar otro destino se actualizan las transformaciones y se reconstruyen sus colisiones antes del despegue. El acercamiento a un planeta conserva la misma escena de vuelo.
 
@@ -277,10 +277,11 @@ Admite los cuatro nombres de planeta y es una alternativa a `--near-black-hole`.
 ## Mundos de Umbría
 
 El sistema está distribuido alrededor de la salida, con planetas hacia delante,
-a ambos lados y por detrás de la nave. Las órbitas abarcan de 620 a 1,690 unidades
+a ambos lados y por detrás de la nave. Las órbitas abarcan de 620 a 2,150 unidades
 respecto a Asterion. Al comenzar, todos los planetas están a menos de 1,800 unidades
 de la nave y sus direcciones horizontales están separadas por más de 20 grados.
-Las órbitas mantienen espacio libre entre las superficies durante toda la vuelta.
+Las órbitas mantienen espacio libre entre las superficies durante toda la vuelta,
+incluyendo la extensión de los anillos de Umbriel.
 
 
 **Asterion** es el sol del sistema: tiene un radio de 360 unidades, más de cinco
@@ -367,6 +368,27 @@ y un brillo sutil animado en los canales, sin desplazar la geometría.
 son objetos separados en Blender. El modelo tiene 20,792 triángulos, un radio de
 96 unidades y una órbita de 1,690 unidades alrededor de Asterion. El nombre para
 los comandos de acercamiento es `nacar`, sin tilde.
+
+**Umbriel** es un gigante gaseoso frío de 155 unidades de radio, con una órbita
+de 2,150 unidades alrededor de Asterion. Su atmósfera achatada tiene una base azul marino
+con corrientes de nubes alargadas y cuatro grandes tormentas blancas de alto
+contraste. El shader CPU anima la turbulencia y sus vórtices a partir del tiempo transcurrido, sin modificar la malla
+de colisión.
+
+Tres bandas translúcidas de hielo forman sus anillos, inclinados 27 grados.
+Contienen 96 fragmentos sólidos distribuidos con la semilla **61327**. Los huecos
+permiten atravesarlos y únicamente los fragmentos tienen colisión; las bandas
+visuales no crean paredes invisibles. La transparencia respeta la profundidad de
+la nave y del planeta. El plano de los anillos acompaña la órbita sin girar con
+las nubes.
+
+`scripts/blender/create_umbriel.py` genera `assets/planets/umbriel/umbriel.blend`,
+con el planeta y los anillos en colecciones independientes; el cuerpo, las bandas
+y cada fragmento son objetos editables separados. Exporta
+`umbriel.obj` y `anillos.obj`, con sus respectivos MTL, sin texturas de imagen.
+El cuerpo tiene 9,024 triángulos y los anillos 3,072. Ambos modelos conservan el
+mismo origen y se cargan por separado para mantener el tamaño del gigante.
+El nombre para los comandos de acercamiento es `umbriel`.
 
 En **Umbría**, Nivalis ocupa el lugar de Boreal y presenta una superficie sólida
 de nieve, macizos glaciares irregulares y un lago congelado. Su modelo se genera
