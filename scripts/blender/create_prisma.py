@@ -1,4 +1,4 @@
-"""Create Prisma in Blender: dark plains and seeded blue/amethyst crystal groves.
+"""Create Prisma in Blender: a crystalline crust and irregular mineral massifs.
 
 blender --background --factory-startup --python scripts/blender/create_prisma.py
 Only writes .blend, .obj and .mtl; no images are rendered or baked.
@@ -16,12 +16,13 @@ from mathutils import Vector
 DIRECTORIO_SALIDA = ""
 SEMILLA = 73191
 MATERIALES = [
-    ("Basalto frio", (0.075, 0.10, 0.15), 1.0),
-    ("Escarcha de las llanuras", (0.19, 0.25, 0.32), 1.0),
+    ("Cristal azul marino", (0.055, 0.12, 0.30), 1.0),
+    ("Cristal azul de la corteza", (0.10, 0.32, 0.56), 1.0),
     ("Nucleo azul", (0.12, 0.28, 0.38), 1.0),
     ("Nucleo amatista", (0.27, 0.17, 0.39), 1.0),
     ("Cristal azul translucido", (0.28, 0.67, 0.86), 0.34),
     ("Cristal amatista translucido", (0.57, 0.40, 0.79), 0.38),
+    ("Cristal purpura de la corteza", (0.31, 0.17, 0.48), 1.0),
 ]
 
 
@@ -49,7 +50,8 @@ def noise(p):
 
 
 def elevation(direction):
-    return 1.0 + (noise(direction * 11 + Vector((17, 9, 31))) - 0.5) * 0.025
+    broad = noise(direction * 5 + Vector((17, 9, 31)))
+    return 0.98 + round(broad * 5) / 5 * 0.045
 
 
 def make_mesh(scene, name, vertices, faces, ids, materials):
@@ -72,22 +74,21 @@ def make_mesh(scene, name, vertices, faces, ids, materials):
 
 def crust(scene, materials):
     vertices, faces, ids = [], [], []
-    for lat in range(65):
-        phi = math.pi * lat / 64
-        for lon in range(128):
-            theta = math.tau * lon / 128
-            direction = Vector((math.sin(phi) * math.cos(theta), math.cos(phi), math.sin(phi) * math.sin(theta)))
-            vertices.append(direction * elevation(direction))
-    for lat in range(64):
-        for lon in range(128):
-            a, b = lat * 128 + lon, lat * 128 + (lon + 1) % 128
-            c, d = a + 128, b + 128
-            triangles = ([] if lat == 0 else [(a, b, c)]) + ([] if lat == 63 else [(b, d, c)])
-            for triangle in triangles:
-                faces.append(triangle)
-                direction = sum((vertices[i] for i in triangle), Vector()).normalized()
-                ids.append(1 if noise(direction * 16 + Vector((5, 23, 7))) > 0.64 else 0)
-    return make_mesh(scene, "Prisma | llanuras de basalto", vertices, faces, ids, materials)
+    ico = bmesh.new()
+    bmesh.ops.create_icosphere(ico, subdivisions=5, radius=1)
+    ico.verts.ensure_lookup_table()
+    ico.verts.index_update()
+    for vertex in ico.verts:
+        direction = vertex.co.normalized()
+        vertices.append(direction * elevation(direction))
+    for face in ico.faces:
+        triangle = tuple(v.index for v in face.verts)
+        faces.append(triangle)
+        direction = sum((vertices[i] for i in triangle), Vector()).normalized()
+        hue = noise(direction * 3.2 + Vector((5, 23, 7)))
+        ids.append(0 if hue < 0.40 else 6 if hue > 0.57 else 1)
+    ico.free()
+    return make_mesh(scene, "Prisma | corteza cristalina azul marino y purpura", vertices, faces, ids, materials)
 
 
 def grove_centers():
@@ -100,10 +101,10 @@ def grove_centers():
         r = math.sqrt(1 - y * y)
         direction = Vector((r * math.cos(angle), y, r * math.sin(angle)))
         density = noise(direction * 4 + Vector((SEMILLA * 0.013, 17, 29)))
-        if density < 0.49 or any(direction.dot(c) > 0.84 for c in centers):
+        if density < 0.49 or any(direction.dot(c) > 0.78 for c in centers):
             continue
         centers.append(direction)
-        if len(centers) == 12:
+        if len(centers) == 10:
             break
     if len(centers) < 8:
         raise RuntimeError("La semilla no produjo suficientes grupos separados")
@@ -117,36 +118,58 @@ def crystals(scene, materials):
         right = center.cross(Vector((0, 1, 0))).normalized()
         forward = right.cross(center)
         vertices, faces, ids = [], [], []
-        for shard in range(5):
+        count = rng.randint(5, 7)
+        for shard in range(count):
             angle = rng.random() * math.tau
-            distance = 0 if shard == 0 else 0.17 + rng.random() * 0.08
+            distance = 0 if shard == 0 else 0.12 + rng.random() * 0.12
             axis = (center + right * (math.cos(angle) * distance) + forward * (math.sin(angle) * distance)).normalized()
-            anchor = axis * (elevation(axis) - 0.012)
+            anchor = axis * (elevation(axis) - 0.025)
             tangent = axis.cross(Vector((0, 1, 0))).normalized()
             side = tangent.cross(axis)
-            width = (0.06 + rng.random() * 0.025) if shard == 0 else 0.025 + rng.random() * 0.025
-            height = (0.32 + rng.random() * 0.10) if shard == 0 else 0.13 + rng.random() * 0.13
-            lean = (tangent * math.cos(angle) + side * math.sin(angle)) * height * (0.20 + rng.random() * 0.30)
+            width = (0.16 + rng.random() * 0.08) if shard == 0 else 0.055 + rng.random() * 0.065
+            height = (0.27 + rng.random() * 0.13) if shard == 0 else 0.10 + rng.random() * 0.16
+            lean = (tangent * math.cos(angle) + side * math.sin(angle)) * height * (0.15 + rng.random() * 0.55)
             spin = rng.random() * math.tau
+            corners = rng.choice([5, 6, 7, 8])
+            outline = [(spin + i * math.tau / corners + rng.uniform(-0.10, 0.10),
+                        rng.uniform(0.75, 1.18)) for i in range(corners)]
+            elongation = rng.uniform(0.55, 1.1)
+            outer = []
+            # Bulging roots, uneven fracture shoulders, two unequal terminal peaks.
+            for ring in range(3):
+                for theta, radius in outline:
+                    level = 0.0 if ring == 0 else rng.uniform(0.27, 0.43) if ring == 1 else rng.uniform(0.57, 0.78)
+                    taper = 0.92 if ring == 0 else rng.uniform(1.0, 1.18) if ring == 1 else rng.uniform(0.60, 0.90)
+                    lateral = tangent * math.cos(theta) + side * (math.sin(theta) * elongation)
+                    outer.append(anchor + axis * (height * level) + lean * level + lateral * width * radius * taper)
+            outer.extend([anchor + axis * height + lean - tangent * width * 0.17,
+                          anchor + axis * (height * rng.uniform(0.80, 0.94)) + lean * 0.8 + tangent * width * 0.32])
             amethyst = (cluster + shard) % 3 == 0
             for shell in [False, True]:
                 start = len(vertices)
-                radius, h = (width, height) if shell else (width * 0.74, height * 0.86)
-                for level, factor in [(0.0, 1.0), (0.76, 0.92)]:
-                    for corner in range(6):
-                        theta = spin + corner * math.tau / 6
-                        vertices.append(anchor + axis * (h * level) + lean * (h / height * level)
-                                        + (tangent * math.cos(theta) + side * math.sin(theta)) * radius * factor)
-                vertices.append(anchor + axis * h + lean * (h / height))
-                for corner in range(6):
-                    nxt = (corner + 1) % 6
-                    faces.extend([(start + corner, start + nxt, start + 6 + nxt, start + 6 + corner),
-                                  (start + 6 + corner, start + 6 + nxt, start + 12)])
-                    ids.extend([(5 if amethyst else 4) if shell else (3 if amethyst else 2)] * 2)
-                faces.append(tuple(start + i for i in reversed(range(6))))
-                ids.append((5 if amethyst else 4) if shell else (3 if amethyst else 2))
-        obj = make_mesh(scene, f"Prisma | grupo cristalino {cluster + 1:02}", vertices, faces, ids, materials)
-        obj["diseno"] = "5 cristales hexagonales inclinados; nucleo opaco y cubierta translucida"
+                factor = 1.0 if shell else 0.79
+                vertices.extend(anchor + (v - anchor) * factor for v in outer)
+                material = (5 if amethyst else 4) if shell else (3 if amethyst else 2)
+                for ring in range(2):
+                    for corner in range(corners):
+                        nxt = (corner + 1) % corners
+                        faces.append((start + ring * corners + corner, start + ring * corners + nxt,
+                                      start + (ring + 1) * corners + nxt, start + (ring + 1) * corners + corner))
+                        ids.append(material)
+                top = start + 3 * corners
+                split = corners // 2
+                for corner in range(corners):
+                    nxt = (corner + 1) % corners
+                    tip = top if corner < split else top + 1
+                    faces.append((start + 2 * corners + corner, start + 2 * corners + nxt, tip))
+                    ids.append(material)
+                faces.extend([(start + 2 * corners, top, top + 1),
+                              (start + 2 * corners + split, top + 1, top),
+                              tuple(start + i for i in reversed(range(corners)))])
+                ids.extend([material] * 3)
+        obj = make_mesh(scene, f"Prisma | macizo mineral {cluster + 1:02}", vertices, faces, ids, materials)
+        obj["diseno"] = "Crecimientos anchos entrelazados, fracturas irregulares y terminaciones partidas"
+        obj["crecimientos"] = count
         objects.append(obj)
     return objects
 
@@ -162,7 +185,7 @@ def main():
     args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
     output = Path(args.output).expanduser().resolve()
     output.mkdir(parents=True, exist_ok=True)
-    scene = bpy.data.scenes.new("Prisma | jardines de cristal azul y amatista")
+    scene = bpy.data.scenes.new("Prisma | mundo de cristal azul marino y purpura")
     bpy.context.window.scene = scene
     materials = []
     for name, rgb, opacity in MATERIALES:
@@ -171,7 +194,7 @@ def main():
         mat.use_nodes = True
         bsdf = mat.node_tree.nodes.get("Principled BSDF")
         bsdf.inputs["Base Color"].default_value = (*rgb, 1)
-        bsdf.inputs["Roughness"].default_value = 0.18 if opacity < 1 else 0.72
+        bsdf.inputs["Roughness"].default_value = 0.12 if opacity < 1 else 0.22
         bsdf.inputs["Transmission Weight"].default_value = 0.55 if opacity < 1 else 0
         bsdf.inputs["IOR"].default_value = 1.46
         materials.append(mat)

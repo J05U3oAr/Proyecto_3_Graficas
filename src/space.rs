@@ -603,6 +603,46 @@ fn debris_model() -> Model {
 mod tests {
     use super::*;
     #[test]
+    fn prismas_ground_contains_blue_navy_and_purple_crystal_regions() {
+        let mut space = Space::load().unwrap();
+        space.configure(2);
+        let model = &space
+            .active_planets()
+            .find(|p| p.name == "Prisma")
+            .unwrap()
+            .model;
+        let ground: Vec<_> = model
+            .faces
+            .iter()
+            .filter(|f| {
+                f.opacity >= 1.0 && f.indices.iter().all(|&i| model.vertices[i].norm() < 1.06)
+            })
+            .collect();
+        let blue = ground
+            .iter()
+            .filter(|f| {
+                f.color.g >= 65 && f.color.b >= 120 && f.color.b as f32 > f.color.r as f32 * 1.6
+            })
+            .count();
+        let navy = ground
+            .iter()
+            .filter(|f| f.color.b <= 110 && f.color.b as f32 > f.color.r as f32 * 1.7)
+            .count();
+        let purple = ground
+            .iter()
+            .filter(|f| {
+                f.color.r >= 65
+                    && (f.color.g as f32) < f.color.r as f32 * 0.8
+                    && f.color.b as f32 > f.color.r as f32 * 1.2
+            })
+            .count();
+        assert!(
+            blue > 200 && navy > 100 && purple > 100,
+            "El suelo debe tener zonas de cristal azul, azul marino y purpura: {blue}/{navy}/{purple}"
+        );
+    }
+
+    #[test]
     fn prisma_glass_blends_after_opaque_geometry_and_preserves_foreground_ship_depth() {
         let mut space = Space::load().unwrap();
         space.configure(2);
@@ -671,7 +711,7 @@ mod tests {
                 .iter()
                 .filter(|f| f.opacity >= 1.0)
                 .count()
-                > 16000
+                > 7000
         );
         assert!(planet.model.faces.iter().all(|f| !f.unlit));
         assert!(planet.model.vertices.iter().any(|v| v.norm() > 1.3));
