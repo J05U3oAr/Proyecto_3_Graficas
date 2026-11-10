@@ -11,6 +11,8 @@ pub enum SurfaceEffect {
     Crystal,
     GasGiant {
         seconds: f32,
+        light: Vec3,
+        eye: Vec3,
     },
     RingIce,
     PackIce {
@@ -100,32 +102,37 @@ fn polar_flow(uv: Vec2, seconds: f32) -> (Vec2, f32) {
 impl SurfaceEffect {
     pub fn modulate(self, color: Color, point: Vec3) -> Color {
         match self {
-            Self::RingIce => color.shaded(0.94 + noise::noise(point * 113.0) * 0.12),
-            Self::GasGiant { seconds } => {
+            Self::RingIce => {
+                let tilt = 27_f32.to_radians();
+                let radial =
+                    Vec2::new(point.x, -point.y * tilt.sin() + point.z * tilt.cos()).norm();
+                let grain = noise::noise(point * 173.0);
+                let narrow = (radial * 1700.0).sin() * 0.5 + 0.5;
+                let broad = noise::noise(Vec3::new(radial * 215.0, 7.0, 3.0));
+                color.shaded(0.30 + broad * 0.48 + narrow * 0.25 + grain * 0.12)
+            }
+            Self::GasGiant {
+                seconds,
+                light,
+                eye,
+            } => {
                 let p = point.normalize();
-                let drift = Vec3::new(seconds * 0.012, 0.0, -seconds * 0.009);
-                let flow = noise::noise(p * 3.2 + drift);
-                // Stretch the noise along latitude: long cloud streams, rather than spots.
-                let cloud_point = Vec3::new(p.x * 4.5, p.y * 19.0, p.z * 4.5)
-                    + Vec3::new(flow * 2.0, flow * 3.5, -flow * 1.4)
+                let drift = Vec3::new(seconds * 0.007, 0.0, -seconds * 0.005);
+                let flow = noise::noise(p * 4.2 + drift);
+                let clouds = Vec3::new(p.x * 7.0, p.y * 35.0, p.z * 7.0)
+                    + Vec3::new(flow * 2.0, flow * 2.0, -flow * 1.5)
                     + drift;
-                let streams = noise::noise(cloud_point);
-                let detail = noise::noise(cloud_point * 2.7 + Vec3::new(11.0, 3.0, 7.0));
-                let navy = Vec3::new(8.0, 19.0, 43.0);
-                let blue = Vec3::new(28.0, 56.0, 85.0);
-                let white = Vec3::new(226.0, 236.0, 242.0);
-                let mut palette = navy + (blue - navy) * noise::smoothstep(0.20, 0.80, streams);
-                let cirrus = noise::smoothstep(0.52, 0.81, streams + (detail - 0.5) * 0.24);
-                palette += (Vec3::new(118.0, 146.0, 166.0) - palette) * cirrus * 0.45;
+                let mut storm = 0.0_f32;
+                let mut storm_density = 0.0;
                 for (center, width, height, spin) in [
-                    (Vec3::new(0.25, 0.30, 0.9206), 0.43, 0.24, 1.0),
-                    (Vec3::new(-0.87, -0.26, 0.42), 0.36, 0.20, -1.0),
-                    (Vec3::new(0.50, -0.67, -0.55), 0.38, 0.22, 1.0),
-                    (Vec3::new(-0.44, 0.48, -0.759), 0.42, 0.23, -1.0),
+                    (Vec3::new(0.25, 0.30, 0.9206), 0.38, 0.19, 1.0),
+                    (Vec3::new(-0.87, -0.26, 0.42), 0.26, 0.14, -1.0),
+                    (Vec3::new(0.50, -0.67, -0.55), 0.31, 0.17, 1.0),
+                    (Vec3::new(-0.44, 0.48, -0.759), 0.35, 0.18, -1.0),
                 ] {
                     let center = center.normalize();
                     let delta = p - center;
-                    if delta.norm_squared() > 0.30 {
+                    if delta.norm_squared() > 0.24 {
                         continue;
                     }
                     let right = center.cross(&Vec3::y()).normalize();
@@ -133,24 +140,49 @@ impl SurfaceEffect {
                     let x = delta.dot(&right) / width;
                     let y = delta.dot(&up) / height;
                     let r = (x * x + y * y).sqrt();
-                    let edge = r + (detail - 0.5) * 0.12;
-                    if edge >= 1.0 {
+                    if r >= 1.25 {
                         continue;
                     }
-                    let angle = y.atan2(x);
-                    let spiral = (angle * 2.0 + r * 21.0 - seconds * 0.18 * spin
-                        + (detail - 0.5) * 1.8)
-                        .sin()
-                        * 0.5
-                        + 0.5;
-                    let eye = 1.0 - noise::smoothstep(0.10, 0.24, r);
-                    let envelope = (1.0 - noise::smoothstep(0.66, 1.0, edge))
-                        * noise::smoothstep(0.10, 0.25, r);
-                    palette *= 1.0 - eye * 0.72;
-                    palette += (white - palette) * envelope * (0.50 + spiral * 0.48);
+                    // Twist the sampling coordinates instead of drawing concentric rings.
+                    // The original cloud field forms the spiral and its broken wispy edges.
+                    let envelope = 1.0 - noise::smoothstep(0.10, 1.25, r);
+                    let twist = envelope * (3.8 + flow * 0.8) * spin + seconds * 0.025 * spin;
+                    let (sin, cos) = twist.sin_cos();
+                    let curl = Vec3::new(
+                        (x * cos - y * sin) * 3.2,
+                        (x * sin + y * cos) * 4.5,
+                        13.0 + flow * 0.6,
+                    );
+                    let billows = noise::noise(curl);
+                    let wisps = noise::noise(curl * 3.1 + Vec3::new(7.0, 3.0, 19.0));
+                    if envelope > storm {
+                        storm = envelope;
+                        storm_density = billows * 0.70 + wisps * 0.30;
+                    }
                 }
-                let lighting = (color.r as f32 + color.g as f32 + color.b as f32) / (3.0 * 255.0);
-                let result = palette * (0.20 + lighting * 0.80);
+                let large = noise::noise(clouds);
+                let medium = noise::noise(clouds * 2.13 + Vec3::new(7.0, 13.0, 3.0));
+                let fine = noise::noise(clouds * 5.7 + Vec3::new(17.0, 3.0, 29.0));
+                let background = large * 0.70 + medium * 0.22 + fine * 0.08;
+                // Blend densities, never unrelated coordinate fields: that creates contour rings.
+                let density = background + (storm_density - background) * storm;
+                let navy = Vec3::new(10.0, 25.0, 48.0);
+                let slate = Vec3::new(64.0, 89.0, 111.0);
+                let white = Vec3::new(218.0, 229.0, 235.0);
+                let mut palette = navy + (slate - navy) * noise::smoothstep(0.27, 0.73, density);
+                let cloud_cover =
+                    noise::smoothstep(0.48 - storm * 0.10, 0.72 - storm * 0.08, density);
+                palette += (white - palette) * cloud_cover * (0.28 + storm * 0.72);
+                // Analytic oblate normal gives continuous diffuse lighting, without plastic specular.
+                let normal = Vec3::new(p.x, p.y / (0.93 * 0.93), p.z).normalize();
+                let incidence = normal.dot(&light);
+                let diffuse = noise::smoothstep(-0.08, 0.85, incidence);
+                let limb = (1.0 - normal.dot(&eye).max(0.0)).powi(3);
+                let scatter = Vec3::new(18.0, 39.0, 66.0)
+                    * limb
+                    * noise::smoothstep(-0.18, 0.25, incidence)
+                    * 0.38;
+                let result = palette * (0.07 + diffuse * 0.93) + scatter;
                 Color::new(
                     result.x.clamp(0.0, 255.0) as u8,
                     result.y.clamp(0.0, 255.0) as u8,

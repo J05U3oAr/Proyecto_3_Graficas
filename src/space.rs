@@ -41,7 +41,11 @@ impl Planet {
             "Vespera" => SurfaceEffect::Snow { seconds },
             "Prisma" => SurfaceEffect::Crystal,
             "Nacar" => SurfaceEffect::PackIce { seconds },
-            "Umbriel" => SurfaceEffect::GasGiant { seconds },
+            "Umbriel" => SurfaceEffect::GasGiant {
+                seconds,
+                light: Vec3::new(-0.4, 0.8, 1.0).normalize(),
+                eye: Vec3::z(),
+            },
             "Kepler-186f" => SurfaceEffect::Kepler { seconds },
             "Jovara" => SurfaceEffect::PolarClouds { seconds },
             "Helios II" => SurfaceEffect::Solar { seconds },
@@ -808,6 +812,51 @@ mod tests {
                 .count()
                 > 500
         );
+    }
+
+    #[test]
+    fn umbriel_day_and_night_follow_the_sun_when_the_body_rotates() {
+        let mut space = Space::load().unwrap();
+        space.configure(2);
+        let planet = space
+            .active_planets()
+            .find(|p| p.name == "Umbriel")
+            .unwrap();
+        let mut flight = Flight::new();
+        flight.camera.pitch = 0.0;
+        let view = FlightView::new(&flight, 320, 240);
+        for yaw in [0.0, 1.2] {
+            let render = |sun| {
+                let mut frame = Framebuffer::new(320, 240);
+                renderer::draw_world_model_shaded(
+                    &mut frame,
+                    &planet.model,
+                    &view,
+                    WorldTransform {
+                        position: Vec3::new(0.0, 0.0, -1000.0),
+                        radius: 155.0,
+                        yaw,
+                    },
+                    Some(sun),
+                    planet.surface_effect(0.0),
+                );
+                frame
+                    .pixels
+                    .iter()
+                    .zip(&frame.depth)
+                    .filter(|(_, depth)| depth.is_finite())
+                    .map(|(&p, _)| {
+                        ((p >> 16) & 255) as u64 + ((p >> 8) & 255) as u64 + (p & 255) as u64
+                    })
+                    .sum::<u64>()
+            };
+            let day = render(Vec3::new(0.0, 0.0, 500.0));
+            let night = render(Vec3::new(0.0, 0.0, -2500.0));
+            assert!(
+                day > night * 4,
+                "La rotacion del material no debe mover la iluminacion solar"
+            );
+        }
     }
 
     #[test]

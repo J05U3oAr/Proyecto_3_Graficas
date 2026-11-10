@@ -369,6 +369,20 @@ fn draw_world_with_basis(
         .unwrap_or_else(|| Vec3::new(-0.4, 0.8, 1.0))
         .normalize();
     let half = (light + Vec3::new(0.0, 0.0, 1.0)).normalize();
+    let effect = if let crate::shaders::SurfaceEffect::GasGiant { seconds, .. } = effect {
+        let local_direction = |world: Vec3| {
+            let p = world.normalize();
+            Vec3::new(p.x * cos - p.z * sin, p.y, p.x * sin + p.z * cos)
+        };
+        let world_light = camera.right * light.x + camera.up * light.y - camera.forward * light.z;
+        crate::shaders::SurfaceEffect::GasGiant {
+            seconds,
+            light: local_direction(world_light),
+            eye: local_direction(camera.eye - transform.position),
+        }
+    } else {
+        effect
+    };
     let mut primitives = Vec::with_capacity(model.faces.len());
     let cull_closed = matches!(
         effect,
