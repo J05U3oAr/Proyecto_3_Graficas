@@ -372,10 +372,14 @@ los comandos de acercamiento es `nacar`, sin tilde.
 **Umbriel** es un gigante gaseoso frío de 155 unidades de radio, con una órbita
 de 2,150 unidades alrededor de Asterion. Su atmósfera achatada tiene una base azul marino
 con corrientes de nubes alargadas y cuatro grandes tormentas blancas de alto
-contraste. El shader CPU anima la turbulencia y sus vórtices a partir del tiempo transcurrido, sin modificar la malla
-de colisión.
+contraste. El shader CPU deforma un campo de nubes de tres escalas
+para formar remolinos irregulares, sin dibujar círculos concéntricos. La animación
+usa el tiempo transcurrido y conserva la malla de colisión. La iluminación difusa
+se calcula por fragmento con la normal de la esfera achatada, orientada hacia
+Asterion; el lado nocturno queda oscuro y no hay reflejo especular plástico.
 
-Tres bandas translúcidas de hielo forman sus anillos, inclinados 27 grados.
+Tres bandas translúcidas de hielo forman sus anillos, inclinados 27 grados,
+con estrías radiales finas y variaciones de densidad visual.
 Contienen 96 fragmentos sólidos distribuidos con la semilla **61327**. Los huecos
 permiten atravesarlos y únicamente los fragmentos tienen colisión; las bandas
 visuales no crean paredes invisibles. La transparencia respeta la profundidad de
