@@ -333,6 +333,9 @@ fragmento pequeño, pequeño erosionado, mediano alargado, mediano con cráteres
 gran macizo y grande fracturado. Sus ejes desiguales, deformaciones asimétricas
 y relieve irregular cambian la silueta. Cuatro variantes tienen cráteres hundidos
 en la geometría con bordes elevados; las otras dos son fragmentos sin impactos.
+Los grandes tienen depresiones amplias y poco profundas, bordes bajos y erosión
+suave aplicada en Blender para evitar picos y escalones. El material de su corteza
+es uniforme; el relieve determina las sombras de los cráteres.
 La iluminación es mate y el shader CPU añade granulado sutil sin crear geometría.
 
 `scripts/blender/create_asteroids.py` genera `assets/asteroids/asteroides.blend`,
