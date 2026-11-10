@@ -7,6 +7,7 @@ pub enum SurfaceEffect {
     #[default]
     None,
     Ice,
+    Obsidian,
     Stellar {
         seconds: f32,
     },
@@ -88,6 +89,17 @@ fn polar_flow(uv: Vec2, seconds: f32) -> (Vec2, f32) {
 impl SurfaceEffect {
     pub fn modulate(self, color: Color, point: Vec3) -> Color {
         match self {
+            Self::Obsidian => {
+                let grain = noise::noise(point * 63.0);
+                let frost = noise::smoothstep(
+                    0.64,
+                    0.82,
+                    noise::noise(point * 17.0 + Vec3::new(13.0, 5.0, 29.0)),
+                ) * 0.35;
+                let base = color.shaded(0.9 + grain * 0.18);
+                let mix = |v: u8, ice: f32| (v as f32 * (1.0 - frost) + ice * frost) as u8;
+                Color::new(mix(base.r, 62.0), mix(base.g, 102.0), mix(base.b, 123.0))
+            }
             Self::Stellar { seconds } => {
                 let drift = Vec3::new(seconds * 0.18, -seconds * 0.11, seconds * 0.08);
                 let granules = noise::noise(point * 43.0 + drift);
@@ -147,6 +159,7 @@ impl SurfaceEffect {
     pub fn sample(self, texture: &Texture, uv: Vec2) -> Color {
         match self {
             Self::None => texture.sample(uv),
+            Self::Obsidian => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Stellar { .. } => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Ice => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Kepler { seconds } => {

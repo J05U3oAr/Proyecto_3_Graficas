@@ -37,6 +37,7 @@ impl Planet {
         match self.name {
             "Nivalis" => SurfaceEffect::Ice,
             "Asterion" => SurfaceEffect::Stellar { seconds },
+            "Onice" => SurfaceEffect::Obsidian,
             "Kepler-186f" => SurfaceEffect::Kepler { seconds },
             "Jovara" => SurfaceEffect::PolarClouds { seconds },
             "Helios II" => SurfaceEffect::Solar { seconds },
@@ -81,6 +82,7 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
                 "runtime/metis.obj",
                 "nivalis/nivalis.obj",
                 "asterion/asterion.obj",
+                "onice/onice.obj",
             ];
             paths
                 .iter()
@@ -91,6 +93,11 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
                     } else {
                         Model::load(assets.join(path))?
                     };
+                    if index == 10 {
+                        // The separate rock arches must orbit the geographical origin.
+                        model.center = Vec3::zeros();
+                        model.radius = model.vertices.iter().map(Vec3::norm).fold(0.0, f32::max);
+                    }
                     if index >= 3 {
                         for texture in &mut model.textures {
                             texture.blend_longitude_seam(if index == 3 { 0.035 } else { 0.015 });
@@ -274,6 +281,16 @@ impl Space {
                 is_sun: true,
                 transform: crate::galaxy::planet_transform(2, 8),
                 rotation_speed: 0.009,
+                dust: None,
+            },
+            Planet {
+                active: false,
+                name: "Onice",
+                model: Arc::clone(&models[10]),
+                motion: crate::orbit::Motion::default(),
+                is_sun: false,
+                transform: crate::galaxy::planet_transform(2, 9),
+                rotation_speed: 0.013,
                 dust: None,
             },
         ];
@@ -523,6 +540,71 @@ fn debris_model() -> Model {
 mod tests {
     use super::*;
     #[test]
+    fn onice_orbits_asterion_with_real_craters_and_traversable_rock_arches() {
+        let mut space = Space::load().unwrap();
+        space.configure(2);
+        let planet = space
+            .active_planets()
+            .find(|p| p.name == "Onice")
+            .expect("Falta Onice en Umbria");
+        assert!(planet.model.faces.len() < 30000);
+        assert!(planet.model.vertices.iter().any(|p| p.norm() < 0.9));
+        assert!(planet.model.vertices.iter().any(|p| p.norm() > 1.1));
+        assert!(planet.model.faces.iter().all(|face| !face.unlit));
+        assert!(
+            planet
+                .model
+                .faces
+                .iter()
+                .filter(|face| face.color.r < 40)
+                .count()
+                > planet.model.faces.len() / 2
+        );
+        for seconds in [0.0, 30.0, 190.0, 600.0] {
+            let transform = planet.world_transform(seconds);
+            let sun = space.sun_position(seconds).unwrap();
+            assert!(((transform.position - sun).norm() - 800.0).abs() < 0.002);
+            let hit = space.collisions.move_ship(
+                transform.position + Vec3::z() * 100.0,
+                -Vec3::z() * 80.0,
+                seconds,
+                0.01,
+            );
+            assert!(hit.contacts.iter().any(|hit| hit.planet == "Onice"));
+        }
+        let isolated = CollisionWorld::new(vec![PlanetCollider::new(
+            "Onice",
+            &planet.model,
+            WorldTransform {
+                position: Vec3::zeros(),
+                radius: 72.0,
+                yaw: 0.0,
+            },
+            0.0,
+        )]);
+        let normal = Vec3::new(0.05, 0.18, 1.0).normalize();
+        let tangent = normal.cross(&Vec3::y()).normalize();
+        let other = tangent.cross(&normal).normalize();
+        let right = tangent * 0.35_f32.cos() + other * 0.35_f32.sin();
+        let forward = right.cross(&normal);
+        let scale = 72.0 / planet.model.radius;
+        let travel = forward * (0.36 * scale);
+        let start = (normal - forward * 0.18) * scale;
+        let passage = isolated.move_ship(start, travel, 0.0, 0.1);
+        assert!(
+            passage.contacts.is_empty(),
+            "El hueco del arco debe permitir pasar"
+        );
+        assert!((passage.position - start - travel).norm() < 0.02);
+        let arch = isolated.move_ship(start + normal * (0.12 * scale), travel, 0.0, 0.1);
+        assert!(!arch.contacts.is_empty(), "La boveda debe detener la nave");
+        let impact = isolated.move_ship(normal * 100.0, -normal * 80.0, 0.0, 0.1);
+        assert!(!impact.contacts.is_empty());
+        space.configure(0);
+        assert!(!space.active_planets().any(|p| p.name == "Onice"));
+    }
+
+    #[test]
     fn umbria_has_a_massive_sun_and_nivalis_orbits_its_light_and_collision_world() {
         let mut space = Space::load().unwrap();
         space.configure(2);
@@ -574,7 +656,12 @@ mod tests {
                 )
         );
         let flight = space.new_flight();
-        assert_eq!(flight.navigation_reference().unwrap().name, "Nivalis");
+        let reference = flight.navigation_reference().unwrap();
+        assert!(
+            space
+                .active_planets()
+                .any(|p| !p.is_sun && p.name == reference.name)
+        );
         space.configure(0);
         assert!(!space.active_planets().any(|p| p.name == "Asterion"));
         space.configure(1);
@@ -628,7 +715,7 @@ mod tests {
     }
 
     #[test]
-    fn umbria_departure_is_clear_and_local_flight_follows_nivalis_at_different_frame_rates() {
+    fn umbria_departure_is_clear_and_local_flight_follows_planets_at_different_frame_rates() {
         let mut space = Space::load().unwrap();
         space.configure(2);
         let mut departure = space.new_flight();
@@ -636,9 +723,9 @@ mod tests {
             departure.advance(1.0 / 60.0, (1.0, 0.0), true, false);
             assert!(departure.crash.is_none());
         }
-        let simulate = |fps| {
+        let simulate = |name, fps| {
             let mut flight = space.new_flight();
-            space.approach(&mut flight, "Nivalis").unwrap();
+            space.approach(&mut flight, name).unwrap();
             assert!(flight.toggle_local_navigation());
             let reference = flight.navigation_reference().unwrap();
             let altitude = reference.altitude(flight.position, flight.seconds);
@@ -651,7 +738,9 @@ mod tests {
             }
             flight.position
         };
-        assert!((simulate(10) - simulate(60)).norm() < 0.5);
+        for name in ["Nivalis", "Onice"] {
+            assert!((simulate(name, 10) - simulate(name, 60)).norm() < 0.5);
+        }
     }
 
     #[test]

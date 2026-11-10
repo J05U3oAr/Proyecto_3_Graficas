@@ -90,9 +90,20 @@ pub const NIVALIS: Orbit = Orbit {
     inclination: -0.025,
 };
 
+pub const ONICE: Orbit = Orbit {
+    radius: 800.0,
+    speed: 0.0055 * ORBIT_SPEED_MULTIPLIER,
+    phase: 0.6,
+    inclination: 0.075,
+};
+
 pub fn umbria_motion(body: usize) -> Motion {
     Motion {
-        primary: (body == 3).then_some(NIVALIS),
+        primary: match body {
+            3 => Some(NIVALIS),
+            9 => Some(ONICE),
+            _ => None,
+        },
         satellite: None,
     }
 }
