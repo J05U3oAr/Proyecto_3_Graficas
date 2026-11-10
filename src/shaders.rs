@@ -95,8 +95,13 @@ impl SurfaceEffect {
         match self {
             Self::Crystal => {
                 let grain = noise::noise(point * 37.0);
-                if point.norm() < 1.025 {
-                    return color.shaded(0.92 + grain * 0.08);
+                if point.norm() < 1.045 {
+                    let plates = noise::noise(point * 7.0 + Vec3::new(19.0, 5.0, 31.0));
+                    let fracture = (point.x * 41.0 + point.z * 23.0 + plates * 4.0).sin().abs();
+                    let edge = (1.0 - noise::smoothstep(0.015, 0.06, fracture)) * 0.15;
+                    let base = color.shaded(0.85 + grain * 0.12 + plates * 0.15);
+                    let lift = |v: u8, tint: f32| (v as f32 + edge * tint).min(255.0) as u8;
+                    return Color::new(lift(base.r, 45.0), lift(base.g, 75.0), lift(base.b, 110.0));
                 }
                 let striation = (point.y * 173.0 + grain * 2.0).sin().abs();
                 let glint = noise::smoothstep(0.94, 0.995, striation) * 0.10;
