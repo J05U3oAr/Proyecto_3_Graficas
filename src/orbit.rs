@@ -118,6 +118,13 @@ pub const NACAR: Orbit = Orbit {
     inclination: 0.055,
 };
 
+pub const UMBRIEL: Orbit = Orbit {
+    radius: 2150.0,
+    speed: 0.0013 * ORBIT_SPEED_MULTIPLIER,
+    phase: 0.44,
+    inclination: -0.09,
+};
+
 pub fn umbria_motion(body: usize) -> Motion {
     Motion {
         primary: match body {
@@ -126,6 +133,7 @@ pub fn umbria_motion(body: usize) -> Motion {
             10 => Some(VESPERA),
             11 => Some(PRISMA),
             12 => Some(NACAR),
+            13 => Some(UMBRIEL),
             _ => None,
         },
         satellite: None,
@@ -150,7 +158,15 @@ mod tests {
     use super::*;
     #[test]
     fn umbria_is_compact_spread_around_departure_and_keeps_clear_flight_gaps() {
-        let bodies = [(9, 72.0), (3, 65.0), (10, 84.0), (11, 78.0), (12, 96.0)];
+        // Umbriel includes the complete ring field in the clearance calculation.
+        let bodies = [
+            (9, 72.0),
+            (3, 65.0),
+            (10, 84.0),
+            (11, 78.0),
+            (12, 96.0),
+            (13, 275.0),
+        ];
         let spawn = crate::flight::SPAWN_POSITION;
         let center = crate::galaxy::UMBRIA_CENTER;
         let mut front = 0;
@@ -159,7 +175,7 @@ mod tests {
         for &(body, radius) in &bodies {
             let orbit = umbria_motion(body).primary.unwrap();
             assert!(
-                orbit.radius <= 1750.0,
+                orbit.radius <= 2200.0,
                 "Las orbitas deben permitir recorridos cortos"
             );
             assert!(orbit.radius - radius - crate::galaxy::ASTERION_RADIUS > 150.0);

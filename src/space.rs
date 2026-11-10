@@ -41,6 +41,7 @@ impl Planet {
             "Vespera" => SurfaceEffect::Snow { seconds },
             "Prisma" => SurfaceEffect::Crystal,
             "Nacar" => SurfaceEffect::PackIce { seconds },
+            "Umbriel" => SurfaceEffect::GasGiant { seconds },
             "Kepler-186f" => SurfaceEffect::Kepler { seconds },
             "Jovara" => SurfaceEffect::PolarClouds { seconds },
             "Helios II" => SurfaceEffect::Solar { seconds },
@@ -89,6 +90,8 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
                 "vespera/vespera.obj",
                 "prisma/prisma.obj",
                 "nacar/nacar.obj",
+                "umbriel/umbriel.obj",
+                "umbriel/anillos.obj",
             ];
             paths
                 .iter()
@@ -99,7 +102,7 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
                     } else {
                         Model::load(assets.join(path))?
                     };
-                    if matches!(index, 10..=13) {
+                    if matches!(index, 10..=15) {
                         // Asymmetric terrain must rotate around its geographical origin.
                         model.center = Vec3::zeros();
                         model.radius = model.vertices.iter().map(Vec3::norm).fold(0.0, f32::max);
@@ -124,7 +127,7 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
 fn opacity_layer(model: &Model, transparent: bool) -> Model {
     debug_assert!(
         model.textures.is_empty(),
-        "Las capas de Prisma usan materiales sin texturas"
+        "Las capas de opacidad usan materiales sin texturas"
     );
     Model {
         vertices: model.vertices.clone(),
@@ -138,6 +141,13 @@ fn opacity_layer(model: &Model, transparent: bool) -> Model {
         radius: model.radius,
         textures: Vec::new(),
     }
+}
+
+fn ring_transform(planet: &Planet, model: &Model, seconds: f32) -> WorldTransform {
+    let mut transform = planet.world_transform(seconds);
+    transform.yaw = planet.transform.yaw;
+    transform.radius *= model.radius / planet.model.radius;
+    transform
 }
 
 fn draw_solar_halo(fb: &mut Framebuffer, view: &FlightView, transform: WorldTransform, tint: u32) {
@@ -177,6 +187,9 @@ pub struct Space {
     boreal: Arc<Model>,
     prisma_opaque: Model,
     prisma_glass: Model,
+    umbriel_rings: Arc<Model>,
+    umbriel_rings_opaque: Model,
+    umbriel_rings_glass: Model,
 }
 
 impl Space {
@@ -350,6 +363,16 @@ impl Space {
                 rotation_speed: 0.008,
                 dust: None,
             },
+            Planet {
+                active: false,
+                name: "Umbriel",
+                model: Arc::clone(&models[14]),
+                motion: crate::orbit::Motion::default(),
+                is_sun: false,
+                transform: crate::galaxy::planet_transform(2, 13),
+                rotation_speed: 0.016,
+                dust: None,
+            },
         ];
         let collisions = Arc::new(CollisionWorld::new(
             planets
@@ -371,6 +394,9 @@ impl Space {
             boreal: Arc::clone(&models[3]),
             prisma_opaque: opacity_layer(&models[12], false),
             prisma_glass: opacity_layer(&models[12], true),
+            umbriel_rings: Arc::clone(&models[15]),
+            umbriel_rings_opaque: opacity_layer(&models[15], false),
+            umbriel_rings_glass: opacity_layer(&models[15], true),
         })
     }
 
@@ -396,14 +422,25 @@ impl Space {
                 crate::orbit::Motion::default()
             };
         }
-        self.collisions = Arc::new(CollisionWorld::new(
-            self.active_planets()
-                .map(|p| {
-                    PlanetCollider::new(p.name, &p.model, p.transform, p.rotation_speed)
-                        .with_motion(p.motion)
-                })
-                .collect(),
-        ));
+        let mut colliders: Vec<_> = self
+            .active_planets()
+            .map(|p| {
+                PlanetCollider::new(p.name, &p.model, p.transform, p.rotation_speed)
+                    .with_motion(p.motion)
+            })
+            .collect();
+        if let Some(planet) = self.active_planets().find(|p| p.name == "Umbriel") {
+            colliders.push(
+                PlanetCollider::new_opaque(
+                    "Anillos de Umbriel",
+                    &self.umbriel_rings,
+                    ring_transform(planet, &self.umbriel_rings, 0.0),
+                    0.0,
+                )
+                .with_motion(planet.motion),
+            );
+        }
+        self.collisions = Arc::new(CollisionWorld::new(colliders));
         let mut seed = galaxy.seed;
         let mut next = || {
             seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
@@ -503,6 +540,9 @@ impl Space {
                 self.sun_position(seconds),
                 planet.surface_effect(seconds),
             );
+            if planet.name == "Umbriel" {
+                self.draw_rings(fb, view, planet, seconds, false);
+            }
         }
         for sun in self.active_planets().filter(|planet| planet.is_sun) {
             draw_solar_halo(fb, &view, sun.world_transform(seconds), sun.halo_color());
@@ -527,8 +567,13 @@ impl Space {
         flight.camera.pitch = 0.0;
         let transform = planet.world_transform(seconds);
         let target_radius = fb.width.min(fb.height) as f32 * 0.40;
-        let distance = planet.transform.radius
-            * (1.0 + (renderer::FLIGHT_FOCAL / target_radius).powi(2)).sqrt();
+        let framing_radius = if planet.name == "Umbriel" {
+            ring_transform(planet, &self.umbriel_rings, seconds).radius
+        } else {
+            planet.transform.radius
+        };
+        let distance =
+            framing_radius * (1.0 + (renderer::FLIGHT_FOCAL / target_radius).powi(2)).sqrt();
         flight.position = transform.position + Vec3::new(0.0, -1.6, distance - 8.0);
         fb.clear();
         fb.pixels.fill(0x03060c);
@@ -544,7 +589,34 @@ impl Space {
         if planet.is_sun {
             draw_solar_halo(fb, &view, transform, planet.halo_color());
         }
+        if planet.name == "Umbriel" {
+            self.draw_rings(fb, &view, planet, seconds, false);
+            self.draw_rings(fb, &view, planet, seconds, true);
+        }
         Ok(())
+    }
+
+    fn draw_rings(
+        &self,
+        fb: &mut Framebuffer,
+        view: &FlightView,
+        planet: &Planet,
+        seconds: f32,
+        glass: bool,
+    ) {
+        let model = if glass {
+            &self.umbriel_rings_glass
+        } else {
+            &self.umbriel_rings_opaque
+        };
+        renderer::draw_world_model_shaded(
+            fb,
+            model,
+            view,
+            ring_transform(planet, model, seconds),
+            self.sun_position(seconds),
+            crate::shaders::SurfaceEffect::RingIce,
+        );
     }
 
     pub fn draw_atmospheres(&self, fb: &mut Framebuffer, flight: &Flight, seconds: f32) {
@@ -554,6 +626,9 @@ impl Space {
 
     pub fn draw_atmospheres_view(&self, fb: &mut Framebuffer, view: &FlightView, seconds: f32) {
         for planet in self.active_planets() {
+            if planet.name == "Umbriel" {
+                self.draw_rings(fb, view, planet, seconds, true);
+            }
             if planet.name == "Prisma" {
                 // All opaque planets and the ship establish depth before the glass pass.
                 renderer::draw_world_model_shaded(
@@ -614,6 +689,168 @@ fn debris_model() -> Model {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn umbriel_ring_gaps_are_open_but_ice_fragments_collide_and_follow_the_orbit() {
+        let mut space = Space::load().unwrap();
+        space.configure(2);
+        let planet = space
+            .active_planets()
+            .find(|p| p.name == "Umbriel")
+            .unwrap();
+        let model = &space.umbriel_rings;
+        let scale = planet.transform.radius / planet.model.radius;
+        assert!(model.faces.iter().any(|f| f.opacity < 1.0));
+        assert!(model.faces.iter().any(|f| f.opacity == 1.0));
+        let transform = WorldTransform {
+            position: Vec3::zeros(),
+            radius: model.radius * scale,
+            yaw: 0.0,
+        };
+        assert!(transform.radius < 275.0);
+        let fragments = CollisionWorld::new(vec![PlanetCollider::new_opaque(
+            "Hielo", model, transform, 0.0,
+        )]);
+        let all = CollisionWorld::new(vec![PlanetCollider::new(
+            "Banda visual",
+            model,
+            transform,
+            0.0,
+        )]);
+        let tilt = 27_f32.to_radians();
+        let normal = Vec3::new(0.0, tilt.cos(), tilt.sin());
+        let gap = Vec3::x() * (1.56 * scale);
+        assert!(
+            fragments
+                .move_ship(gap + normal * 12.0, -normal * 24.0, 0.0, 0.1)
+                .contacts
+                .is_empty()
+        );
+        let can_cross_band = (0..24).any(|i| {
+            let angle = i as f32 * std::f32::consts::TAU / 24.0;
+            let p = Vec3::new(
+                angle.cos(),
+                -angle.sin() * tilt.sin(),
+                angle.sin() * tilt.cos(),
+            ) * (1.45 * scale);
+            let start = p + normal * 12.0;
+            fragments
+                .move_ship(start, -normal * 24.0, 0.0, 0.1)
+                .contacts
+                .is_empty()
+                && !all
+                    .move_ship(start, -normal * 24.0, 0.0, 0.1)
+                    .contacts
+                    .is_empty()
+        });
+        assert!(
+            can_cross_band,
+            "Las bandas transparentes no deben actuar como paredes invisibles"
+        );
+        let face = model.faces.iter().find(|f| f.opacity == 1.0).unwrap();
+        let [a, b, c] = face.indices.map(|i| model.vertices[i] * scale);
+        let center = (a + b + c) / 3.0;
+        let outward = (b - a).cross(&(c - a)).normalize();
+        for seconds in [0.0, 80.0] {
+            let position = planet.world_transform(seconds).position;
+            let hit = space.collisions.move_ship(
+                position + center + outward * (crate::collision::SHIP_RADIUS + 1.0),
+                -outward * 2.0,
+                seconds,
+                0.01,
+            );
+            assert!(
+                hit.contacts
+                    .iter()
+                    .any(|c| c.planet == "Anillos de Umbriel")
+            );
+        }
+    }
+
+    #[test]
+    fn umbriel_storms_animate_without_changing_geometry_or_foreground_depth() {
+        let mut space = Space::load().unwrap();
+        space.configure(2);
+        let planet = space
+            .active_planets()
+            .find(|p| p.name == "Umbriel")
+            .unwrap();
+        let mut flight = Flight::new();
+        flight.camera.pitch = 0.0;
+        let view = FlightView::new(&flight, 320, 240);
+        let transform = WorldTransform {
+            position: Vec3::new(0.0, 0.0, -1000.0),
+            radius: 155.0,
+            yaw: 0.0,
+        };
+        let render = |seconds| {
+            let mut frame = Framebuffer::new(320, 240);
+            frame.point(160, 120, 2.0, 0xff00ff, true);
+            renderer::draw_world_model_shaded(
+                &mut frame,
+                &planet.model,
+                &view,
+                transform,
+                Some(Vec3::new(0.0, 300.0, 500.0)),
+                planet.surface_effect(seconds),
+            );
+            frame
+        };
+        let before = render(0.0);
+        let after = render(4.0);
+        assert_eq!(before.depth, after.depth);
+        assert_eq!(after.pixels[120 * 320 + 160], 0xff00ff);
+        assert!(
+            before
+                .pixels
+                .iter()
+                .zip(&after.pixels)
+                .filter(|(a, b)| a != b)
+                .count()
+                > 500
+        );
+    }
+
+    #[test]
+    fn umbriel_is_a_large_orbiting_giant_without_affecting_other_galaxies() {
+        let mut space = Space::load().unwrap();
+        space.configure(2);
+        let planet = space
+            .active_planets()
+            .find(|p| p.name == "Umbriel")
+            .expect("Falta Umbriel");
+        assert!(planet.transform.radius >= 150.0);
+        assert!(
+            planet.model.radius < 1.01,
+            "Los anillos no deben reducir el tamano del cuerpo"
+        );
+        assert!(planet.model.faces.len() < 12000);
+        assert!(
+            planet
+                .model
+                .faces
+                .iter()
+                .all(|f| f.opacity == 1.0 && !f.unlit)
+        );
+        for seconds in [0.0, 40.0, 190.0, 600.0] {
+            let transform = planet.world_transform(seconds);
+            assert!(
+                ((transform.position - space.sun_position(seconds).unwrap()).norm() - 2150.0).abs()
+                    < 0.003
+            );
+            let hit = space.collisions.move_ship(
+                transform.position + Vec3::z() * 185.0,
+                -Vec3::z() * 65.0,
+                seconds,
+                0.01,
+            );
+            assert!(hit.contacts.iter().any(|c| c.planet == "Umbriel"));
+        }
+        space.configure(0);
+        assert!(!space.active_planets().any(|p| p.name == "Umbriel"));
+        space.configure(1);
+        assert!(!space.active_planets().any(|p| p.name == "Umbriel"));
+    }
+
     #[test]
     fn nacar_has_fractured_ice_raised_icebergs_and_collisions_in_its_own_orbit() {
         let mut space = Space::load().unwrap();
@@ -1140,7 +1377,7 @@ mod tests {
             }
             flight.position
         };
-        for name in ["Nivalis", "Onice", "Vespera", "Prisma", "Nacar"] {
+        for name in ["Nivalis", "Onice", "Vespera", "Prisma", "Nacar", "Umbriel"] {
             assert!((simulate(name, 10) - simulate(name, 60)).norm() < 0.5);
         }
     }

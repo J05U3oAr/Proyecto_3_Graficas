@@ -9,6 +9,10 @@ pub enum SurfaceEffect {
     Ice,
     Obsidian,
     Crystal,
+    GasGiant {
+        seconds: f32,
+    },
+    RingIce,
     PackIce {
         seconds: f32,
     },
@@ -96,6 +100,63 @@ fn polar_flow(uv: Vec2, seconds: f32) -> (Vec2, f32) {
 impl SurfaceEffect {
     pub fn modulate(self, color: Color, point: Vec3) -> Color {
         match self {
+            Self::RingIce => color.shaded(0.94 + noise::noise(point * 113.0) * 0.12),
+            Self::GasGiant { seconds } => {
+                let p = point.normalize();
+                let drift = Vec3::new(seconds * 0.012, 0.0, -seconds * 0.009);
+                let flow = noise::noise(p * 3.2 + drift);
+                // Stretch the noise along latitude: long cloud streams, rather than spots.
+                let cloud_point = Vec3::new(p.x * 4.5, p.y * 19.0, p.z * 4.5)
+                    + Vec3::new(flow * 2.0, flow * 3.5, -flow * 1.4)
+                    + drift;
+                let streams = noise::noise(cloud_point);
+                let detail = noise::noise(cloud_point * 2.7 + Vec3::new(11.0, 3.0, 7.0));
+                let navy = Vec3::new(8.0, 19.0, 43.0);
+                let blue = Vec3::new(28.0, 56.0, 85.0);
+                let white = Vec3::new(226.0, 236.0, 242.0);
+                let mut palette = navy + (blue - navy) * noise::smoothstep(0.20, 0.80, streams);
+                let cirrus = noise::smoothstep(0.52, 0.81, streams + (detail - 0.5) * 0.24);
+                palette += (Vec3::new(118.0, 146.0, 166.0) - palette) * cirrus * 0.45;
+                for (center, width, height, spin) in [
+                    (Vec3::new(0.25, 0.30, 0.9206), 0.43, 0.24, 1.0),
+                    (Vec3::new(-0.87, -0.26, 0.42), 0.36, 0.20, -1.0),
+                    (Vec3::new(0.50, -0.67, -0.55), 0.38, 0.22, 1.0),
+                    (Vec3::new(-0.44, 0.48, -0.759), 0.42, 0.23, -1.0),
+                ] {
+                    let center = center.normalize();
+                    let delta = p - center;
+                    if delta.norm_squared() > 0.30 {
+                        continue;
+                    }
+                    let right = center.cross(&Vec3::y()).normalize();
+                    let up = right.cross(&center).normalize();
+                    let x = delta.dot(&right) / width;
+                    let y = delta.dot(&up) / height;
+                    let r = (x * x + y * y).sqrt();
+                    let edge = r + (detail - 0.5) * 0.12;
+                    if edge >= 1.0 {
+                        continue;
+                    }
+                    let angle = y.atan2(x);
+                    let spiral = (angle * 2.0 + r * 21.0 - seconds * 0.18 * spin
+                        + (detail - 0.5) * 1.8)
+                        .sin()
+                        * 0.5
+                        + 0.5;
+                    let eye = 1.0 - noise::smoothstep(0.10, 0.24, r);
+                    let envelope = (1.0 - noise::smoothstep(0.66, 1.0, edge))
+                        * noise::smoothstep(0.10, 0.25, r);
+                    palette *= 1.0 - eye * 0.72;
+                    palette += (white - palette) * envelope * (0.50 + spiral * 0.48);
+                }
+                let lighting = (color.r as f32 + color.g as f32 + color.b as f32) / (3.0 * 255.0);
+                let result = palette * (0.20 + lighting * 0.80);
+                Color::new(
+                    result.x.clamp(0.0, 255.0) as u8,
+                    result.y.clamp(0.0, 255.0) as u8,
+                    result.z.clamp(0.0, 255.0) as u8,
+                )
+            }
             Self::PackIce { seconds } => {
                 let grain = noise::noise(point * 83.0);
                 if color.r < 80 && color.b as f32 > color.r as f32 * 1.65 {
@@ -217,6 +278,9 @@ impl SurfaceEffect {
     pub fn sample(self, texture: &Texture, uv: Vec2) -> Color {
         match self {
             Self::None => texture.sample(uv),
+            Self::GasGiant { .. } | Self::RingIce => {
+                self.modulate(texture.sample(uv), sphere_direction(uv).0)
+            }
             Self::PackIce { .. } => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Crystal => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Snow { .. } => self.modulate(texture.sample(uv), sphere_direction(uv).0),

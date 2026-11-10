@@ -301,9 +301,12 @@ pub fn galaxies(ui: &Ui, fb: &mut Framebuffer, ship: &Ship, view: &GalaxyView) {
                 4 => "Helios II (sol)",
                 7 => "Metis (luna de Kepler)",
                 8 => "Asterion (sol)",
+                13 => "Umbriel (gigante anillado)",
                 _ => crate::galaxy::BODY_NAMES[planet],
             };
-            ui.fonts.text(fb, 16, 942, 582 + i as i32 * 20, name, TEXT);
+            let spacing = if selected.planets.len() > 6 { 18 } else { 20 };
+            ui.fonts
+                .text(fb, 16, 942, 582 + i as i32 * spacing, name, TEXT);
         }
         button(ui, fb, "VIAJAR", selected.accent, view.hover_button);
     }
