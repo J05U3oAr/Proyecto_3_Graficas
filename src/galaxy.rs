@@ -82,7 +82,7 @@ pub const GALAXIES: [Galaxy; 3] = [
         subtitle: "SISTEMA DE ASTERION",
         description: [
             "Asterion domina la frontera helada.",
-            "Crateres, glaciares y nieve violeta",
+            "Crateres, glaciares y nieve eterna",
             "bajo el sol blanco azulado.",
         ],
         planets: &[8, 9, 3, 10],

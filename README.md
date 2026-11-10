@@ -59,7 +59,7 @@ Las galaxias del mapa tienen ilustraciones procedurales diferentes: Aurora es un
 | --- | --- | --- |
 | Aurora | Siroco, Oquedad, Jovara y Boreal | Campo estelar y tormenta de arena; distribución original |
 | Hélice | Siroco y Jovara | Fondo cálido y 42 asteroides decorativos |
-| Umbría | Asterion, Ónice, Nivalis y Véspera | Sol blanco azulado masivo, mundos de roca, hielo y nieve lavanda en órbita |
+| Umbría | Asterion, Ónice, Nivalis y Véspera | Sol blanco azulado masivo, mundos de roca, hielo y nieve fría en órbita |
 
 Los asteroides se generan con una semilla fija por región y no tienen colisión. El agujero negro está presente en los tres destinos. Las mallas y texturas de los planetas se cargan una sola vez; al confirmar otro destino se actualizan las transformaciones y se reconstruyen sus colisiones antes del despegue. El acercamiento a un planeta conserva la misma escena de vuelo.
 
@@ -298,19 +298,23 @@ los arcos como objetos separados. Para regenerar el `.blend`, OBJ y MTL, ejecuta
 `scripts/blender/create_onice.py` con Blender. No necesita texturas de imagen.
 El juego y los comandos de acercamiento usan el nombre `onice` sin tilde.
 
-**Véspera** es un desierto de nieve lavanda, con siete mesetas aisladas, cinco
+**Véspera** es un desierto de nieve gris azulada, con siete mesetas aisladas, cinco
 cauces de cañones curvos y cuatro campos de dunas. Su relieve y sus paredes
 forman parte de la malla de colisión. Orbita Asterion a 1,900 unidades, con un
 radio de 84 unidades. La malla tiene 25,280 triángulos y conserva estratos
-violeta oscuro en los cañones y escarcha clara en las cimas.
+de pizarra oscura en los cañones y escarcha casi blanca en las cimas. Las dunas
+tienen crestas de viento asimétricas y el shader añade granulado de nieve compacta.
 
 `scripts/blender/create_vespera.py` genera el modelo editable en
 `assets/planets/vespera/vespera.blend` y exporta su OBJ y MTL. En Blender hay
 grupos de vértices para seleccionar las mesetas y los cañones. El shader CPU
-añade granulado y ondulaciones de nieve; una ventisca de 1,600 partículas
-lavanda se mezcla con transparencia y respeta la profundidad de la nave y del
+añade granulado de nieve; una ventisca de 3,600 partículas
+blancas y azul grisáceo se mezcla con transparencia y respeta la profundidad de la nave y del
 terreno. La animación usa el tiempo transcurrido y no desplaza la geometría.
 El nombre del planeta para los comandos de acercamiento es `vespera`.
+Durante el acercamiento, los copos conservan un tamaño mínimo legible en
+pantalla. Su contraste se verifica sobre el terreno real, además de comprobar
+la transparencia y la oclusión de la nave.
 
 En **Umbría**, Nivalis ocupa el lugar de Boreal y presenta una superficie sólida
 de nieve, macizos glaciares irregulares y un lago congelado. Su modelo se genera
