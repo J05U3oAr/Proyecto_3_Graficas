@@ -374,6 +374,7 @@ fn draw_world_with_basis(
         effect,
         crate::shaders::SurfaceEffect::Kepler { .. }
             | crate::shaders::SurfaceEffect::Solar { .. }
+            | crate::shaders::SurfaceEffect::Stellar { .. }
             | crate::shaders::SurfaceEffect::Lava { .. }
     ) && camera.view_point(transform.position).norm_squared()
         > transform.radius * transform.radius;
@@ -423,12 +424,17 @@ fn draw_world_with_basis(
             }
             continue;
         }
-        let Some(color) = lit_color(
-            (b - a).cross(&(c - a)),
-            finish.unwrap_or(face.color),
-            &light,
-            &half,
-        ) else {
+        let color = if face.unlit {
+            Some(finish.unwrap_or(face.color))
+        } else {
+            lit_color(
+                (b - a).cross(&(c - a)),
+                finish.unwrap_or(face.color),
+                &light,
+                &half,
+            )
+        };
+        let Some(color) = color else {
             continue;
         };
         let (polygon, count) = camera.clip_triangle([a, b, c].map(|point| ClipVertex {
@@ -449,7 +455,9 @@ fn draw_world_with_basis(
             let projected = points.map(project);
             let surface = if matches!(
                 effect,
-                crate::shaders::SurfaceEffect::Rock { .. } | crate::shaders::SurfaceEffect::Ice
+                crate::shaders::SurfaceEffect::Rock { .. }
+                    | crate::shaders::SurfaceEffect::Ice
+                    | crate::shaders::SurfaceEffect::Stellar { .. }
             ) {
                 let local = points.map(|point| {
                     let world = camera.eye + camera.right * point.x + camera.up * point.y

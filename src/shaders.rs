@@ -7,6 +7,9 @@ pub enum SurfaceEffect {
     #[default]
     None,
     Ice,
+    Stellar {
+        seconds: f32,
+    },
     Kepler {
         seconds: f32,
     },
@@ -85,6 +88,17 @@ fn polar_flow(uv: Vec2, seconds: f32) -> (Vec2, f32) {
 impl SurfaceEffect {
     pub fn modulate(self, color: Color, point: Vec3) -> Color {
         match self {
+            Self::Stellar { seconds } => {
+                let drift = Vec3::new(seconds * 0.18, -seconds * 0.11, seconds * 0.08);
+                let granules = noise::noise(point * 43.0 + drift);
+                let cells = noise::noise(point * 9.0 - drift * 0.7);
+                let heat = noise::smoothstep(0.23, 0.78, granules * 0.65 + cells * 0.35);
+                Color::new(
+                    (145.0 + 110.0 * heat) as u8,
+                    (188.0 + 67.0 * heat) as u8,
+                    255,
+                )
+            }
             Self::Ice => {
                 let grain = noise::noise(point * 95.0);
                 if (point.normalize() - crate::ice_planet::lake_axis()).norm() < 0.35 {
@@ -133,6 +147,7 @@ impl SurfaceEffect {
     pub fn sample(self, texture: &Texture, uv: Vec2) -> Color {
         match self {
             Self::None => texture.sample(uv),
+            Self::Stellar { .. } => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Ice => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Kepler { seconds } => {
                 let (coordinates, intensity) = kepler_flow(uv, seconds);

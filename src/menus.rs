@@ -288,6 +288,8 @@ pub fn galaxies(ui: &Ui, fb: &mut Framebuffer, ship: &Ship, view: &GalaxyView) {
             560,
             if view.selected == 1 {
                 "SOL, PLANETAS Y LUNA"
+            } else if view.selected == 2 {
+                "SOL Y MUNDOS HELADOS"
             } else {
                 "MUNDOS POR EXPLORAR"
             },
@@ -295,8 +297,10 @@ pub fn galaxies(ui: &Ui, fb: &mut Framebuffer, ship: &Ship, view: &GalaxyView) {
         );
         for (i, &planet) in selected.planets.iter().enumerate() {
             let name = match planet {
+                3 if view.selected == 2 => "Nivalis",
                 4 => "Helios II (sol)",
                 7 => "Metis (luna de Kepler)",
+                8 => "Asterion (sol)",
                 _ => crate::galaxy::BODY_NAMES[planet],
             };
             ui.fonts.text(fb, 16, 942, 582 + i as i32 * 20, name, TEXT);

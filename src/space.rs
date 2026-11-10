@@ -25,10 +25,18 @@ pub struct Planet {
 }
 
 impl Planet {
+    fn halo_color(&self) -> u32 {
+        if self.name == "Asterion" {
+            0x87bbff
+        } else {
+            0xff9d39
+        }
+    }
     pub fn surface_effect(&self, seconds: f32) -> crate::shaders::SurfaceEffect {
         use crate::shaders::SurfaceEffect;
         match self.name {
             "Nivalis" => SurfaceEffect::Ice,
+            "Asterion" => SurfaceEffect::Stellar { seconds },
             "Kepler-186f" => SurfaceEffect::Kepler { seconds },
             "Jovara" => SurfaceEffect::PolarClouds { seconds },
             "Helios II" => SurfaceEffect::Solar { seconds },
@@ -72,6 +80,7 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
                 "runtime/kepler-186f.obj",
                 "runtime/metis.obj",
                 "nivalis/nivalis.obj",
+                "asterion/asterion.obj",
             ];
             paths
                 .iter()
@@ -99,7 +108,7 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
     }
 }
 
-fn draw_solar_halo(fb: &mut Framebuffer, view: &FlightView, transform: WorldTransform) {
+fn draw_solar_halo(fb: &mut Framebuffer, view: &FlightView, transform: WorldTransform, tint: u32) {
     let Some(center) = view.project(transform.position) else {
         return;
     };
@@ -121,7 +130,7 @@ fn draw_solar_halo(fb: &mut Framebuffer, view: &FlightView, transform: WorldTran
         .sqrt();
         let strength = (-((distance - 1.0) / 0.25).powi(2)).exp() * 0.4;
         if distance > 0.9 && distance < 1.8 {
-            *pixel = crate::framebuffer::emission_color(*pixel, 0xff9d39, strength, 0.0);
+            *pixel = crate::framebuffer::emission_color(*pixel, tint, strength, 0.0);
         }
     });
 }
@@ -257,6 +266,16 @@ impl Space {
                 rotation_speed: 0.024,
                 dust: None,
             },
+            Planet {
+                active: false,
+                name: "Asterion",
+                model: Arc::clone(&models[9]),
+                motion: crate::orbit::Motion::default(),
+                is_sun: true,
+                transform: crate::galaxy::planet_transform(2, 8),
+                rotation_speed: 0.009,
+                dust: None,
+            },
         ];
         let collisions = Arc::new(CollisionWorld::new(
             planets
@@ -295,6 +314,8 @@ impl Space {
             planet.transform = crate::galaxy::planet_transform(index, planet_index);
             planet.motion = if index == 1 {
                 crate::orbit::aurora_motion(planet_index)
+            } else if index == 2 {
+                crate::orbit::umbria_motion(planet_index)
             } else {
                 crate::orbit::Motion::default()
             };
@@ -317,18 +338,24 @@ impl Space {
                 let angle = next() * std::f32::consts::TAU;
                 let distance = if index == 1 {
                     860.0 + next() * 40.0
+                } else if index == 2 {
+                    950.0 + next() * 110.0
                 } else {
                     82.0 + next() * 72.0
                 };
                 WorldTransform {
-                    position: Vec3::new(
+                    position: (if index == 2 {
+                        crate::galaxy::UMBRIA_CENTER
+                    } else {
+                        Vec3::zeros()
+                    }) + Vec3::new(
                         angle.cos() * distance,
                         if index == 1 {
                             -15.0 + next() * 30.0
                         } else {
                             -43.0 + next() * 18.0
                         },
-                        if index == 1 {
+                        if index == 1 || index == 2 {
                             angle.sin() * distance
                         } else {
                             -200.0 + angle.sin() * distance
@@ -397,7 +424,7 @@ impl Space {
             );
         }
         for sun in self.active_planets().filter(|planet| planet.is_sun) {
-            draw_solar_halo(fb, &view, sun.world_transform(seconds));
+            draw_solar_halo(fb, &view, sun.world_transform(seconds), sun.halo_color());
         }
         for &transform in &self.debris {
             renderer::draw_world_model(fb, &self.debris_model, &view, transform);
@@ -434,7 +461,7 @@ impl Space {
             planet.surface_effect(seconds),
         );
         if planet.is_sun {
-            draw_solar_halo(fb, &view, transform);
+            draw_solar_halo(fb, &view, transform, planet.halo_color());
         }
         Ok(())
     }
@@ -495,6 +522,138 @@ fn debris_model() -> Model {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn umbria_has_a_massive_sun_and_nivalis_orbits_its_light_and_collision_world() {
+        let mut space = Space::load().unwrap();
+        space.configure(2);
+        let sun = space
+            .active_planets()
+            .find(|p| p.is_sun)
+            .expect("Umbria necesita su sol");
+        let nivalis = space
+            .active_planets()
+            .find(|p| p.name == "Nivalis")
+            .unwrap();
+        assert_eq!(sun.name, "Asterion");
+        assert!(sun.transform.radius >= 360.0);
+        assert!(sun.transform.radius > nivalis.transform.radius * 5.0);
+        assert!(sun.model.faces.iter().all(|face| face.unlit));
+        for time in [0.0, 40.0, 190.0, 600.0] {
+            let star = sun.world_transform(time);
+            let planet = nivalis.world_transform(time);
+            assert!(((planet.position - star.position).norm() - 1400.0).abs() < 0.002);
+            assert_eq!(space.solar_lighting(time).unwrap().position, star.position);
+            let hit = space.collisions.move_ship(
+                planet.position + Vec3::z() * 90.0,
+                -Vec3::z() * 60.0,
+                time,
+                0.01,
+            );
+            assert!(
+                hit.contacts
+                    .iter()
+                    .any(|contact| contact.planet == "Nivalis")
+            );
+        }
+        assert!(
+            (nivalis.world_transform(100.0).position - nivalis.world_transform(0.0).position)
+                .norm()
+                > 400.0
+        );
+        assert!(
+            (crate::flight::SPAWN_POSITION - sun.transform.position).norm()
+                > sun.transform.radius + 100.0
+        );
+        assert!(
+            space
+                .debris
+                .iter()
+                .all(
+                    |rock| (rock.position - sun.transform.position).norm() - rock.radius
+                        > sun.transform.radius + 100.0
+                )
+        );
+        let flight = space.new_flight();
+        assert_eq!(flight.navigation_reference().unwrap().name, "Nivalis");
+        space.configure(0);
+        assert!(!space.active_planets().any(|p| p.name == "Asterion"));
+        space.configure(1);
+        assert_eq!(
+            space.active_planets().find(|p| p.is_sun).unwrap().name,
+            "Helios II"
+        );
+    }
+
+    #[test]
+    fn asterion_plasma_animates_emits_its_own_light_and_keeps_depth() {
+        let mut space = Space::load().unwrap();
+        space.configure(2);
+        let star = space.active_planets().find(|p| p.is_sun).unwrap();
+        let mut flight = Flight::new();
+        flight.camera.pitch = 0.0;
+        let view = FlightView::new(&flight, 256, 192);
+        let transform = WorldTransform {
+            position: Vec3::new(0.0, 0.0, -1200.0),
+            radius: 360.0,
+            yaw: 0.0,
+        };
+        let render = |seconds, light| {
+            let mut fb = Framebuffer::new(256, 192);
+            fb.point(128, 96, 2.0, 0xff00ff, true);
+            renderer::draw_world_model_shaded(
+                &mut fb,
+                &star.model,
+                &view,
+                transform,
+                Some(light),
+                star.surface_effect(seconds),
+            );
+            fb
+        };
+        let first = render(0.0, Vec3::new(3000.0, 0.0, 0.0));
+        let opposite_light = render(0.0, Vec3::new(-3000.0, 0.0, 0.0));
+        let later = render(4.0, Vec3::new(3000.0, 0.0, 0.0));
+        assert_eq!(first.pixels, opposite_light.pixels);
+        assert_eq!(first.depth, later.depth);
+        assert_eq!(later.pixels[96 * 256 + 128], 0xff00ff);
+        assert!(
+            first
+                .pixels
+                .iter()
+                .zip(&later.pixels)
+                .filter(|(a, b)| a != b)
+                .count()
+                > 1000
+        );
+    }
+
+    #[test]
+    fn umbria_departure_is_clear_and_local_flight_follows_nivalis_at_different_frame_rates() {
+        let mut space = Space::load().unwrap();
+        space.configure(2);
+        let mut departure = space.new_flight();
+        for _ in 0..600 {
+            departure.advance(1.0 / 60.0, (1.0, 0.0), true, false);
+            assert!(departure.crash.is_none());
+        }
+        let simulate = |fps| {
+            let mut flight = space.new_flight();
+            space.approach(&mut flight, "Nivalis").unwrap();
+            assert!(flight.toggle_local_navigation());
+            let reference = flight.navigation_reference().unwrap();
+            let altitude = reference.altitude(flight.position, flight.seconds);
+            for _ in 0..fps * 40 {
+                flight.advance(1.0 / fps as f32, (1.0, 0.0), false, false);
+                assert!(flight.crash.is_none());
+                assert!(
+                    (reference.altitude(flight.position, flight.seconds) - altitude).abs() < 0.1
+                );
+            }
+            flight.position
+        };
+        assert!((simulate(10) - simulate(60)).norm() < 0.5);
+    }
+
     #[test]
     fn jovara_lava_and_sun_surfaces_move_without_orbital_or_camera_motion() {
         let space = Space::load().unwrap();
@@ -649,7 +808,7 @@ mod tests {
                 .contacts
                 .is_empty()
         );
-        for body in &space.planets[4..] {
+        for body in &space.planets[4..8] {
             assert!(body.model.faces.len() < 20000);
             assert_eq!(body.model.textures.len(), 1);
             assert!(

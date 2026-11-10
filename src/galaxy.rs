@@ -3,8 +3,10 @@ use nalgebra_glm::Vec3;
 
 pub const KEPLER_RADIUS: f32 = 90.0;
 pub const SUN_RADIUS: f32 = 130.0;
+pub const ASTERION_RADIUS: f32 = 360.0;
+pub const UMBRIA_CENTER: Vec3 = Vec3::new(-650.0, 60.0, -1100.0);
 
-pub const BODY_NAMES: [&str; 8] = [
+pub const BODY_NAMES: [&str; 9] = [
     "Siroco",
     "Oquedad",
     "Jovara",
@@ -13,12 +15,15 @@ pub const BODY_NAMES: [&str; 8] = [
     "Flareon",
     "Kepler-186f",
     "Metis",
+    "Asterion",
 ];
 
 pub fn black_hole(galaxy: usize) -> crate::black_hole::BlackHole {
     let mut hole = crate::black_hole::BLACK_HOLE;
     if galaxy == 1 {
         hole.position = Vec3::new(3000.0, 500.0, -2600.0);
+    } else if galaxy == 2 {
+        hole.position = Vec3::new(-4200.0, 650.0, -3600.0);
     }
     hole
 }
@@ -72,13 +77,13 @@ pub const GALAXIES: [Galaxy; 3] = [
     Galaxy {
         name: "Umbria",
         artwork: 2,
-        subtitle: "REGION DE HIELO Y PIEDRA",
+        subtitle: "SISTEMA DE ASTERION",
         description: [
-            "Un paisaje frio, silencioso y remoto.",
-            "Nivalis guarda un lago congelado",
-            "entre grandes glaciares azulados.",
+            "Asterion domina la frontera helada.",
+            "Nivalis orbita su enorme sol",
+            "blanco azulado entre hielo y piedra.",
         ],
-        planets: &[3],
+        planets: &[8, 3],
         accent: 0xa9afff,
         sky: 0x17142c,
         map: (30.0, 180.0),
@@ -88,6 +93,20 @@ pub const GALAXIES: [Galaxy; 3] = [
 ];
 
 pub fn planet_transform(galaxy: usize, planet: usize) -> WorldTransform {
+    if planet == 8 {
+        return WorldTransform {
+            position: UMBRIA_CENTER,
+            radius: ASTERION_RADIUS,
+            yaw: 0.0,
+        };
+    }
+    if galaxy == 2 && planet == 3 {
+        return WorldTransform {
+            position: UMBRIA_CENTER + crate::orbit::umbria_motion(3).offset(0.0),
+            radius: 65.0,
+            yaw: 0.0,
+        };
+    }
     if planet >= 4 || (galaxy == 1 && GALAXIES[1].planets.contains(&planet)) {
         let radius = match planet {
             0 => 36.0,
@@ -112,7 +131,6 @@ pub fn planet_transform(galaxy: usize, planet: usize) -> WorldTransform {
     ];
     let (position, radius, yaw) = match (galaxy, planet) {
         (2, 1) => ([-42.0, 8.0, -145.0], 32.0, -0.7),
-        (2, 3) => ([78.0, 20.0, -235.0], 65.0, 0.0),
         _ => original[planet],
     };
     WorldTransform {

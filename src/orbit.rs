@@ -83,6 +83,20 @@ pub const METIS: Orbit = Orbit {
     inclination: 0.18,
 };
 
+pub const NIVALIS: Orbit = Orbit {
+    radius: 1400.0,
+    speed: 0.0035 * ORBIT_SPEED_MULTIPLIER,
+    phase: -0.75,
+    inclination: -0.025,
+};
+
+pub fn umbria_motion(body: usize) -> Motion {
+    Motion {
+        primary: (body == 3).then_some(NIVALIS),
+        satellite: None,
+    }
+}
+
 pub fn aurora_motion(body: usize) -> Motion {
     Motion {
         primary: match body {
