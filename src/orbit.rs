@@ -97,11 +97,19 @@ pub const ONICE: Orbit = Orbit {
     inclination: 0.075,
 };
 
+pub const VESPERA: Orbit = Orbit {
+    radius: 1900.0,
+    speed: 0.0027 * ORBIT_SPEED_MULTIPLIER,
+    phase: -0.3,
+    inclination: 0.04,
+};
+
 pub fn umbria_motion(body: usize) -> Motion {
     Motion {
         primary: match body {
             3 => Some(NIVALIS),
             9 => Some(ONICE),
+            10 => Some(VESPERA),
             _ => None,
         },
         satellite: None,

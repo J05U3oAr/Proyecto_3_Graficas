@@ -376,6 +376,7 @@ fn draw_world_with_basis(
             | crate::shaders::SurfaceEffect::Solar { .. }
             | crate::shaders::SurfaceEffect::Stellar { .. }
             | crate::shaders::SurfaceEffect::Obsidian
+            | crate::shaders::SurfaceEffect::Snow { .. }
             | crate::shaders::SurfaceEffect::Lava { .. }
     ) && camera.view_point(transform.position).norm_squared()
         > transform.radius * transform.radius;
@@ -460,6 +461,7 @@ fn draw_world_with_basis(
                     | crate::shaders::SurfaceEffect::Ice
                     | crate::shaders::SurfaceEffect::Stellar { .. }
                     | crate::shaders::SurfaceEffect::Obsidian
+                    | crate::shaders::SurfaceEffect::Snow { .. }
             ) {
                 let local = points.map(|point| {
                     let world = camera.eye + camera.right * point.x + camera.up * point.y

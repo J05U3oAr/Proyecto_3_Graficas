@@ -38,6 +38,7 @@ impl Planet {
             "Nivalis" => SurfaceEffect::Ice,
             "Asterion" => SurfaceEffect::Stellar { seconds },
             "Onice" => SurfaceEffect::Obsidian,
+            "Vespera" => SurfaceEffect::Snow { seconds },
             "Kepler-186f" => SurfaceEffect::Kepler { seconds },
             "Jovara" => SurfaceEffect::PolarClouds { seconds },
             "Helios II" => SurfaceEffect::Solar { seconds },
@@ -83,6 +84,7 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
                 "nivalis/nivalis.obj",
                 "asterion/asterion.obj",
                 "onice/onice.obj",
+                "vespera/vespera.obj",
             ];
             paths
                 .iter()
@@ -93,8 +95,8 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
                     } else {
                         Model::load(assets.join(path))?
                     };
-                    if index == 10 {
-                        // The separate rock arches must orbit the geographical origin.
+                    if matches!(index, 10 | 11) {
+                        // Asymmetric terrain must rotate around its geographical origin.
                         model.center = Vec3::zeros();
                         model.radius = model.vertices.iter().map(Vec3::norm).fold(0.0, f32::max);
                     }
@@ -292,6 +294,16 @@ impl Space {
                 transform: crate::galaxy::planet_transform(2, 9),
                 rotation_speed: 0.013,
                 dust: None,
+            },
+            Planet {
+                active: false,
+                name: "Vespera",
+                model: Arc::clone(&models[11]),
+                motion: crate::orbit::Motion::default(),
+                is_sun: false,
+                transform: crate::galaxy::planet_transform(2, 10),
+                rotation_speed: 0.01,
+                dust: Some(DustStorm::snow()),
             },
         ];
         let collisions = Arc::new(CollisionWorld::new(
@@ -540,6 +552,64 @@ fn debris_model() -> Model {
 mod tests {
     use super::*;
     #[test]
+    fn vespera_has_lavender_terrain_and_colliding_canyon_relief_in_its_own_orbit() {
+        let mut space = Space::load().unwrap();
+        space.configure(2);
+        let planet = space
+            .active_planets()
+            .find(|p| p.name == "Vespera")
+            .expect("Falta Vespera");
+        assert!(planet.model.faces.len() < 30000);
+        assert!(
+            planet
+                .model
+                .faces
+                .iter()
+                .all(|f| f.color.b > f.color.r && !f.unlit)
+        );
+        assert!(planet.model.vertices.iter().any(|v| v.norm() < 0.87));
+        assert!(planet.model.vertices.iter().any(|v| v.norm() > 1.1));
+        assert!(planet.dust.is_some());
+        for seconds in [0.0, 40.0, 190.0, 600.0] {
+            let transform = planet.world_transform(seconds);
+            let sun = space.sun_position(seconds).unwrap();
+            assert!(((transform.position - sun).norm() - 1900.0).abs() < 0.003);
+            let contact = space.collisions.move_ship(
+                transform.position + Vec3::z() * 110.0,
+                -Vec3::z() * 90.0,
+                seconds,
+                0.01,
+            );
+            assert!(contact.contacts.iter().any(|c| c.planet == "Vespera"));
+        }
+        let world = CollisionWorld::new(vec![PlanetCollider::new(
+            "Vespera",
+            &planet.model,
+            WorldTransform {
+                position: Vec3::zeros(),
+                radius: 84.0,
+                yaw: 0.0,
+            },
+            0.0,
+        )]);
+        let axis = Vec3::new(-0.77, 0.20, -0.61).normalize();
+        let tangent = axis.cross(&Vec3::y()).normalize();
+        let right = tangent * 0.45_f32.cos() + tangent.cross(&axis) * 0.45_f32.sin();
+        let rim = (axis + right * 0.23).normalize();
+        let sample =
+            |direction: Vec3| world.move_ship(direction * 115.0, -direction * 75.0, 0.0, 0.1);
+        let floor = sample(axis);
+        let wall = sample(rim);
+        assert!(!floor.contacts.is_empty() && !wall.contacts.is_empty());
+        assert!(
+            wall.position.norm() - floor.position.norm() > 5.0,
+            "El canon debe ser una depresion real en la malla"
+        );
+        space.configure(1);
+        assert!(!space.active_planets().any(|p| p.name == "Vespera"));
+    }
+
+    #[test]
     fn onice_orbits_asterion_with_real_craters_and_traversable_rock_arches() {
         let mut space = Space::load().unwrap();
         space.configure(2);
@@ -738,7 +808,7 @@ mod tests {
             }
             flight.position
         };
-        for name in ["Nivalis", "Onice"] {
+        for name in ["Nivalis", "Onice", "Vespera"] {
             assert!((simulate(name, 10) - simulate(name, 60)).norm() < 0.5);
         }
     }

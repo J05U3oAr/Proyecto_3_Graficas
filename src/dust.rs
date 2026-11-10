@@ -21,6 +21,7 @@ pub struct DustStorm {
     axis: Vec3,
     right: Vec3,
     up: Vec3,
+    snow: bool,
 }
 
 struct ProjectedDust {
@@ -70,7 +71,30 @@ impl DustStorm {
             axis,
             right,
             up,
+            snow: false,
         }
+    }
+
+    pub fn snow() -> Self {
+        let mut storm = Self::new();
+        storm.snow = true;
+        storm.grains.truncate(1600);
+        let count = storm.grains.len() as f32;
+        for (index, grain) in storm.grains.iter_mut().enumerate() {
+            grain.height = 1.0 - 2.0 * (index as f32 + 0.5) / count;
+            grain.fine = index % 8 != 0;
+            grain.size = if grain.fine {
+                0.0012 + grain.altitude * 0.0013
+            } else {
+                0.025 + grain.altitude * 0.015
+            };
+            grain.opacity = if grain.fine {
+                0.18 + grain.altitude * 0.12
+            } else {
+                0.04 + grain.altitude * 0.02
+            };
+        }
+        storm
     }
 
     pub fn draw(
@@ -90,13 +114,16 @@ impl DustStorm {
             let height = (grain.height + (seconds * 0.28 + grain.phase).sin() * 0.012)
                 .clamp(-0.9999, 0.9999);
             let latitude_radius = (1.0 - height * height).sqrt();
-            let wind = 0.18 + 0.24 * latitude_radius;
+            let wind = (0.18 + 0.24 * latitude_radius) * if self.snow { 0.32 } else { 1.0 };
             let angle = grain.angle + seconds * wind + (height * 9.0 + seconds * 0.23).sin() * 0.12;
             let (sin, cos) = angle.sin_cos();
             let direction =
                 self.axis * height + (self.right * cos + self.up * sin) * latitude_radius;
-            let altitude =
-                1.02 + grain.altitude * 0.07 + (seconds * 0.31 + grain.phase).sin() * 0.008;
+            let altitude = if self.snow {
+                0.90 + grain.altitude * 0.20
+            } else {
+                1.02 + grain.altitude * 0.07
+            } + (seconds * 0.31 + grain.phase).sin() * 0.008;
             let local = direction * (planet.radius * altitude);
             let world = planet.position
                 + Vec3::new(
@@ -116,7 +143,9 @@ impl DustStorm {
             {
                 continue;
             }
-            let color = if grain.fine {
+            let color = if self.snow {
+                if grain.fine { 0xe5e1f4 } else { 0xb9b2d1 }
+            } else if grain.fine {
                 0xf4c27b
             } else if grain.altitude > 0.5 {
                 0xd7ad74
@@ -317,6 +346,49 @@ mod tests {
         assert!(
             changed > 10000,
             "The global cloud must visibly flow: {changed}"
+        );
+    }
+
+    #[test]
+    fn snowfall_is_reproducible_animated_transparent_and_occluded_by_the_ship() {
+        let storm = DustStorm::snow();
+        let mut flight = Flight::new();
+        flight.camera.pitch = 0.0;
+        let view = FlightView::new(&flight, 640, 420);
+        let transform = WorldTransform {
+            position: Vec3::new(0.0, 0.0, -190.0),
+            radius: 84.0,
+            yaw: 0.0,
+        };
+        let render = |seconds| {
+            let mut fb = Framebuffer::new(640, 420);
+            fb.pixels.fill(0x302c45);
+            fb.point(320, 210, 2.0, 0xff00ff, true);
+            storm.draw(&mut fb, &view, transform, seconds);
+            fb
+        };
+        let before = render(0.0);
+        let repeat = render(0.0);
+        let after = render(3.0);
+        assert_eq!(before.pixels, repeat.pixels);
+        assert_eq!(before.depth, after.depth);
+        assert_eq!(after.pixels[210 * 640 + 320], 0xff00ff);
+        let changed = before
+            .pixels
+            .iter()
+            .zip(&after.pixels)
+            .filter(|(a, b)| a != b)
+            .count();
+        assert!(changed > 100, "La nieve debe moverse con el tiempo");
+        let mean_lift = before
+            .pixels
+            .iter()
+            .map(|color| ((color >> 16 & 255) as f32 - 48.0).max(0.0))
+            .sum::<f32>()
+            / before.pixels.len() as f32;
+        assert!(
+            mean_lift < 20.0,
+            "La ventisca no debe ocultar el terreno: {mean_lift}"
         );
     }
 
