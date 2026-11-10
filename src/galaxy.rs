@@ -61,7 +61,7 @@ pub const GALAXIES: [Galaxy; 3] = [
         sky: 0x0d1725,
         map: (-285.0, -35.0),
         seed: 13875,
-        debris: 0,
+        debris: 120,
     },
     Galaxy {
         name: "Aurora",
@@ -77,7 +77,7 @@ pub const GALAXIES: [Galaxy; 3] = [
         sky: 0x26170f,
         map: (295.0, -145.0),
         seed: 71029,
-        debris: 42,
+        debris: 180,
     },
     Galaxy {
         name: "Umbria",
@@ -93,7 +93,7 @@ pub const GALAXIES: [Galaxy; 3] = [
         sky: 0x17142c,
         map: (30.0, 180.0),
         seed: 94013,
-        debris: 64,
+        debris: 240,
     },
 ];
 

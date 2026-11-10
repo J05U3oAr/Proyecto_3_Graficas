@@ -8,6 +8,7 @@ pub enum SurfaceEffect {
     None,
     Ice,
     Obsidian,
+    Asteroid,
     Crystal,
     GasGiant {
         seconds: f32,
@@ -102,6 +103,10 @@ fn polar_flow(uv: Vec2, seconds: f32) -> (Vec2, f32) {
 impl SurfaceEffect {
     pub fn modulate(self, color: Color, point: Vec3) -> Color {
         match self {
+            Self::Asteroid => {
+                let grain = noise::noise(point * 97.0);
+                color.shaded(0.84 + grain * 0.25)
+            }
             Self::RingIce => {
                 let tilt = 27_f32.to_radians();
                 let radial =
@@ -310,7 +315,7 @@ impl SurfaceEffect {
     pub fn sample(self, texture: &Texture, uv: Vec2) -> Color {
         match self {
             Self::None => texture.sample(uv),
-            Self::GasGiant { .. } | Self::RingIce => {
+            Self::GasGiant { .. } | Self::RingIce | Self::Asteroid => {
                 self.modulate(texture.sample(uv), sphere_direction(uv).0)
             }
             Self::PackIce { .. } => self.modulate(texture.sample(uv), sphere_direction(uv).0),

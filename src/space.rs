@@ -185,8 +185,8 @@ pub struct Space {
     pub planets: Vec<Planet>,
     collisions: Arc<CollisionWorld>,
     black_hole: crate::black_hole::BlackHole,
-    debris_model: Model,
-    debris: Vec<WorldTransform>,
+    debris_models: &'static [crate::asteroids::Meshes],
+    debris: Vec<crate::asteroids::Instance>,
     nivalis: Arc<Model>,
     boreal: Arc<Model>,
     prisma_opaque: Model,
@@ -388,11 +388,11 @@ impl Space {
                 })
                 .collect(),
         ));
-        Ok(Self {
+        let mut space = Self {
             planets,
             collisions,
             black_hole: crate::galaxy::black_hole(0),
-            debris_model: debris_model(),
+            debris_models: crate::asteroids::load()?,
             debris: Vec::new(),
             nivalis: Arc::clone(&models[8]),
             boreal: Arc::clone(&models[3]),
@@ -401,7 +401,9 @@ impl Space {
             umbriel_rings: Arc::clone(&models[15]),
             umbriel_rings_opaque: opacity_layer(&models[15], false),
             umbriel_rings_glass: opacity_layer(&models[15], true),
-        })
+        };
+        space.configure(0);
+        Ok(space)
     }
 
     pub fn configure(&mut self, index: usize) {
@@ -445,44 +447,25 @@ impl Space {
             );
         }
         self.collisions = Arc::new(CollisionWorld::new(colliders));
-        let mut seed = galaxy.seed;
-        let mut next = || {
-            seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
-            seed as f32 / u32::MAX as f32
-        };
-        self.debris = (0..galaxy.debris)
-            .map(|_| {
-                let angle = next() * std::f32::consts::TAU;
-                let distance = if index == 1 {
-                    860.0 + next() * 40.0
-                } else if index == 2 {
-                    748.0 + next() * 12.0
+        self.debris = crate::asteroids::distribute(index, |rock| {
+            self.active_planets().all(|planet| {
+                let radius = if planet.name == "Umbriel" {
+                    275.0
                 } else {
-                    82.0 + next() * 72.0
+                    planet.transform.radius
                 };
-                WorldTransform {
-                    position: (if index == 2 {
-                        crate::galaxy::UMBRIA_CENTER
-                    } else {
-                        Vec3::zeros()
-                    }) + Vec3::new(
-                        angle.cos() * distance,
-                        if index == 1 {
-                            -15.0 + next() * 30.0
-                        } else {
-                            -43.0 + next() * 18.0
-                        },
-                        if index == 1 || index == 2 {
-                            angle.sin() * distance
-                        } else {
-                            -200.0 + angle.sin() * distance
-                        },
-                    ),
-                    radius: 0.8 + next() * 2.8,
-                    yaw: next() * std::f32::consts::TAU,
+                let margin = if planet.is_sun { 100.0 } else { 20.0 };
+                if let Some(orbit) = planet.motion.primary {
+                    let center = planet.transform.position - planet.motion.offset(0.0);
+                    let satellite = planet.motion.satellite.map_or(0.0, |o| o.radius);
+                    ((rock.position - center).norm() - orbit.radius).abs()
+                        > radius + rock.radius + margin + satellite
+                } else {
+                    (rock.position - planet.transform.position).norm()
+                        > radius + rock.radius + margin
                 }
             })
-            .collect();
+        });
     }
 
     pub fn active_planets(&self) -> impl Iterator<Item = &Planet> {
@@ -551,9 +534,14 @@ impl Space {
         for sun in self.active_planets().filter(|planet| planet.is_sun) {
             draw_solar_halo(fb, &view, sun.world_transform(seconds), sun.halo_color());
         }
-        for &transform in &self.debris {
-            renderer::draw_world_model(fb, &self.debris_model, &view, transform);
-        }
+        crate::asteroids::draw(
+            fb,
+            view,
+            self.debris_models,
+            &self.debris,
+            self.sun_position(seconds),
+            seconds,
+        );
     }
 
     pub fn preview(
@@ -652,47 +640,53 @@ impl Space {
     }
 }
 
-fn debris_model() -> Model {
-    let vertices = vec![
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(-0.8, 0.0, 0.0),
-        Vec3::new(0.0, 0.7, 0.0),
-        Vec3::new(0.0, -1.0, 0.0),
-        Vec3::new(0.0, 0.0, 0.9),
-        Vec3::new(0.0, 0.0, -0.7),
-    ];
-    let faces = [
-        [0, 2, 4],
-        [4, 2, 1],
-        [1, 2, 5],
-        [5, 2, 0],
-        [0, 4, 3],
-        [4, 1, 3],
-        [1, 5, 3],
-        [5, 0, 3],
-    ]
-    .into_iter()
-    .map(|indices| crate::model::Face {
-        indices,
-        color: crate::color::Color::new(112, 122, 142),
-        uv: None,
-        texture: None,
-        unlit: false,
-        opacity: 1.0,
-    })
-    .collect();
-    Model {
-        vertices,
-        faces,
-        center: Vec3::zeros(),
-        radius: 1.0,
-        textures: Vec::new(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn asteroids_populate_all_galaxies_without_blocking_spawns_or_orbital_paths() {
+        let mut space = Space::load().unwrap();
+        assert_eq!(space.debris.len(), crate::galaxy::GALAXIES[0].debris);
+        for galaxy in 0..3 {
+            space.configure(galaxy);
+            assert_eq!(space.debris.len(), crate::galaxy::GALAXIES[galaxy].debris);
+            for variant in 0..6 {
+                assert!(space.debris.iter().any(|rock| rock.variant == variant));
+            }
+            for rock in &space.debris {
+                let t = rock.transform;
+                assert!((t.position - crate::flight::SPAWN_POSITION).norm() > t.radius + 110.0);
+                for seconds in [0.0, 100.0, 400.0, 1000.0] {
+                    for planet in space.active_planets() {
+                        let planet_t = planet.world_transform(seconds);
+                        let radius = if planet.name == "Umbriel" {
+                            275.0
+                        } else {
+                            planet_t.radius
+                        };
+                        assert!((t.position - planet_t.position).norm() > radius + t.radius + 19.0);
+                    }
+                }
+            }
+            let mut frame = Framebuffer::new(640, 480);
+            frame.pixels.fill(0);
+            let flight = space.new_flight();
+            let view = FlightView::new(&flight, frame.width, frame.height);
+            crate::asteroids::draw(
+                &mut frame,
+                &view,
+                space.debris_models,
+                &space.debris,
+                space.sun_position(0.0),
+                0.0,
+            );
+            assert!(
+                frame.pixels.iter().filter(|&&p| p != 0).count() > 30,
+                "Debe haber asteroides visibles desde el despegue en cada galaxia"
+            );
+        }
+    }
+
     #[test]
     fn umbriel_ring_gaps_are_open_but_ice_fragments_collide_and_follow_the_orbit() {
         let mut space = Space::load().unwrap();
@@ -1334,15 +1328,10 @@ mod tests {
             (crate::flight::SPAWN_POSITION - sun.transform.position).norm()
                 > sun.transform.radius + 100.0
         );
-        assert!(
-            space
-                .debris
-                .iter()
-                .all(
-                    |rock| (rock.position - sun.transform.position).norm() - rock.radius
-                        > sun.transform.radius + 100.0
-                )
-        );
+        assert!(space.debris.iter().all(|rock| {
+            (rock.transform.position - sun.transform.position).norm() - rock.transform.radius
+                > sun.transform.radius + 100.0
+        }));
         let flight = space.new_flight();
         let reference = flight.navigation_reference().unwrap();
         assert!(
@@ -1680,11 +1669,15 @@ mod tests {
             flight.advance(1.0 / 60.0, (0.0, 0.0), false, false);
             assert_eq!(flight.position, crate::flight::SPAWN_POSITION);
             assert_eq!(space.debris.len(), definition.debris);
-            let first_debris: Vec<_> = space.debris.iter().map(|t| t.position).collect();
+            let first_debris: Vec<_> = space.debris.iter().map(|t| t.transform.position).collect();
             space.configure(galaxy);
             assert_eq!(
                 first_debris,
-                space.debris.iter().map(|t| t.position).collect::<Vec<_>>()
+                space
+                    .debris
+                    .iter()
+                    .map(|t| t.transform.position)
+                    .collect::<Vec<_>>()
             );
             let solid = space
                 .active_planets()
