@@ -4,7 +4,7 @@ use nalgebra_glm::Vec3;
 pub const KEPLER_RADIUS: f32 = 90.0;
 pub const SUN_RADIUS: f32 = 130.0;
 pub const ASTERION_RADIUS: f32 = 360.0;
-pub const UMBRIA_CENTER: Vec3 = Vec3::new(-650.0, 60.0, -1100.0);
+pub const UMBRIA_CENTER: Vec3 = Vec3::new(-440.0, 40.0, 300.0);
 
 pub const BODY_NAMES: [&str; 13] = [
     "Siroco",

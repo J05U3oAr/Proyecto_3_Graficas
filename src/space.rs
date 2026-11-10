@@ -415,7 +415,7 @@ impl Space {
                 let distance = if index == 1 {
                     860.0 + next() * 40.0
                 } else if index == 2 {
-                    950.0 + next() * 110.0
+                    748.0 + next() * 12.0
                 } else {
                     82.0 + next() * 72.0
                 };
@@ -653,7 +653,7 @@ mod tests {
         for seconds in [0.0, 40.0, 190.0, 600.0] {
             let transform = planet.world_transform(seconds);
             assert!(
-                ((transform.position - space.sun_position(seconds).unwrap()).norm() - 3100.0).abs()
+                ((transform.position - space.sun_position(seconds).unwrap()).norm() - 1690.0).abs()
                     < 0.003
             );
             let hit = space.collisions.move_ship(
@@ -819,7 +819,7 @@ mod tests {
         for seconds in [0.0, 40.0, 190.0, 600.0] {
             let transform = planet.world_transform(seconds);
             assert!(
-                ((transform.position - space.sun_position(seconds).unwrap()).norm() - 2450.0).abs()
+                ((transform.position - space.sun_position(seconds).unwrap()).norm() - 1390.0).abs()
                     < 0.003
             );
             let hit = space.collisions.move_ship(
@@ -905,7 +905,7 @@ mod tests {
         for seconds in [0.0, 40.0, 190.0, 600.0] {
             let transform = planet.world_transform(seconds);
             let sun = space.sun_position(seconds).unwrap();
-            assert!(((transform.position - sun).norm() - 1900.0).abs() < 0.003);
+            assert!(((transform.position - sun).norm() - 1120.0).abs() < 0.003);
             let contact = space.collisions.move_ship(
                 transform.position + Vec3::z() * 110.0,
                 -Vec3::z() * 90.0,
@@ -965,7 +965,7 @@ mod tests {
         for seconds in [0.0, 30.0, 190.0, 600.0] {
             let transform = planet.world_transform(seconds);
             let sun = space.sun_position(seconds).unwrap();
-            assert!(((transform.position - sun).norm() - 800.0).abs() < 0.002);
+            assert!(((transform.position - sun).norm() - 620.0).abs() < 0.002);
             let hit = space.collisions.move_ship(
                 transform.position + Vec3::z() * 100.0,
                 -Vec3::z() * 80.0,
@@ -1025,7 +1025,7 @@ mod tests {
         for time in [0.0, 40.0, 190.0, 600.0] {
             let star = sun.world_transform(time);
             let planet = nivalis.world_transform(time);
-            assert!(((planet.position - star.position).norm() - 1400.0).abs() < 0.002);
+            assert!(((planet.position - star.position).norm() - 860.0).abs() < 0.002);
             assert_eq!(space.solar_lighting(time).unwrap().position, star.position);
             let hit = space.collisions.move_ship(
                 planet.position + Vec3::z() * 90.0,

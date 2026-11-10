@@ -84,37 +84,37 @@ pub const METIS: Orbit = Orbit {
 };
 
 pub const NIVALIS: Orbit = Orbit {
-    radius: 1400.0,
+    radius: 860.0,
     speed: 0.0035 * ORBIT_SPEED_MULTIPLIER,
-    phase: -0.75,
+    phase: -1.15,
     inclination: -0.025,
 };
 
 pub const ONICE: Orbit = Orbit {
-    radius: 800.0,
+    radius: 620.0,
     speed: 0.0055 * ORBIT_SPEED_MULTIPLIER,
-    phase: 0.6,
+    phase: 0.0,
     inclination: 0.075,
 };
 
 pub const VESPERA: Orbit = Orbit {
-    radius: 1900.0,
+    radius: 1120.0,
     speed: 0.0027 * ORBIT_SPEED_MULTIPLIER,
-    phase: -0.3,
-    inclination: 0.04,
+    phase: 0.8,
+    inclination: -0.10,
 };
 
 pub const PRISMA: Orbit = Orbit {
-    radius: 2450.0,
+    radius: 1390.0,
     speed: 0.0021 * ORBIT_SPEED_MULTIPLIER,
-    phase: -0.85,
+    phase: -0.25,
     inclination: -0.065,
 };
 
 pub const NACAR: Orbit = Orbit {
-    radius: 3100.0,
+    radius: 1690.0,
     speed: 0.0017 * ORBIT_SPEED_MULTIPLIER,
-    phase: -0.42,
+    phase: 1.8,
     inclination: 0.055,
 };
 
@@ -148,6 +148,57 @@ pub fn aurora_motion(body: usize) -> Motion {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn umbria_is_compact_spread_around_departure_and_keeps_clear_flight_gaps() {
+        let bodies = [(9, 72.0), (3, 65.0), (10, 84.0), (11, 78.0), (12, 96.0)];
+        let spawn = crate::flight::SPAWN_POSITION;
+        let center = crate::galaxy::UMBRIA_CENTER;
+        let mut front = 0;
+        let mut back = 0;
+        let mut bearings = Vec::new();
+        for &(body, radius) in &bodies {
+            let orbit = umbria_motion(body).primary.unwrap();
+            assert!(
+                orbit.radius <= 1750.0,
+                "Las orbitas deben permitir recorridos cortos"
+            );
+            assert!(orbit.radius - radius - crate::galaxy::ASTERION_RADIUS > 150.0);
+            let planet = center + orbit.offset(0.0);
+            let direction = planet - spawn;
+            assert!(
+                direction.norm() < 1800.0,
+                "El planeta debe quedar accesible desde la salida"
+            );
+            front += usize::from(direction.z < 0.0);
+            back += usize::from(direction.z > 0.0);
+            bearings.push(direction.x.atan2(-direction.z));
+            let t = ((center - spawn).dot(&direction) / direction.norm_squared()).clamp(0.0, 1.0);
+            assert!(
+                (spawn + direction * t - center).norm() > crate::galaxy::ASTERION_RADIUS + 15.0,
+                "El sol no debe bloquear el recorrido inicial al planeta"
+            );
+        }
+        assert!(
+            front >= 2 && back >= 2,
+            "Los planetas deben rodear la salida"
+        );
+        for a in 0..bodies.len() {
+            for b in a + 1..bodies.len() {
+                let gap = (umbria_motion(bodies[a].0).primary.unwrap().radius
+                    - umbria_motion(bodies[b].0).primary.unwrap().radius)
+                    .abs();
+                assert!(gap - bodies[a].1 - bodies[b].1 > 70.0);
+                let angle = (bearings[a] - bearings[b] + std::f32::consts::PI)
+                    .rem_euclid(std::f32::consts::TAU)
+                    - std::f32::consts::PI;
+                assert!(
+                    angle.abs() > 20_f32.to_radians(),
+                    "No deben aparecer alineados"
+                );
+            }
+        }
+    }
+
     #[test]
     fn planets_keep_their_orbits_and_metis_follows_kepler() {
         for seconds in [0.0, 20.0, 120.0, 600.0, 3600.0] {
