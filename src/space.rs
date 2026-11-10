@@ -40,6 +40,7 @@ impl Planet {
             "Onice" => SurfaceEffect::Obsidian,
             "Vespera" => SurfaceEffect::Snow { seconds },
             "Prisma" => SurfaceEffect::Crystal,
+            "Nacar" => SurfaceEffect::PackIce { seconds },
             "Kepler-186f" => SurfaceEffect::Kepler { seconds },
             "Jovara" => SurfaceEffect::PolarClouds { seconds },
             "Helios II" => SurfaceEffect::Solar { seconds },
@@ -87,6 +88,7 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
                 "onice/onice.obj",
                 "vespera/vespera.obj",
                 "prisma/prisma.obj",
+                "nacar/nacar.obj",
             ];
             paths
                 .iter()
@@ -97,7 +99,7 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
                     } else {
                         Model::load(assets.join(path))?
                     };
-                    if matches!(index, 10..=12) {
+                    if matches!(index, 10..=13) {
                         // Asymmetric terrain must rotate around its geographical origin.
                         model.center = Vec3::zeros();
                         model.radius = model.vertices.iter().map(Vec3::norm).fold(0.0, f32::max);
@@ -336,6 +338,16 @@ impl Space {
                 is_sun: false,
                 transform: crate::galaxy::planet_transform(2, 11),
                 rotation_speed: 0.011,
+                dust: None,
+            },
+            Planet {
+                active: false,
+                name: "Nacar",
+                model: Arc::clone(&models[13]),
+                motion: crate::orbit::Motion::default(),
+                is_sun: false,
+                transform: crate::galaxy::planet_transform(2, 12),
+                rotation_speed: 0.008,
                 dust: None,
             },
         ];
@@ -602,6 +614,115 @@ fn debris_model() -> Model {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn nacar_has_fractured_ice_raised_icebergs_and_collisions_in_its_own_orbit() {
+        let mut space = Space::load().unwrap();
+        space.configure(2);
+        let planet = space
+            .active_planets()
+            .find(|p| p.name == "Nacar")
+            .expect("Falta Nacar");
+        assert!(planet.model.faces.len() < 25000);
+        assert!(
+            planet
+                .model
+                .faces
+                .iter()
+                .all(|f| f.opacity == 1.0 && !f.unlit)
+        );
+        assert!(
+            planet
+                .model
+                .faces
+                .iter()
+                .filter(|f| f.color.r < 25 && f.color.b > 40)
+                .count()
+                > 500
+        );
+        assert!(
+            planet
+                .model
+                .faces
+                .iter()
+                .filter(|f| f.color.r > 160 && f.color.b > 210)
+                .count()
+                > 10000
+        );
+        assert!(planet.model.vertices.iter().any(|p| p.norm() < 0.97));
+        assert!(planet.model.vertices.iter().any(|p| p.norm() > 1.15));
+        for seconds in [0.0, 40.0, 190.0, 600.0] {
+            let transform = planet.world_transform(seconds);
+            assert!(
+                ((transform.position - space.sun_position(seconds).unwrap()).norm() - 3100.0).abs()
+                    < 0.003
+            );
+            let hit = space.collisions.move_ship(
+                transform.position + Vec3::z() * 125.0,
+                -Vec3::z() * 105.0,
+                seconds,
+                0.01,
+            );
+            assert!(hit.contacts.iter().any(|c| c.planet == "Nacar"));
+        }
+        let world = CollisionWorld::new(vec![PlanetCollider::new(
+            "Nacar",
+            &planet.model,
+            WorldTransform {
+                position: Vec3::zeros(),
+                radius: 96.0,
+                yaw: 0.0,
+            },
+            0.0,
+        )]);
+        let scale = 96.0 / planet.model.radius;
+        let submerged_channel = planet
+            .model
+            .faces
+            .iter()
+            .filter(|f| f.color.r < 25)
+            .any(|face| {
+                let point = face
+                    .indices
+                    .map(|i| planet.model.vertices[i])
+                    .into_iter()
+                    .sum::<Vec3>()
+                    / 3.0;
+                let direction = point.normalize();
+                let hit = world.move_ship(direction * 125.0, -direction * 100.0, 0.0, 0.1);
+                !hit.contacts.is_empty()
+                    && hit.position.norm() < 0.985 * scale + crate::collision::SHIP_RADIUS
+            });
+        assert!(
+            submerged_channel,
+            "Los canales deben tener menor altura y colision"
+        );
+        let roof = planet
+            .model
+            .faces
+            .iter()
+            .filter(|f| f.color.r > 220)
+            .find_map(|face| {
+                let [a, b, c] = face.indices.map(|i| planet.model.vertices[i] * scale);
+                let center = (a + b + c) / 3.0;
+                let normal = (b - a).cross(&(c - a)).normalize();
+                (center.norm() > 1.10 * scale && normal.dot(&center.normalize()) > 0.6)
+                    .then_some((center, normal))
+            })
+            .expect("Debe haber cubiertas elevadas en los icebergs");
+        let hit = world.move_ship(
+            roof.0 + roof.1 * (crate::collision::SHIP_RADIUS + 2.0),
+            -roof.1 * 3.0,
+            0.0,
+            0.1,
+        );
+        assert!(
+            !hit.contacts.is_empty(),
+            "Los icebergs deben actuar como obstaculos"
+        );
+        space.configure(0);
+        assert!(!space.active_planets().any(|p| p.name == "Nacar"));
+    }
+
     #[test]
     fn prismas_ground_uses_one_neutral_material_for_continuous_fragment_coloring() {
         let mut space = Space::load().unwrap();
@@ -1019,7 +1140,7 @@ mod tests {
             }
             flight.position
         };
-        for name in ["Nivalis", "Onice", "Vespera", "Prisma"] {
+        for name in ["Nivalis", "Onice", "Vespera", "Prisma", "Nacar"] {
             assert!((simulate(name, 10) - simulate(name, 60)).norm() < 0.5);
         }
     }

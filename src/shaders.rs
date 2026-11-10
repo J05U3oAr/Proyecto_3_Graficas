@@ -9,6 +9,9 @@ pub enum SurfaceEffect {
     Ice,
     Obsidian,
     Crystal,
+    PackIce {
+        seconds: f32,
+    },
     Snow {
         seconds: f32,
     },
@@ -93,6 +96,16 @@ fn polar_flow(uv: Vec2, seconds: f32) -> (Vec2, f32) {
 impl SurfaceEffect {
     pub fn modulate(self, color: Color, point: Vec3) -> Color {
         match self {
+            Self::PackIce { seconds } => {
+                let grain = noise::noise(point * 83.0);
+                if color.r < 80 && color.b as f32 > color.r as f32 * 1.65 {
+                    let drift = Vec3::new(seconds * 0.035, 11.0, -seconds * 0.025);
+                    let shimmer = noise::noise(point * 31.0 + drift);
+                    return color.shaded(0.86 + shimmer * 0.24);
+                }
+                let compression = noise::noise(point * 21.0 + Vec3::new(9.0, 17.0, 3.0));
+                color.shaded(0.94 + grain * 0.07 + compression * 0.04)
+            }
             Self::Crystal => {
                 let grain = noise::noise(point * 37.0);
                 if point.norm() < 1.045 {
@@ -204,6 +217,7 @@ impl SurfaceEffect {
     pub fn sample(self, texture: &Texture, uv: Vec2) -> Color {
         match self {
             Self::None => texture.sample(uv),
+            Self::PackIce { .. } => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Crystal => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Snow { .. } => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Obsidian => self.modulate(texture.sample(uv), sphere_direction(uv).0),
