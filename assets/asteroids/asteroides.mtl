@@ -1,0 +1,12 @@
+newmtl roca_0
+Kd 0.22 0.24 0.27
+illum 2
+newmtl roca_1
+Kd 0.28 0.29 0.31
+illum 2
+newmtl roca_2
+Kd 0.15 0.17 0.2
+illum 2
+newmtl roca_3
+Kd 0.32 0.33 0.35
+illum 2
