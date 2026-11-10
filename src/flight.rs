@@ -10,6 +10,22 @@ pub const CRUISE_SPEED: f32 = 36.0;
 pub const BOOST_SPEED: f32 = 155.0;
 pub const SPAWN_POSITION: Vec3 = Vec3::new(88.0, -139.0, 579.0);
 
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum SteeringMode {
+    #[default]
+    Mouse,
+    Arrows,
+}
+
+impl SteeringMode {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Mouse => "MOUSE",
+            Self::Arrows => "FLECHAS",
+        }
+    }
+}
+
 fn orient(camera: &mut Camera, forward: Vec3) {
     let backward = -forward.normalize();
     camera.yaw = backward.z.atan2(backward.x).rem_euclid(TAU);
@@ -33,6 +49,7 @@ pub struct Flight {
     pub heading: Camera,
     pub bank: f32,
     pub seconds: f32,
+    pub steering_mode: SteeringMode,
     gravity_velocity: Vec3,
     captured_for: Option<f32>,
     pub respawn_notice: f32,
@@ -67,6 +84,7 @@ impl Flight {
             heading,
             bank: 0.0,
             seconds: 0.0,
+            steering_mode: SteeringMode::Mouse,
             gravity_velocity: Vec3::zeros(),
             captured_for: None,
             respawn_notice: 0.0,
@@ -97,6 +115,7 @@ impl Flight {
         let black_hole = self.black_hole;
         let collisions = self.collisions.take();
         let navigation_targets = Arc::clone(&self.navigation_targets);
+        let steering_mode = self.steering_mode;
         let portals_enabled = self.portals.enabled();
         *self = Self::new();
         self.position = spawn_position;
@@ -105,6 +124,7 @@ impl Flight {
         self.seconds = seconds;
         self.collisions = collisions;
         self.navigation_targets = navigation_targets;
+        self.steering_mode = steering_mode;
         self.portals.set_enabled(portals_enabled);
         self.respawn_notice = 3.5;
     }
@@ -119,6 +139,22 @@ impl Flight {
         self.mouse_target = position
             .map(|(x, y)| (dead_zone(x), dead_zone(y)))
             .unwrap_or((0.0, 0.0));
+    }
+
+    pub fn toggle_steering_mode(&mut self) {
+        self.steering_mode = match self.steering_mode {
+            SteeringMode::Mouse => SteeringMode::Arrows,
+            SteeringMode::Arrows => SteeringMode::Mouse,
+        };
+        self.reset_steering();
+    }
+
+    pub fn steer_input(&mut self, mouse: Option<(f32, f32)>, arrows: (f32, f32)) {
+        let target = match self.steering_mode {
+            SteeringMode::Mouse => mouse,
+            SteeringMode::Arrows => Some(arrows),
+        };
+        self.move_with_mouse(target);
     }
 
     pub fn reset_steering(&mut self) {
@@ -158,9 +194,7 @@ impl Flight {
 
     pub fn toggle_local_navigation(&mut self) -> bool {
         if self.is_local() {
-            self.local_navigation = None;
-            self.heading.up_axis = None;
-            self.local_climb = 0.0;
+            self.leave_local_navigation();
             return true;
         }
         if self.crash.is_some() || self.is_captured() {
@@ -190,6 +224,12 @@ impl Flight {
         orient(&mut self.heading, forward);
         self.reset_steering();
         true
+    }
+
+    fn leave_local_navigation(&mut self) {
+        self.local_navigation = None;
+        self.heading.up_axis = None;
+        self.local_climb = 0.0;
     }
 
     fn portal_space_clear(&self, center: Vec3) -> bool {
@@ -290,11 +330,11 @@ impl Flight {
         let dt = dt / steps as f32;
         for step in 0..steps {
             let time = self.seconds - (steps - step) as f32 * dt;
-            if self.local_navigation.is_some_and(|local| {
-                local.reference.altitude(self.position, time)
-                    > local.reference.radius.max(30.0) * 2.5
-            }) {
-                self.local_navigation = None;
+            if self
+                .local_navigation
+                .is_some_and(|local| local.reference.outside_local_zone(self.position, time))
+            {
+                self.leave_local_navigation();
             }
             let reference = self.local_navigation.map(|local| local.reference);
             let turn = reference.map_or(1.0, |body| body.turn_scale(self.position, time));
@@ -502,6 +542,34 @@ mod tests {
         flight.heading.yaw = PI;
         assert!(flight.toggle_local_navigation());
         flight
+    }
+
+    #[test]
+    fn arrow_steering_ignores_mouse_and_switching_back_clears_the_old_turn() {
+        let mut flight = Flight::new();
+        flight.toggle_steering_mode();
+        assert_eq!(flight.steering_mode, SteeringMode::Arrows);
+        let start = flight.heading.yaw;
+        for _ in 0..60 {
+            flight.steer_input(Some((1.0, 1.0)), (0.0, 0.0));
+            flight.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+        }
+        assert_eq!(start, flight.heading.yaw);
+        for _ in 0..60 {
+            flight.steer_input(Some((-1.0, -1.0)), (1.0, 0.6));
+            flight.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+        }
+        assert!(flight.heading.yaw > start + 0.5);
+        assert!(flight.heading.pitch > 0.2);
+        flight.respawn();
+        assert_eq!(flight.steering_mode, SteeringMode::Arrows);
+        flight.toggle_steering_mode();
+        let heading = flight.heading.yaw;
+        for _ in 0..30 {
+            flight.steer_input(Some((0.0, 0.0)), (-1.0, -1.0));
+            flight.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+        }
+        assert_eq!(heading, flight.heading.yaw);
     }
 
     #[test]

@@ -697,7 +697,7 @@ impl Ui {
             let available = reference.available(flight.position, flight.seconds);
             rounded(
                 fb,
-                Rect::new(970, 130, 276, 130),
+                Rect::new(970, 130, 276, 154),
                 12,
                 0x101d2c,
                 if local { TEAL } else { BORDER },
@@ -734,7 +734,26 @@ impl Ui {
                 "L  Acercate para activar".to_owned()
             };
             self.fonts.text(fb, 14, 988, 225, &hint, MUTED);
+            if local {
+                self.fonts.text(
+                    fb,
+                    14,
+                    988,
+                    251,
+                    &format!("SALIDA A {:.1} u DE ALTURA", reference.exit_height()),
+                    MUTED,
+                );
+            }
         }
+
+        self.fonts.text(
+            fb,
+            14,
+            992,
+            91,
+            &format!("C  DIRECCION: {}", flight.steering_mode.label()),
+            MUTED,
+        );
 
         let center = (WIDTH as i32 / 2, HEIGHT as i32 / 2);
         rule(
@@ -796,7 +815,7 @@ impl Ui {
             14,
             52,
             784,
-            "WASD Mover  ·  Mouse Dirigir  ·  L Local  ·  Q/E Altura local  ·  SHIFT Turbo  ·  ESPACIO Freno  ·  I Vista  ·  ESC Destinos",
+            "WASD Mover  ·  C Mouse/Flechas  ·  L Local  ·  Q/E Altura  ·  SHIFT Turbo  ·  ESPACIO Freno  ·  I Vista  ·  ESC Destinos",
             MUTED,
         );
     }

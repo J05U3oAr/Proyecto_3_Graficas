@@ -31,7 +31,24 @@ impl Reference {
 
     pub fn available(self, position: Vec3, seconds: f32) -> bool {
         let altitude = self.altitude(position, seconds);
-        altitude >= 0.0 && altitude <= self.radius.max(30.0) * 1.5
+        altitude >= 0.0 && altitude <= self.activation_height()
+    }
+
+    pub fn activation_height(self) -> f32 {
+        (self.radius * 0.6).max(30.0)
+    }
+
+    pub fn exit_height(self) -> f32 {
+        self.activation_height() + (self.radius * 0.25).max(15.0)
+    }
+
+    /// Zona de salida mayor que la de entrada para evitar cambios repetidos en el borde.
+    pub fn exit_radius(self) -> f32 {
+        self.radius + crate::collision::SHIP_RADIUS + self.exit_height()
+    }
+
+    pub fn outside_local_zone(self, position: Vec3, seconds: f32) -> bool {
+        (position - self.center_at(seconds)).norm() > self.exit_radius()
     }
 
     pub fn speed(self, position: Vec3, seconds: f32, boost: bool) -> f32 {
@@ -236,5 +253,82 @@ mod tests {
             touched |= flight.contact_notice > 0.0;
         }
         assert!(touched, "El modo local no debe omitir las colisiones");
+    }
+
+    #[test]
+    fn surface_contact_allows_climbing_away_and_descending_again() {
+        let mut space = crate::space::Space::load().unwrap();
+        space.configure(1);
+        let mut flight = space.new_flight();
+        space.approach(&mut flight, "Kepler-186f").unwrap();
+        assert!(flight.toggle_local_navigation());
+        let reference = flight.navigation_reference().unwrap();
+        flight.set_local_climb(-1.0);
+        for _ in 0..600 {
+            flight.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+        }
+        assert!(flight.contact_notice > 0.0);
+        flight.set_local_climb(1.0);
+        for _ in 0..240 {
+            flight.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+        }
+        let above = reference.altitude(flight.position, flight.seconds);
+        assert!(above > 10.0, "Debe poder separarse del terreno: {above}");
+        flight.set_local_climb(-1.0);
+        for _ in 0..120 {
+            flight.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+        }
+        let below = reference.altitude(flight.position, flight.seconds);
+        assert!(
+            below < above - 4.0,
+            "Debe poder volver a bajar: {above} -> {below}"
+        );
+        assert!(flight.crash.is_none());
+    }
+
+    #[test]
+    fn pitch_recovers_after_contact_and_departure_from_the_local_zone() {
+        let mut space = crate::space::Space::load().unwrap();
+        space.configure(1);
+        let mut flight = space.new_flight();
+        space.approach(&mut flight, "Kepler-186f").unwrap();
+        assert!(flight.toggle_local_navigation());
+        let reference = flight.navigation_reference().unwrap();
+        flight.set_local_climb(-1.0);
+        flight.move_with_mouse(Some((0.0, 1.0)));
+        for _ in 0..600 {
+            flight.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+        }
+        assert!(flight.contact_notice > 0.0);
+        flight.set_local_climb(1.0);
+        flight.move_with_mouse(None);
+        for _ in 0..480 {
+            flight.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+            if !flight.is_local() {
+                break;
+            }
+        }
+        assert!(
+            !flight.is_local(),
+            "Alejarse debe devolver el control espacial"
+        );
+        assert!(
+            reference.altitude(flight.position, flight.seconds) > reference.exit_height() - 0.5
+        );
+        assert!(flight.heading.up_axis.is_none());
+        flight.move_with_mouse(Some((0.0, -1.0)));
+        for _ in 0..60 {
+            flight.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+        }
+        let pitch = flight.heading.pitch;
+        flight.move_with_mouse(Some((0.0, 1.0)));
+        for _ in 0..30 {
+            flight.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+        }
+        assert!(
+            flight.heading.pitch > pitch + 0.1,
+            "La proa debe volver a responder hacia abajo"
+        );
+        assert!(flight.position.iter().all(|v| v.is_finite()));
     }
 }

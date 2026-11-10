@@ -67,7 +67,9 @@ impl AnimationClock {
 }
 
 fn launch_flight(ui: &ui::Ui, flight: &mut flight::Flight, screen: &mut Screen) {
+    let steering_mode = flight.steering_mode;
     *flight = ui.new_flight();
+    flight.steering_mode = steering_mode;
     *screen = Screen::Flight;
 }
 
@@ -719,6 +721,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         } else {
             if window_active {
+                if focused_input && window.is_key_pressed(Key::C, KeyRepeat::No) {
+                    flight.toggle_steering_mode();
+                }
                 if focused_input && window.is_key_pressed(Key::L, KeyRepeat::No) {
                     flight.toggle_local_navigation();
                 }
@@ -734,12 +739,22 @@ fn main() -> Result<(), Box<dyn Error>> {
                         flight.place_portal(portal::Kind::Green);
                     }
                 }
-                flight.move_with_mouse(mouse.map(|(x, y)| {
+                flight.steer_input(
+                    mouse.map(|(x, y)| {
+                        (
+                            x / (WIDTH as f32 * 0.5) - 1.0,
+                            y / (HEIGHT as f32 * 0.5) - 1.0,
+                        )
+                    }),
                     (
-                        x / (WIDTH as f32 * 0.5) - 1.0,
-                        y / (HEIGHT as f32 * 0.5) - 1.0,
-                    )
-                }));
+                        (i32::from(window.is_key_down(Key::Right))
+                            - i32::from(window.is_key_down(Key::Left)))
+                            as f32,
+                        (i32::from(window.is_key_down(Key::Down))
+                            - i32::from(window.is_key_down(Key::Up)))
+                            as f32,
+                    ),
+                );
                 let movement = (
                     i32::from(window.is_key_down(Key::W)) - i32::from(window.is_key_down(Key::S)),
                     i32::from(window.is_key_down(Key::D)) - i32::from(window.is_key_down(Key::A)),
@@ -914,9 +929,11 @@ mod tests {
     fn hangar_launch_and_relaunch_keep_planet_collisions_and_impact_explosions() {
         let ui = ui::Ui::new().unwrap();
         let mut flight = ui.new_flight();
+        flight.steering_mode = flight::SteeringMode::Arrows;
         let mut screen = Screen::Menu;
         for attempt in 0..2 {
             launch_flight(&ui, &mut flight, &mut screen);
+            assert_eq!(flight.steering_mode, flight::SteeringMode::Arrows);
             assert!(screen == Screen::Flight);
             ui.approach_planet(&mut flight, "Boreal").unwrap();
             for _ in 0..180 {

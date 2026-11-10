@@ -172,7 +172,8 @@ pub fn draw(ui: &Ui, fb: &mut Framebuffer, home: &Home) {
                 ("ESC", "Volver al menu anterior"),
             ];
             let flight: &[(&str, &str)] = &[
-                ("Mouse", "Orientar la nave"),
+                ("Mouse / Flechas", "Orientar con el modo elegido"),
+                ("C", "Cambiar entre mouse y flechas"),
                 ("W / S", "Avanzar / retroceder"),
                 ("A / D", "Desplazarse lateralmente"),
                 ("SHIFT / ESPACIO", "Turbo / frenar"),
@@ -184,7 +185,7 @@ pub fn draw(ui: &Ui, fb: &mut Framebuffer, home: &Home) {
             ];
             for (column, rows) in [(116, menus), (660, flight)] {
                 for (index, (keys, action)) in rows.iter().enumerate() {
-                    let spacing = if rows.len() > 8 { 42 } else { 47 };
+                    let spacing = (360 / rows.len().saturating_sub(1).max(1) as i32).min(47);
                     let y = 311 + index as i32 * spacing;
                     ui.fonts.text(fb, 18, column, y, keys, TEXT);
                     ui.fonts.text(fb, 16, column, y + 25, action, MUTED);
