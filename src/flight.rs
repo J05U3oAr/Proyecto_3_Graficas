@@ -1,5 +1,6 @@
 use crate::camera::Camera;
 use crate::collision::CollisionWorld;
+use crate::local_navigation::{LocalFlight, Reference};
 use nalgebra_glm::Vec3;
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
 use std::sync::Arc;
@@ -8,6 +9,12 @@ pub const CRASH_SPEED: f32 = 28.0;
 pub const CRUISE_SPEED: f32 = 36.0;
 pub const BOOST_SPEED: f32 = 155.0;
 pub const SPAWN_POSITION: Vec3 = Vec3::new(88.0, -139.0, 579.0);
+
+fn orient(camera: &mut Camera, forward: Vec3) {
+    let backward = -forward.normalize();
+    camera.yaw = backward.z.atan2(backward.x).rem_euclid(TAU);
+    camera.pitch = backward.y.clamp(-0.999999, 0.999999).asin();
+}
 
 pub struct Crash {
     pub position: Vec3,
@@ -35,6 +42,9 @@ pub struct Flight {
     collisions: Option<Arc<CollisionWorld>>,
     steering: (f32, f32),
     mouse_target: (f32, f32),
+    navigation_targets: Arc<[Reference]>,
+    local_navigation: Option<LocalFlight>,
+    local_climb: f32,
 }
 
 impl Flight {
@@ -43,6 +53,7 @@ impl Flight {
             yaw: FRAC_PI_2,
             pitch: 0.0,
             zoom: 1.0,
+            up_axis: None,
         };
         Self {
             position: Vec3::zeros(),
@@ -65,6 +76,9 @@ impl Flight {
             collisions: None,
             steering: (0.0, 0.0),
             mouse_target: (0.0, 0.0),
+            navigation_targets: Arc::from([]),
+            local_navigation: None,
+            local_climb: 0.0,
         }
     }
 
@@ -82,6 +96,7 @@ impl Flight {
         let spawn_position = self.spawn_position;
         let black_hole = self.black_hole;
         let collisions = self.collisions.take();
+        let navigation_targets = Arc::clone(&self.navigation_targets);
         let portals_enabled = self.portals.enabled();
         *self = Self::new();
         self.position = spawn_position;
@@ -89,6 +104,7 @@ impl Flight {
         self.black_hole = black_hole;
         self.seconds = seconds;
         self.collisions = collisions;
+        self.navigation_targets = navigation_targets;
         self.portals.set_enabled(portals_enabled);
         self.respawn_notice = 3.5;
     }
@@ -108,6 +124,72 @@ impl Flight {
     pub fn reset_steering(&mut self) {
         self.mouse_target = (0.0, 0.0);
         self.steering = (0.0, 0.0);
+        self.local_climb = 0.0;
+    }
+
+    pub fn set_navigation_targets(&mut self, targets: Vec<Reference>) {
+        self.navigation_targets = targets.into();
+        self.local_navigation = None;
+    }
+
+    pub fn is_local(&self) -> bool {
+        self.local_navigation.is_some()
+    }
+
+    pub fn navigation_reference(&self) -> Option<Reference> {
+        self.local_navigation
+            .map(|local| local.reference)
+            .or_else(|| {
+                self.navigation_targets.iter().copied().min_by(|a, b| {
+                    a.altitude(self.position, self.seconds)
+                        .total_cmp(&b.altitude(self.position, self.seconds))
+                })
+            })
+    }
+
+    pub fn relative_speed(&self) -> f32 {
+        self.local_navigation
+            .map_or_else(|| self.velocity.norm(), |local| local.velocity.norm())
+    }
+
+    pub fn set_local_climb(&mut self, climb: f32) {
+        self.local_climb = climb.clamp(-1.0, 1.0);
+    }
+
+    pub fn toggle_local_navigation(&mut self) -> bool {
+        if self.is_local() {
+            self.local_navigation = None;
+            self.heading.up_axis = None;
+            self.local_climb = 0.0;
+            return true;
+        }
+        if self.crash.is_some() || self.is_captured() {
+            return false;
+        }
+        let Some(reference) = self
+            .navigation_reference()
+            .filter(|reference| reference.available(self.position, self.seconds))
+        else {
+            return false;
+        };
+        let up = (self.position - reference.center_at(self.seconds)).normalize();
+        let relative =
+            self.velocity - reference.motion.velocity(self.seconds) - self.gravity_velocity;
+        self.local_navigation = Some(LocalFlight {
+            reference,
+            velocity: relative - up * relative.dot(&up),
+        });
+        self.heading.up_axis = Some(up);
+        let forward = reference.direction(
+            self.position,
+            self.heading.basis().2,
+            (1.0, 0.0),
+            0.0,
+            self.seconds,
+        );
+        orient(&mut self.heading, forward);
+        self.reset_steering();
+        true
     }
 
     fn portal_space_clear(&self, center: Vec3) -> bool {
@@ -207,19 +289,57 @@ impl Flight {
         let steps = (dt * 120.0).ceil() as usize;
         let dt = dt / steps as f32;
         for step in 0..steps {
+            let time = self.seconds - (steps - step) as f32 * dt;
+            if self.local_navigation.is_some_and(|local| {
+                local.reference.altitude(self.position, time)
+                    > local.reference.radius.max(30.0) * 2.5
+            }) {
+                self.local_navigation = None;
+            }
+            let reference = self.local_navigation.map(|local| local.reference);
+            let turn = reference.map_or(1.0, |body| body.turn_scale(self.position, time));
             let response = 1.0 - (-8.0 * dt).exp();
             self.steering.0 += (self.mouse_target.0 - self.steering.0) * response;
             self.steering.1 += (self.mouse_target.1 - self.steering.1) * response;
-            self.heading.yaw = (self.heading.yaw + self.steering.0 * 1.35 * dt).rem_euclid(TAU);
-            self.heading.pitch =
-                (self.heading.pitch + self.steering.1 * 1.05 * dt).clamp(-1.15, 1.15);
+            if let Some(body) = reference {
+                let up = (self.position - body.center_at(time)).normalize();
+                self.heading.up_axis = Some(up);
+                let forward = crate::local_navigation::rotate(
+                    self.heading.basis().2,
+                    up,
+                    -self.steering.0 * 1.35 * dt * turn,
+                );
+                let right = forward.cross(&up).normalize();
+                let forward = crate::local_navigation::rotate(
+                    forward,
+                    right,
+                    -self.steering.1 * 1.05 * dt * turn,
+                );
+                let vertical = forward.dot(&up).clamp(-0.97, 0.97);
+                let tangent = (forward - up * forward.dot(&up)).normalize();
+                orient(
+                    &mut self.heading,
+                    tangent * (1.0 - vertical * vertical).sqrt() + up * vertical,
+                );
+            } else {
+                self.heading.up_axis = None;
+                self.heading.yaw = (self.heading.yaw + self.steering.0 * 1.35 * dt).rem_euclid(TAU);
+                self.heading.pitch =
+                    (self.heading.pitch + self.steering.1 * 1.05 * dt).clamp(-1.15, 1.15);
+            }
             self.bank += (-self.steering.0 * 0.55 - self.bank) * response;
 
             let (right, _, forward) = self.heading.basis();
-            let direction = forward * movement.0 + right * movement.1;
+            let direction = reference.map_or_else(
+                || forward * movement.0 + right * movement.1,
+                |body| body.direction(self.position, forward, movement, self.local_climb, time),
+            );
             // Normalize diagonals so W+D is as fast as W alone.
             let direction = direction / direction.norm().max(1.0);
-            let speed = if boost { BOOST_SPEED } else { CRUISE_SPEED };
+            let speed = reference.map_or_else(
+                || if boost { BOOST_SPEED } else { CRUISE_SPEED },
+                |body| body.speed(self.position, time, boost),
+            );
             let target_velocity = if brake {
                 Vec3::zeros()
             } else {
@@ -231,7 +351,11 @@ impl Flight {
                 3.0
             };
             // Thrusters damp their own motion; releasing WASD does not erase gravity.
-            let mut controlled = self.velocity - self.gravity_velocity;
+            let mut controlled = self
+                .local_navigation
+                .map_or(self.velocity - self.gravity_velocity, |local| {
+                    local.velocity
+                });
             controlled += (target_velocity - controlled) * (1.0 - (-acceleration * dt).exp());
             self.gravity_velocity += self.black_hole.acceleration(self.position) * dt;
             // Brakes can help in the outer field but cannot cancel the attraction.
@@ -243,9 +367,15 @@ impl Flight {
                 self.gravity_velocity *= 320.0 / drift_speed;
             }
             self.velocity = controlled + self.gravity_velocity;
-            let mut next = self.position + self.velocity * dt;
+            let local_step =
+                reference.map(|body| body.step(self.position, self.velocity * dt, time, dt));
+            let mut next = local_step
+                .as_ref()
+                .map_or(self.position + self.velocity * dt, |step| step.position);
+            if local_step.is_some() {
+                self.velocity = (next - self.position) / dt;
+            }
             if let Some(world) = &self.collisions {
-                let time = self.seconds - (steps - step) as f32 * dt;
                 let motion = world.move_ship(self.position, self.velocity * dt, time, dt);
                 next = motion.position;
                 for contact in &motion.contacts {
@@ -260,12 +390,14 @@ impl Flight {
                         self.velocity = Vec3::zeros();
                         self.gravity_velocity = Vec3::zeros();
                         self.position = next;
+                        self.local_navigation = None;
                         break;
                     }
                     let inward = (self.velocity - contact.surface_velocity)
                         .dot(&contact.normal)
                         .min(0.0);
                     self.velocity -= contact.normal * inward;
+                    controlled -= contact.normal * inward;
                     let gravity_inward = self.gravity_velocity.dot(&contact.normal).min(0.0);
                     self.gravity_velocity -= contact.normal * gravity_inward;
                     self.contact_notice = 0.7;
@@ -287,6 +419,7 @@ impl Flight {
                         let backward = -transit.rotate(camera.basis().2);
                         camera.yaw = backward.z.atan2(backward.x).rem_euclid(TAU);
                         camera.pitch = backward.y.clamp(-1.0, 1.0).asin();
+                        camera.up_axis = camera.up_axis.map(|up| transit.rotate(up));
                     };
                     rotate_camera(&mut self.heading);
                     rotate_camera(&mut self.camera);
@@ -296,6 +429,7 @@ impl Flight {
                     next = transit.position;
                     segment_start = transit.exit_start;
                     self.portals.complete_transit();
+                    self.local_navigation = None;
                 } else {
                     self.portals
                         .notify("Salida bloqueada. Recoloca ese portal.");
@@ -305,14 +439,49 @@ impl Flight {
                 self.captured_for = Some(0.0);
                 self.velocity = Vec3::zeros();
                 self.gravity_velocity = Vec3::zeros();
+                self.local_navigation = None;
                 break;
             }
             self.position = next;
 
+            if let (Some(local), Some(step)) = (self.local_navigation.as_mut(), local_step.as_ref())
+            {
+                local.velocity = step.transport(controlled);
+                let forward = step.transport(self.heading.basis().2);
+                let view = step.transport(self.camera.basis().2);
+                orient(&mut self.heading, forward);
+                orient(&mut self.camera, view);
+                self.heading.up_axis =
+                    Some((self.position - local.reference.center_at(time + dt)).normalize());
+                self.camera.up_axis = self.camera.up_axis.map(|up| step.transport(up));
+            }
+
             let follow = 1.0 - (-7.0 * dt).exp();
-            let yaw_error = (self.heading.yaw - self.camera.yaw + PI).rem_euclid(TAU) - PI;
-            self.camera.yaw = (self.camera.yaw + yaw_error * follow).rem_euclid(TAU);
-            self.camera.pitch += (self.heading.pitch + 0.14 - self.camera.pitch) * follow;
+            if let Some(local) = self.local_navigation {
+                let up = (self.position - local.reference.center_at(time + dt)).normalize();
+                let target = self.heading.basis().2 * 0.40_f32.cos() - up * 0.40_f32.sin();
+                let forward = self.camera.basis().2;
+                orient(&mut self.camera, forward + (target - forward) * follow);
+                self.camera.up_axis = Some(crate::local_navigation::blend_up(
+                    self.camera.up_axis.unwrap_or_else(Vec3::y),
+                    up,
+                    self.camera.basis().2,
+                    follow,
+                ));
+            } else {
+                let yaw_error = (self.heading.yaw - self.camera.yaw + PI).rem_euclid(TAU) - PI;
+                self.camera.yaw = (self.camera.yaw + yaw_error * follow).rem_euclid(TAU);
+                self.camera.pitch += (self.heading.pitch + 0.14 - self.camera.pitch) * follow;
+                if let Some(up) = self.camera.up_axis {
+                    let up = crate::local_navigation::blend_up(
+                        up,
+                        Vec3::y(),
+                        self.camera.basis().2,
+                        follow,
+                    );
+                    self.camera.up_axis = ((up - Vec3::y()).norm() > 0.001).then_some(up);
+                }
+            }
         }
     }
 }
@@ -320,6 +489,71 @@ impl Flight {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn local_flight() -> Flight {
+        let mut flight = Flight::new();
+        flight.set_navigation_targets(vec![crate::local_navigation::Reference {
+            name: "Prueba",
+            center: Vec3::zeros(),
+            radius: 90.0,
+            motion: crate::orbit::Motion::default(),
+        }]);
+        flight.position = Vec3::z() * 114.0;
+        flight.heading.yaw = PI;
+        assert!(flight.toggle_local_navigation());
+        flight
+    }
+
+    #[test]
+    fn local_navigation_preserves_height_is_frame_rate_independent_and_can_be_disabled() {
+        let simulate = |fps| {
+            let mut flight = local_flight();
+            for _ in 0..fps * 20 {
+                flight.advance(1.0 / fps as f32, (1.0, 0.0), false, false);
+            }
+            assert!((flight.position.norm() - 114.0).abs() < 0.03);
+            assert!(flight.is_local());
+            flight
+        };
+        let mut fast = simulate(60);
+        let slow = simulate(10);
+        assert!((fast.position - slow.position).norm() < 0.3);
+        let position = fast.position;
+        let velocity = fast.velocity;
+        assert!(fast.toggle_local_navigation());
+        assert!(!fast.is_local());
+        assert_eq!(position, fast.position);
+        assert_eq!(velocity, fast.velocity);
+        fast.advance(0.1, (1.0, 0.0), true, false);
+        assert!(fast.velocity.norm() > velocity.norm());
+    }
+
+    #[test]
+    fn local_navigation_climbs_brakes_and_rejects_distant_or_destroyed_ships() {
+        let mut flight = local_flight();
+        flight.set_local_climb(1.0);
+        for _ in 0..60 {
+            flight.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+        }
+        assert!(flight.position.norm() > 117.0);
+        flight.set_local_climb(0.0);
+        for _ in 0..120 {
+            flight.advance(1.0 / 60.0, (0.0, 0.0), false, true);
+        }
+        assert!(flight.velocity.norm() < 0.01);
+        flight.respawn();
+        assert!(!flight.is_local());
+        flight.position = Vec3::repeat(10000.0);
+        assert!(!flight.toggle_local_navigation());
+        flight.position = Vec3::z() * 114.0;
+        flight.crash = Some(Crash {
+            position: flight.position,
+            normal: Vec3::z(),
+            age: 0.0,
+            planet: "Prueba",
+        });
+        assert!(!flight.toggle_local_navigation());
+    }
 
     fn portal_flight() -> Flight {
         use crate::portal::{Kind, Portal};

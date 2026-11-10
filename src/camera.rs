@@ -6,6 +6,7 @@ pub struct Camera {
     pub yaw: f32,
     pub pitch: f32,
     pub zoom: f32,
+    pub up_axis: Option<Vec3>,
 }
 
 impl Camera {
@@ -14,6 +15,7 @@ impl Camera {
             yaw: -0.42,
             pitch: 0.92,
             zoom: 1.0,
+            up_axis: None,
         }
     }
 
@@ -29,7 +31,17 @@ impl Camera {
             self.yaw.sin() * self.pitch.cos(),
         );
         let forward = -backward;
-        let right = forward.cross(&Vec3::new(0.0, 1.0, 0.0)).normalize();
+        let up_axis = self.up_axis.unwrap_or_else(Vec3::y);
+        let mut right = forward.cross(&up_axis);
+        if right.norm_squared() < 1e-8 {
+            let fallback = if forward.y.abs() < 0.9 {
+                Vec3::y()
+            } else {
+                Vec3::x()
+            };
+            right = forward.cross(&fallback);
+        }
+        let right = right.normalize();
         let up = right.cross(&forward).normalize();
         (right, up, forward)
     }

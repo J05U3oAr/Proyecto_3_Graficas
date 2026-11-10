@@ -79,6 +79,7 @@ pub fn preview_camera(index: usize, seconds: f32) -> Camera {
         yaw: (-0.8 + index as f32 * 0.65 + seconds * TAU / 18.0).rem_euclid(TAU),
         pitch: 0.52 + (seconds * TAU / 18.0).sin() * 0.055,
         zoom: 1.08,
+        up_axis: None,
     }
 }
 
@@ -691,6 +692,50 @@ impl Ui {
             TEXT,
         );
 
+        if let Some(reference) = flight.navigation_reference() {
+            let local = flight.is_local();
+            let available = reference.available(flight.position, flight.seconds);
+            rounded(
+                fb,
+                Rect::new(970, 130, 276, 130),
+                12,
+                0x101d2c,
+                if local { TEAL } else { BORDER },
+            );
+            self.fonts.text(
+                fb,
+                14,
+                988,
+                143,
+                if local {
+                    "NAVEGACION LOCAL"
+                } else {
+                    "VUELO ESPACIAL"
+                },
+                if local { TEAL } else { MUTED },
+            );
+            self.fonts.text(fb, 18, 988, 167, reference.name, TEXT);
+            self.fonts.text(
+                fb,
+                14,
+                988,
+                194,
+                &format!(
+                    "ALT APROX  {:.1} u",
+                    reference.altitude(flight.position, flight.seconds).max(0.0)
+                ),
+                TEXT,
+            );
+            let hint = if local {
+                format!("REL {:.1} u/s  |  Q/E Altura", flight.relative_speed())
+            } else if available {
+                "L  Activar modo local".to_owned()
+            } else {
+                "L  Acercate para activar".to_owned()
+            };
+            self.fonts.text(fb, 14, 988, 225, &hint, MUTED);
+        }
+
         let center = (WIDTH as i32 / 2, HEIGHT as i32 / 2);
         rule(
             fb,
@@ -751,7 +796,7 @@ impl Ui {
             14,
             52,
             784,
-            "W/S Avanzar/Retroceder  ·  A/D Lateral  ·  Mouse Dirigir  ·  SHIFT Turbo  ·  ESPACIO Freno  ·  I Vista  ·  ESC Galaxias",
+            "WASD Mover  ·  Mouse Dirigir  ·  L Local  ·  Q/E Altura local  ·  SHIFT Turbo  ·  ESPACIO Freno  ·  I Vista  ·  ESC Destinos",
             MUTED,
         );
     }

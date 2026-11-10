@@ -13,6 +13,7 @@ mod galaxy;
 mod galaxy_art;
 mod home;
 mod lighting;
+mod local_navigation;
 mod menus;
 mod model;
 mod nebula;
@@ -102,6 +103,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut target = None;
         let mut near_black_hole = false;
         let mut near_planet = None;
+        let mut local_navigation = false;
         let mut portal_demo = false;
         let mut gate_ready = false;
         let mut mouse_target = (0.0f32, 0.0f32);
@@ -165,6 +167,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     target = Some(args.next().ok_or("Falta el nombre del escenario")?.as_str());
                 }
                 "--near-black-hole" => near_black_hole = true,
+                "--local-navigation" => local_navigation = true,
                 "--portal-demo" => portal_demo = true,
                 "--gate-ready" => gate_ready = true,
                 "--near-planet" => {
@@ -195,7 +198,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         "--render-gate salida.png --ship 3 --galaxy 2 --time 1.5 [--gate-ready]"
                     );
                     println!(
-                        "--render-flight admite --portal-demo --ship 3 para revisar los dos portales."
+                        "--render-flight admite --portal-demo --ship 3, o --near-planet kepler-186f --local-navigation para revisar el vuelo local."
                     );
                     println!(
                         "Beyond the Interstellar\ncargo run --release -- --render-home salida.png [--home-section principal|controles|instrucciones]"
@@ -223,6 +226,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         if benchmark_frames > 0 && export_screen != Screen::Flight {
             return Err("La medicion requiere --render-flight".into());
+        }
+        if local_navigation
+            && (export_screen != Screen::Flight
+                || near_planet.is_none()
+                || portal_demo
+                || near_black_hole)
+        {
+            return Err("--local-navigation requiere --render-flight y --near-planet, sin portales ni agujero negro".into());
         }
         if portal_demo
             && (export_screen != Screen::Flight
@@ -307,6 +318,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             if near_black_hole {
                 flight.position =
                     flight.black_hole.position + nalgebra_glm::Vec3::new(0.0, 0.0, 250.0);
+            }
+            if local_navigation && !flight.toggle_local_navigation() {
+                return Err("No se puede activar la navegacion local en esta posicion".into());
             }
             flight.move_with_mouse(Some(mouse_target));
             for frame in 0..(seconds * 60.0).ceil() as u32 {
@@ -705,6 +719,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         } else {
             if window_active {
+                if focused_input && window.is_key_pressed(Key::L, KeyRepeat::No) {
+                    flight.toggle_local_navigation();
+                }
+                flight.set_local_climb(
+                    (i32::from(window.is_key_down(Key::E)) - i32::from(window.is_key_down(Key::Q)))
+                        as f32,
+                );
                 if focused_input && mouse.is_some() {
                     if clicked {
                         flight.place_portal(portal::Kind::Yellow);
@@ -742,6 +763,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
             if window.is_key_pressed(Key::I, KeyRepeat::No) {
                 ships[selected].camera = flight.camera;
+                ships[selected].camera.up_axis = None;
                 screen = Screen::Inspector;
             }
         }

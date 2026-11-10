@@ -336,6 +336,17 @@ impl Space {
     pub fn new_flight(&self) -> Flight {
         let mut flight = Flight::with_collisions(Arc::clone(&self.collisions));
         flight.black_hole = self.black_hole;
+        flight.set_navigation_targets(
+            self.active_planets()
+                .filter(|planet| !planet.is_sun)
+                .map(|planet| crate::local_navigation::Reference {
+                    name: planet.name,
+                    center: planet.transform.position,
+                    radius: planet.transform.radius,
+                    motion: planet.motion,
+                })
+                .collect(),
+        );
         flight
     }
 

@@ -179,11 +179,13 @@ pub fn draw(ui: &Ui, fb: &mut Framebuffer, home: &Home) {
                 ("I", "Inspeccionar la nave"),
                 ("Clic izq / der", "Crucer: portal amarillo / verde"),
                 ("G", "Crucer: portal a otra galaxia"),
+                ("L / Q-E", "Modo local / bajar-subir altura"),
                 ("Flechas / Q-E / M", "En inspeccion: orbita / zoom / vista"),
             ];
             for (column, rows) in [(116, menus), (660, flight)] {
                 for (index, (keys, action)) in rows.iter().enumerate() {
-                    let y = 311 + index as i32 * 47;
+                    let spacing = if rows.len() > 8 { 42 } else { 47 };
+                    let y = 311 + index as i32 * spacing;
                     ui.fonts.text(fb, 18, column, y, keys, TEXT);
                     ui.fonts.text(fb, 16, column, y + 25, action, MUTED);
                 }
