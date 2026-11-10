@@ -87,6 +87,8 @@ La organización del mapa toma como referencia la navegación y la información 
 | `A` / `D` | Desplazarse lateralmente a izquierda / derecha |
 | `Shift` | Aumentar el impulso y la velocidad máxima |
 | `Espacio` | Frenar |
+| `L` | Activar o desactivar navegación local cerca del planeta más próximo |
+| `Q` / `E` | En navegación local: bajar / subir respecto a la superficie |
 | `1`, `2`, `3` | Cambiar de nave |
 | `I` | Inspeccionar la nave actual |
 | Clic izquierdo / derecho | Con Crucer espacial: colocar el portal amarillo / verde |
@@ -98,6 +100,42 @@ La nave comienza detenida y se desplaza mientras mantienes WASD. Puedes combinar
 El mouse dirige la nave sin mantener clic. La posición del cursor respecto al centro controla el giro: cuanto más lo alejas, más rápido gira; al volver al centro, mantiene el rumbo. Una pequeña zona neutra evita movimientos involuntarios. Al salir el cursor de la ventana, el giro se suaviza hasta detenerse. Para subir o bajar, apunta con el mouse y avanza con `W`.
 
 La cámara está detrás y ligeramente por encima de la nave, mirando de la cola hacia la proa. Sigue los cambios de dirección con suavidad y la nave inclina las alas al girar. Las tres naves se dibujan en perspectiva y las estrellas se desplazan según la posición y velocidad reales, con estelas al avanzar. El HUD muestra posición y velocidad. El vuelo se pausa mientras inspeccionas la nave o la ventana pierde el foco.
+
+### Navegación local cerca de un planeta
+
+Al acercarte, el panel derecho muestra el planeta de referencia, la altura
+aproximada y la disponibilidad de **L**. Al activarlo, WASD desplaza la nave
+tangencialmente alrededor del planeta; **Q** baja y **E** sube. El mouse permite
+orientar la nave y observar el entorno. **Espacio** frena el movimiento relativo
+al planeta y **Shift** proporciona un impulso local moderado.
+
+La velocidad y la sensibilidad de giro disminuyen cerca del terreno. La nave
+acompaña la traslación orbital del planeta, mientras su superficie continúa
+rotando. Los desplazamientos tangenciales siguen arcos sobre la esfera y la
+cámara adapta suavemente su horizonte, permitiendo circunnavegar sin cambiar
+de escena. El HUD distingue la velocidad mundial de **REL**, la velocidad local.
+
+La altura se calcula respecto al radio de referencia del modelo: es aproximada
+en montañas y túneles. Las colisiones siguen usando la malla real. Un contacto
+suave permite deslizarse; los impactos fuertes conservan la explosión existente.
+Esta asistencia de navegación utiliza un marco móvil y no añade gravedad
+planetaria.
+
+Pulsa **L** otra vez para volver al vuelo espacial conservando posición y
+velocidad. El modo se desactiva al alejarse de su zona, atravesar un portal,
+reaparecer o cargar otro destino. No se activa en el sol ni con una nave destruida
+o absorbida. Inspeccionar o perder el foco pausa el movimiento y conserva el modo.
+
+![Navegación local sobre Kepler-186f](assets/planets/previews/navegacion-local.png)
+
+Para exportar esta comprobación sin ventana:
+
+```bash
+cargo run --release -- --render-flight output/navegacion-local.png --galaxy 2 --ship 3 --near-planet kepler-186f --local-navigation --time 4
+```
+
+`--local-navigation` requiere `--render-flight` y `--near-planet`. La exportación
+activa la misma asistencia del juego y mantiene W durante el tiempo solicitado.
 
 **Portales de Crucer espacial:** apunta orientando la nave y usa clic izquierdo
 para colocar el amarillo o derecho para el verde, a 32 unidades frente a la proa.
@@ -226,6 +264,7 @@ Admite los cuatro nombres de planeta y es una alternativa a `--near-black-hole`.
 - `src/noise.rs`: ruido reproducible y funciones de interpolación de la nebulosa.
 - `src/travel.rs`: transición de viaje y mezcla con el cuadro de llegada.
 - `src/flight.rs`: posición, velocidad, impulso y controles de vuelo.
+- `src/local_navigation.rs`: referencia orbital, desplazamiento tangencial, altura y horizonte local.
 - `src/portal.rs`: colocación, enlace y cruce continuo de los dos portales.
 - `src/portal_art.rs`: discos en perspectiva y animación de las imágenes de portales.
 - `src/galactic_portal.rs`: portal galáctico gigante, selección de destino y cinemática de entrada.
@@ -242,6 +281,11 @@ Admite los cuatro nombres de planeta y es una alternativa a `--near-black-hole`.
 - `assets/ui/`: atlas de glifos integrado en el ejecutable; no requiere instalar fuentes.
 
 Las pruebas de `cargo test` comprueban los giros completos del hangar, pausa/reanudación, selección con ventana redimensionada y animación de cada nave en la vista principal sin modificar la columna lateral. También verifican la selección del mapa al moverlo, girarlo o ampliarlo; la restauración de destinos con sus colisiones; la decoración reproducible; y la igualdad del renderizado entre uno y varios hilos. El vuelo tiene pruebas de dirección sostenida con mouse, movimiento sin saltos, WASD sin avance automático ni ventaja diagonal, desaceleración, turbo/freno, respuesta a distintas tasas de cuadros, cámara trasera y desplazamiento del campo estelar. Los planetas tienen comprobaciones de visibilidad, profundidad independiente del orden de dibujo, recorte cerca de la cámara y movimiento de la nube sin desplazar la nave.
+
+Las pruebas de navegación local verifican una circunnavegación completa con la
+órbita y colisiones de Kepler-186f a 10 y 60 FPS, conservación de altura,
+orientación del horizonte, ascenso, frenado, salida sin teletransporte y descenso
+contra la superficie real.
 
 ## Integración y procedencia
 
