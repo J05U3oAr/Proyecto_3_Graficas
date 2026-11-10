@@ -81,7 +81,9 @@ La organización del mapa toma como referencia la navegación y la información 
 
 | Tecla | Acción |
 | --- | --- |
-| Mouse | Dirigir la nave: izquierda/derecha para girar, arriba/abajo para subir o bajar |
+| `C` | Alternar la dirección entre mouse y flechas; el HUD indica el modo activo |
+| Mouse | En modo mouse: dirigir la nave según la posición respecto al centro |
+| Flechas | En modo flechas: izquierda/derecha giran, arriba/abajo inclinan la proa |
 | Mouse al centro | Mantener el rumbo recto |
 | `W` / `S` | Avanzar / retroceder según la dirección de la nave |
 | `A` / `D` | Desplazarse lateralmente a izquierda / derecha |
@@ -99,6 +101,12 @@ La nave comienza detenida y se desplaza mientras mantienes WASD. Puedes combinar
 
 El mouse dirige la nave sin mantener clic. La posición del cursor respecto al centro controla el giro: cuanto más lo alejas, más rápido gira; al volver al centro, mantiene el rumbo. Una pequeña zona neutra evita movimientos involuntarios. Al salir el cursor de la ventana, el giro se suaviza hasta detenerse. Para subir o bajar, apunta con el mouse y avanza con `W`.
 
+Pulsa **C** para elegir dirección con flechas. En este modo el mouse sigue
+permitiendo apuntar a los elementos de la interfaz y colocar portales con clic,
+pero su posición no dirige la nave. Mantén las flechas para girar o inclinar la
+proa; al soltarlas, el giro se suaviza hasta detenerse. Cambiar de modo cancela
+el giro pendiente. La selección se conserva al reaparecer y cambiar de destino.
+
 La cámara está detrás y ligeramente por encima de la nave, mirando de la cola hacia la proa. Sigue los cambios de dirección con suavidad y la nave inclina las alas al girar. Las tres naves se dibujan en perspectiva y las estrellas se desplazan según la posición y velocidad reales, con estelas al avanzar. El HUD muestra posición y velocidad. El vuelo se pausa mientras inspeccionas la nave o la ventana pierde el foco.
 
 ### Navegación local cerca de un planeta
@@ -106,7 +114,9 @@ La cámara está detrás y ligeramente por encima de la nave, mirando de la cola
 Al acercarte, el panel derecho muestra el planeta de referencia, la altura
 aproximada y la disponibilidad de **L**. Al activarlo, WASD desplaza la nave
 tangencialmente alrededor del planeta; **Q** baja y **E** sube. El mouse permite
-orientar la nave y observar el entorno. **Espacio** frena el movimiento relativo
+orientar la nave y observar el entorno, o puedes usar las flechas mediante **C**.
+Inclinar la proa permite mirar el terreno; **Q/E** cambia la altura en modo local.
+**Espacio** frena el movimiento relativo
 al planeta y **Shift** proporciona un impulso local moderado.
 
 La velocidad y la sensibilidad de giro disminuyen cerca del terreno. La nave
@@ -122,7 +132,15 @@ Esta asistencia de navegación utiliza un marco móvil y no añade gravedad
 planetaria.
 
 Pulsa **L** otra vez para volver al vuelo espacial conservando posición y
-velocidad. El modo se desactiva al alejarse de su zona, atravesar un portal,
+velocidad. La zona de activación permite una altura de `max(30, radio × 0.6)`.
+El radio de salida, medido desde el centro, suma el radio del planeta, el radio
+de colisión de la nave y una altura de salida de `max(30, radio × 0.6) + max(15, radio × 0.25)`.
+Ese margen evita alternar repetidamente entre modos en el borde. En Kepler-186f
+la activación llega a 54 unidades de altura y la salida ocurre al superar 76.5;
+el HUD muestra ese límite. Al salir se libera la referencia de inclinación local
+y la proa vuelve a responder en el marco espacial.
+
+El modo se desactiva al superar ese radio, atravesar un portal,
 reaparecer o cargar otro destino. No se activa en el sol ni con una nave destruida
 o absorbida. Inspeccionar o perder el foco pausa el movimiento y conserva el modo.
 
@@ -285,7 +303,9 @@ Las pruebas de `cargo test` comprueban los giros completos del hangar, pausa/rea
 Las pruebas de navegación local verifican una circunnavegación completa con la
 órbita y colisiones de Kepler-186f a 10 y 60 FPS, conservación de altura,
 orientación del horizonte, ascenso, frenado, salida sin teletransporte y descenso
-contra la superficie real.
+contra la superficie real. También cubren contacto seguido de ascenso y nuevo
+descenso, recuperación de la inclinación al abandonar el radio local y selección
+de dirección con flechas sin interferencia del mouse.
 
 ## Integración y procedencia
 
