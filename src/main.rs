@@ -12,6 +12,7 @@ mod galactic_portal;
 mod galaxy;
 mod galaxy_art;
 mod home;
+mod ice_planet;
 mod lighting;
 mod local_navigation;
 mod menus;
@@ -912,7 +913,7 @@ mod tests {
             frame.pixels, arrival.pixels,
             "The cinematic must arrive at the exact flight scene"
         );
-        ui.approach_planet(&mut flight, "Boreal").unwrap();
+        ui.approach_planet(&mut flight, "Nivalis").unwrap();
         for _ in 0..180 {
             flight.advance(1.0 / 60.0, (1.0, 0.0), true, false);
             if flight.crash.is_some() {
@@ -921,7 +922,7 @@ mod tests {
         }
         assert_eq!(
             flight.crash.as_ref().map(|crash| crash.planet),
-            Some("Boreal")
+            Some("Nivalis")
         );
     }
 

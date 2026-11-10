@@ -75,8 +75,8 @@ pub const GALAXIES: [Galaxy; 3] = [
         subtitle: "REGION DE HIELO Y PIEDRA",
         description: [
             "Un paisaje frio, silencioso y remoto.",
-            "Boreal ilumina los pasos de Oquedad",
-            "entre fragmentos de roca azulada.",
+            "Nivalis guarda un lago congelado",
+            "entre glaciares y los pasos de Oquedad.",
         ],
         planets: &[1, 3],
         accent: 0xa9afff,
@@ -112,7 +112,7 @@ pub fn planet_transform(galaxy: usize, planet: usize) -> WorldTransform {
     ];
     let (position, radius, yaw) = match (galaxy, planet) {
         (2, 1) => ([-42.0, 8.0, -145.0], 32.0, -0.7),
-        (2, 3) => ([78.0, 20.0, -235.0], 49.0, 0.9),
+        (2, 3) => ([78.0, 20.0, -235.0], 65.0, 0.0),
         _ => original[planet],
     };
     WorldTransform {

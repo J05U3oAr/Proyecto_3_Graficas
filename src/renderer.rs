@@ -447,7 +447,10 @@ fn draw_world_with_basis(
                 polygon[index + 1].point,
             ];
             let projected = points.map(project);
-            let surface = if matches!(effect, crate::shaders::SurfaceEffect::Rock { .. }) {
+            let surface = if matches!(
+                effect,
+                crate::shaders::SurfaceEffect::Rock { .. } | crate::shaders::SurfaceEffect::Ice
+            ) {
                 let local = points.map(|point| {
                     let world = camera.eye + camera.right * point.x + camera.up * point.y
                         - camera.forward * point.z;

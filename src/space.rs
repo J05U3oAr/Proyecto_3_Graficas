@@ -28,6 +28,7 @@ impl Planet {
     pub fn surface_effect(&self, seconds: f32) -> crate::shaders::SurfaceEffect {
         use crate::shaders::SurfaceEffect;
         match self.name {
+            "Nivalis" => SurfaceEffect::Ice,
             "Kepler-186f" => SurfaceEffect::Kepler { seconds },
             "Jovara" => SurfaceEffect::PolarClouds { seconds },
             "Helios II" => SurfaceEffect::Solar { seconds },
@@ -70,12 +71,17 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
                 "runtime/flareon.obj",
                 "runtime/kepler-186f.obj",
                 "runtime/metis.obj",
+                "nivalis/nivalis.obj",
             ];
             paths
                 .iter()
                 .enumerate()
                 .map(|(index, path)| {
-                    let mut model = Model::load(assets.join(path))?;
+                    let mut model = if index == 8 {
+                        crate::ice_planet::load(assets.join(path))?
+                    } else {
+                        Model::load(assets.join(path))?
+                    };
                     if index >= 3 {
                         for texture in &mut model.textures {
                             texture.blend_longitude_seam(if index == 3 { 0.035 } else { 0.015 });
@@ -126,6 +132,8 @@ pub struct Space {
     black_hole: crate::black_hole::BlackHole,
     debris_model: Model,
     debris: Vec<WorldTransform>,
+    nivalis: Arc<Model>,
+    boreal: Arc<Model>,
 }
 
 impl Space {
@@ -266,6 +274,8 @@ impl Space {
             black_hole: crate::galaxy::black_hole(0),
             debris_model: debris_model(),
             debris: Vec::new(),
+            nivalis: Arc::clone(&models[8]),
+            boreal: Arc::clone(&models[3]),
         })
     }
 
@@ -273,6 +283,14 @@ impl Space {
         self.black_hole = crate::galaxy::black_hole(index);
         let galaxy = &crate::galaxy::GALAXIES[index];
         for (planet_index, planet) in self.planets.iter_mut().enumerate() {
+            if planet_index == 3 {
+                planet.name = if index == 2 { "Nivalis" } else { "Boreal" };
+                planet.model = Arc::clone(if index == 2 {
+                    &self.nivalis
+                } else {
+                    &self.boreal
+                });
+            }
             planet.active = galaxy.planets.contains(&planet_index);
             planet.transform = crate::galaxy::planet_transform(index, planet_index);
             planet.motion = if index == 1 {
@@ -708,6 +726,18 @@ mod tests {
         for galaxy in [1, 2, 0, 2, 1, 0] {
             space.configure(galaxy);
             let definition = &crate::galaxy::GALAXIES[galaxy];
+            assert_eq!(
+                space.planets[3].name,
+                if galaxy == 2 { "Nivalis" } else { "Boreal" }
+            );
+            assert!(Arc::ptr_eq(
+                &space.planets[3].model,
+                if galaxy == 2 {
+                    &space.nivalis
+                } else {
+                    &space.boreal
+                }
+            ));
             assert_eq!(space.active_planets().count(), definition.planets.len());
             let mut flight = space.new_flight();
             assert_eq!(flight.position, crate::flight::SPAWN_POSITION);

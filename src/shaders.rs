@@ -6,6 +6,7 @@ use std::f32::consts::{PI, TAU};
 pub enum SurfaceEffect {
     #[default]
     None,
+    Ice,
     Kepler {
         seconds: f32,
     },
@@ -84,6 +85,42 @@ fn polar_flow(uv: Vec2, seconds: f32) -> (Vec2, f32) {
 impl SurfaceEffect {
     pub fn modulate(self, color: Color, point: Vec3) -> Color {
         match self {
+            Self::Ice => {
+                let grain = noise::noise(point * 95.0);
+                if (point.normalize() - crate::ice_planet::lake_axis()).norm() < 0.35 {
+                    // Irregular frozen plates: borders between the nearest Voronoi sites.
+                    let p = Vec2::new(point.x, point.y) * 22.0;
+                    let cell = p.map(|v| v.floor() as i32);
+                    let mut closest = [f32::INFINITY; 2];
+                    for y in -1..=1 {
+                        for x in -1..=1 {
+                            let (cx, cy) = (cell.x + x, cell.y + y);
+                            let site = Vec2::new(
+                                cx as f32 + noise::hash(cx, cy, 17),
+                                cy as f32 + noise::hash(cx, cy, 31),
+                            );
+                            let distance = (p - site).norm_squared();
+                            if distance < closest[0] {
+                                closest = [distance, closest[0]];
+                            } else if distance < closest[1] {
+                                closest[1] = distance;
+                            }
+                        }
+                    }
+                    let frost =
+                        (1.0 - noise::smoothstep(0.01, 0.045, closest[1] - closest[0])) * 0.65;
+                    let mix =
+                        |base: u8, ice: f32| (base as f32 * (1.0 - frost) + ice * frost) as u8;
+                    Color::new(
+                        mix(color.r, 175.0),
+                        mix(color.g, 218.0),
+                        mix(color.b, 231.0),
+                    )
+                    .shaded(0.94 + grain * 0.10)
+                } else {
+                    color.shaded(0.96 + grain * 0.06)
+                }
+            }
             Self::Rock { seconds, seed } => {
                 let value =
                     noise::noise(point * 22.0 + Vec3::new(seed, seconds * 0.045, -seconds * 0.025));
@@ -96,6 +133,7 @@ impl SurfaceEffect {
     pub fn sample(self, texture: &Texture, uv: Vec2) -> Color {
         match self {
             Self::None => texture.sample(uv),
+            Self::Ice => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Kepler { seconds } => {
                 let (coordinates, intensity) = kepler_flow(uv, seconds);
                 texture.sample(coordinates).shaded(intensity)
