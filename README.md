@@ -316,18 +316,22 @@ Durante el acercamiento, los copos conservan un tamaño mínimo legible en
 pantalla. Su contraste se verifica sobre el terreno real, además de comprobar
 la transparencia y la oclusión de la nave.
 
-**Prisma** combina llanuras de basalto oscuro con doce grupos de cinco cristales
-hexagonales azules y amatista. Las formaciones tienen alturas, tamaños e
-inclinaciones distintos, con pasos abiertos entre ellas. El modelo tiene
-18,768 triángulos y un radio de 78 unidades; orbita Asterion a 2,450 unidades.
+**Prisma** tiene una corteza cristalina facetada que mezcla azul, azul marino y
+púrpura, con vetas finas y reflejos en las superficies. Diez macizos reúnen
+sesenta crecimientos minerales anchos y entrelazados. Sus contornos tienen entre
+cinco y ocho lados irregulares, raíces ensanchadas, fracturas y terminaciones
+partidas de distintas alturas. Conserva pasos abiertos entre las formaciones.
+El modelo tiene 9,800 triángulos y un radio de 78 unidades; orbita Asterion a
+2,450 unidades.
 
 `scripts/blender/create_prisma.py` genera `assets/planets/prisma/prisma.blend`,
 OBJ y MTL sin imágenes. Cada grupo es un objeto editable separado. La semilla
 **73191**, el ruido de valores 3D, el muestreo Fibonacci y la separación angular
 determinan una distribución reproducible sobre toda la superficie.
 
-Los cristales tienen núcleo opaco y cubierta translúcida. El shader CPU conserva
-las facetas iluminadas y añade estrías minerales finas. Las cubiertas se dibujan
+Los macizos tienen núcleo opaco y cubierta translúcida. El shader CPU conserva
+las facetas iluminadas, añade vetas a la corteza y estrías a los crecimientos.
+Las cubiertas se dibujan
 después de los planetas opacos y de la nave, con mezcla de atrás hacia delante y
 prueba de profundidad. La transparencia no permite atravesar el cristal: tanto
 la corteza como la cubierta exterior participan en las colisiones.
