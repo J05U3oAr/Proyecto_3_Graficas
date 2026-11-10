@@ -76,9 +76,9 @@ pub const GALAXIES: [Galaxy; 3] = [
         description: [
             "Un paisaje frio, silencioso y remoto.",
             "Nivalis guarda un lago congelado",
-            "entre glaciares y los pasos de Oquedad.",
+            "entre grandes glaciares azulados.",
         ],
-        planets: &[1, 3],
+        planets: &[3],
         accent: 0xa9afff,
         sky: 0x17142c,
         map: (30.0, 180.0),

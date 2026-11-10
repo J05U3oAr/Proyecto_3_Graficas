@@ -59,7 +59,7 @@ Las galaxias del mapa tienen ilustraciones procedurales diferentes: Aurora es un
 | --- | --- | --- |
 | Aurora | Siroco, Oquedad, Jovara y Boreal | Campo estelar y tormenta de arena; distribución original |
 | Hélice | Siroco y Jovara | Fondo cálido y 42 asteroides decorativos |
-| Umbría | Oquedad y Boreal | Fondo violeta y 64 asteroides decorativos |
+| Umbría | Nivalis | Planeta glaciar, fondo violeta y 64 asteroides decorativos |
 
 Los asteroides se generan con una semilla fija por región y no tienen colisión. El agujero negro está presente en los tres destinos. Las mallas y texturas de los planetas se cargan una sola vez; al confirmar otro destino se actualizan las transformaciones y se reconstruyen sus colisiones antes del despegue. El acercamiento a un planeta conserva la misma escena de vuelo.
 
