@@ -59,7 +59,7 @@ Las galaxias del mapa tienen ilustraciones procedurales diferentes: Aurora es un
 | --- | --- | --- |
 | Aurora | Siroco, Oquedad, Jovara y Boreal | Campo estelar y tormenta de arena; distribución original |
 | Hélice | Siroco y Jovara | Fondo cálido y 42 asteroides decorativos |
-| Umbría | Asterion, Ónice, Nivalis, Véspera y Prisma | Sol blanco azulado masivo, mundos de roca, hielo, nieve y cristales en órbita |
+| Umbría | Asterion, Ónice, Nivalis, Véspera, Prisma y Nácar | Sol blanco azulado masivo, mundos de roca, hielo, cristales y océano congelado |
 
 Los asteroides se generan con una semilla fija por región y no tienen colisión. El agujero negro está presente en los tres destinos. Las mallas y texturas de los planetas se cargan una sola vez; al confirmar otro destino se actualizan las transformaciones y se reconstruyen sus colisiones antes del despegue. El acercamiento a un planeta conserva la misma escena de vuelo.
 
@@ -342,6 +342,22 @@ Las cubiertas se dibujan
 después de los planetas opacos y de la nave, con mezcla de atrás hacia delante y
 prueba de profundidad. La transparencia no permite atravesar el cristal: tanto
 la corteza como la cubierta exterior participan en las colisiones.
+
+**Nácar** es un océano congelado con 48 placas de hielo separadas por canales
+azul profundo. La red de fracturas se genera con celdas Voronoi sobre la esfera
+y la semilla fija **88421**. Los canales están hundidos en la malla, mientras que
+las placas conservan pequeñas variaciones de altura y pendiente.
+
+Dieciséis icebergs tabulares tienen contornos irregulares, cubiertas planas
+inclinadas y bases sumergidas. Son obstáculos con colisión real; también hay
+colisión sobre las placas y los canales. El shader CPU añade granulado al hielo
+y un brillo sutil animado en los canales, sin desplazar la geometría.
+
+`scripts/blender/create_nacar.py` genera el archivo editable
+`assets/planets/nacar/nacar.blend`, el OBJ y el MTL. La banquisa y cada iceberg
+son objetos separados en Blender. El modelo tiene 20,720 triángulos, un radio de
+96 unidades y una órbita de 3,100 unidades alrededor de Asterion. El nombre para
+los comandos de acercamiento es `nacar`, sin tilde.
 
 En **Umbría**, Nivalis ocupa el lugar de Boreal y presenta una superficie sólida
 de nieve, macizos glaciares irregulares y un lago congelado. Su modelo se genera
