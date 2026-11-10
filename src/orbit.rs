@@ -104,12 +104,20 @@ pub const VESPERA: Orbit = Orbit {
     inclination: 0.04,
 };
 
+pub const PRISMA: Orbit = Orbit {
+    radius: 2450.0,
+    speed: 0.0021 * ORBIT_SPEED_MULTIPLIER,
+    phase: -0.85,
+    inclination: -0.065,
+};
+
 pub fn umbria_motion(body: usize) -> Motion {
     Motion {
         primary: match body {
             3 => Some(NIVALIS),
             9 => Some(ONICE),
             10 => Some(VESPERA),
+            11 => Some(PRISMA),
             _ => None,
         },
         satellite: None,

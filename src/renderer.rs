@@ -462,6 +462,7 @@ fn draw_world_with_basis(
                     | crate::shaders::SurfaceEffect::Stellar { .. }
                     | crate::shaders::SurfaceEffect::Obsidian
                     | crate::shaders::SurfaceEffect::Snow { .. }
+                    | crate::shaders::SurfaceEffect::Crystal
             ) {
                 let local = points.map(|point| {
                     let world = camera.eye + camera.right * point.x + camera.up * point.y

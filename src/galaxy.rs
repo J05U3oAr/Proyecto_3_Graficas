@@ -6,7 +6,7 @@ pub const SUN_RADIUS: f32 = 130.0;
 pub const ASTERION_RADIUS: f32 = 360.0;
 pub const UMBRIA_CENTER: Vec3 = Vec3::new(-650.0, 60.0, -1100.0);
 
-pub const BODY_NAMES: [&str; 11] = [
+pub const BODY_NAMES: [&str; 12] = [
     "Siroco",
     "Oquedad",
     "Jovara",
@@ -18,6 +18,7 @@ pub const BODY_NAMES: [&str; 11] = [
     "Asterion",
     "Onice",
     "Vespera",
+    "Prisma",
 ];
 
 pub fn black_hole(galaxy: usize) -> crate::black_hole::BlackHole {
@@ -82,10 +83,10 @@ pub const GALAXIES: [Galaxy; 3] = [
         subtitle: "SISTEMA DE ASTERION",
         description: [
             "Asterion domina la frontera helada.",
-            "Crateres, glaciares y nieve eterna",
+            "Roca, nieve y jardines de cristal",
             "bajo el sol blanco azulado.",
         ],
-        planets: &[8, 9, 3, 10],
+        planets: &[8, 9, 3, 10, 11],
         accent: 0xa9afff,
         sky: 0x17142c,
         map: (30.0, 180.0),
@@ -102,12 +103,13 @@ pub fn planet_transform(galaxy: usize, planet: usize) -> WorldTransform {
             yaw: 0.0,
         };
     }
-    if matches!(planet, 9 | 10) || (galaxy == 2 && planet == 3) {
+    if matches!(planet, 9..=11) || (galaxy == 2 && planet == 3) {
         return WorldTransform {
             position: UMBRIA_CENTER + crate::orbit::umbria_motion(planet).offset(0.0),
             radius: match planet {
                 9 => 72.0,
                 10 => 84.0,
+                11 => 78.0,
                 _ => 65.0,
             },
             yaw: 0.0,

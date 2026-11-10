@@ -39,6 +39,7 @@ impl Planet {
             "Asterion" => SurfaceEffect::Stellar { seconds },
             "Onice" => SurfaceEffect::Obsidian,
             "Vespera" => SurfaceEffect::Snow { seconds },
+            "Prisma" => SurfaceEffect::Crystal,
             "Kepler-186f" => SurfaceEffect::Kepler { seconds },
             "Jovara" => SurfaceEffect::PolarClouds { seconds },
             "Helios II" => SurfaceEffect::Solar { seconds },
@@ -85,6 +86,7 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
                 "asterion/asterion.obj",
                 "onice/onice.obj",
                 "vespera/vespera.obj",
+                "prisma/prisma.obj",
             ];
             paths
                 .iter()
@@ -95,7 +97,7 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
                     } else {
                         Model::load(assets.join(path))?
                     };
-                    if matches!(index, 10 | 11) {
+                    if matches!(index, 10..=12) {
                         // Asymmetric terrain must rotate around its geographical origin.
                         model.center = Vec3::zeros();
                         model.radius = model.vertices.iter().map(Vec3::norm).fold(0.0, f32::max);
@@ -114,6 +116,25 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
     match result {
         Ok(models) => Ok(models),
         Err(message) => Err(message.clone().into()),
+    }
+}
+
+fn opacity_layer(model: &Model, transparent: bool) -> Model {
+    debug_assert!(
+        model.textures.is_empty(),
+        "Las capas de Prisma usan materiales sin texturas"
+    );
+    Model {
+        vertices: model.vertices.clone(),
+        faces: model
+            .faces
+            .iter()
+            .filter(|f| (f.opacity < 1.0) == transparent)
+            .copied()
+            .collect(),
+        center: model.center,
+        radius: model.radius,
+        textures: Vec::new(),
     }
 }
 
@@ -152,6 +173,8 @@ pub struct Space {
     debris: Vec<WorldTransform>,
     nivalis: Arc<Model>,
     boreal: Arc<Model>,
+    prisma_opaque: Model,
+    prisma_glass: Model,
 }
 
 impl Space {
@@ -305,6 +328,16 @@ impl Space {
                 rotation_speed: 0.01,
                 dust: Some(DustStorm::snow()),
             },
+            Planet {
+                active: false,
+                name: "Prisma",
+                model: Arc::clone(&models[12]),
+                motion: crate::orbit::Motion::default(),
+                is_sun: false,
+                transform: crate::galaxy::planet_transform(2, 11),
+                rotation_speed: 0.011,
+                dust: None,
+            },
         ];
         let collisions = Arc::new(CollisionWorld::new(
             planets
@@ -324,6 +357,8 @@ impl Space {
             debris: Vec::new(),
             nivalis: Arc::clone(&models[8]),
             boreal: Arc::clone(&models[3]),
+            prisma_opaque: opacity_layer(&models[12], false),
+            prisma_glass: opacity_layer(&models[12], true),
         })
     }
 
@@ -443,9 +478,14 @@ impl Space {
     pub fn draw_view(&self, fb: &mut Framebuffer, view: &FlightView, seconds: f32) {
         for planet in self.active_planets() {
             let transform = planet.world_transform(seconds);
+            let model = if planet.name == "Prisma" {
+                &self.prisma_opaque
+            } else {
+                &planet.model
+            };
             renderer::draw_world_model_shaded(
                 fb,
-                &planet.model,
+                model,
                 &view,
                 transform,
                 self.sun_position(seconds),
@@ -502,6 +542,17 @@ impl Space {
 
     pub fn draw_atmospheres_view(&self, fb: &mut Framebuffer, view: &FlightView, seconds: f32) {
         for planet in self.active_planets() {
+            if planet.name == "Prisma" {
+                // All opaque planets and the ship establish depth before the glass pass.
+                renderer::draw_world_model_shaded(
+                    fb,
+                    &self.prisma_glass,
+                    view,
+                    planet.world_transform(seconds),
+                    self.sun_position(seconds),
+                    planet.surface_effect(seconds),
+                );
+            }
             if let Some(dust) = &planet.dust {
                 let transform = planet.world_transform(seconds);
                 dust.draw(fb, &view, transform, seconds);
@@ -551,6 +602,137 @@ fn debris_model() -> Model {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn prisma_glass_blends_after_opaque_geometry_and_preserves_foreground_ship_depth() {
+        let mut space = Space::load().unwrap();
+        space.configure(2);
+        for planet in &mut space.planets {
+            planet.dust = None;
+        }
+        let mut flight = space.new_flight();
+        space.approach(&mut flight, "Prisma").unwrap();
+        flight.camera.pitch = 0.0;
+        let view = FlightView::new(&flight, 640, 420);
+        let mut frame = Framebuffer::new(640, 420);
+        space.draw_view(&mut frame, &view, 0.0);
+        let opaque = frame.pixels.clone();
+        let depth = frame.depth.clone();
+        space.draw_atmospheres_view(&mut frame, &view, 0.0);
+        assert_eq!(frame.depth, depth);
+        let changed: Vec<_> = frame
+            .pixels
+            .iter()
+            .zip(&opaque)
+            .enumerate()
+            .filter(|(_, (a, b))| a != b)
+            .map(|(i, _)| i)
+            .collect();
+        assert!(
+            changed.len() > 200,
+            "Las cubiertas de cristal deben verse sobre los nucleos"
+        );
+        let pixel = changed[changed.len() / 2];
+        frame.pixels = opaque;
+        frame.depth = depth;
+        frame.point(
+            (pixel % 640) as i32,
+            (pixel / 640) as i32,
+            2.0,
+            0xff00ff,
+            true,
+        );
+        space.draw_atmospheres_view(&mut frame, &view, 0.0);
+        assert_eq!(frame.pixels[pixel], 0xff00ff);
+        assert_eq!(frame.depth[pixel], 2.0);
+    }
+
+    #[test]
+    fn prisma_has_translucent_crystals_with_solid_exteriors_and_its_own_orbit() {
+        let mut space = Space::load().unwrap();
+        space.configure(2);
+        let planet = space
+            .active_planets()
+            .find(|p| p.name == "Prisma")
+            .expect("Falta Prisma");
+        assert!(planet.model.faces.len() < 23000);
+        assert!(
+            planet
+                .model
+                .faces
+                .iter()
+                .filter(|f| f.opacity < 1.0)
+                .count()
+                > 1000
+        );
+        assert!(
+            planet
+                .model
+                .faces
+                .iter()
+                .filter(|f| f.opacity >= 1.0)
+                .count()
+                > 16000
+        );
+        assert!(planet.model.faces.iter().all(|f| !f.unlit));
+        assert!(planet.model.vertices.iter().any(|v| v.norm() > 1.3));
+        for seconds in [0.0, 40.0, 190.0, 600.0] {
+            let transform = planet.world_transform(seconds);
+            assert!(
+                ((transform.position - space.sun_position(seconds).unwrap()).norm() - 2450.0).abs()
+                    < 0.003
+            );
+            let hit = space.collisions.move_ship(
+                transform.position + Vec3::z() * 110.0,
+                -Vec3::z() * 90.0,
+                seconds,
+                0.01,
+            );
+            assert!(hit.contacts.iter().any(|c| c.planet == "Prisma"));
+        }
+        let transform = WorldTransform {
+            position: Vec3::zeros(),
+            radius: 78.0,
+            yaw: 0.0,
+        };
+        let solid = CollisionWorld::new(vec![PlanetCollider::new(
+            "Prisma",
+            &planet.model,
+            transform,
+            0.0,
+        )]);
+        let core = CollisionWorld::new(vec![PlanetCollider::new_opaque(
+            "Prisma",
+            &planet.model,
+            transform,
+            0.0,
+        )]);
+        let scale = 78.0 / planet.model.radius;
+        let collides_with_shell =
+            planet
+                .model
+                .faces
+                .iter()
+                .filter(|f| f.opacity < 1.0)
+                .any(|face| {
+                    let [a, b, c] = face.indices.map(|i| planet.model.vertices[i] * scale);
+                    let center = (a + b + c) / 3.0;
+                    if center.norm() < 65.0 {
+                        return false;
+                    }
+                    let normal = (b - a).cross(&(c - a)).normalize();
+                    let start = center + normal * (crate::collision::SHIP_RADIUS + 2.0);
+                    let delta = -normal * 3.0;
+                    !solid.move_ship(start, delta, 0.0, 0.1).contacts.is_empty()
+                        && core.move_ship(start, delta, 0.0, 0.1).contacts.is_empty()
+                });
+        assert!(
+            collides_with_shell,
+            "La cubierta transparente tambien debe detener la nave"
+        );
+        space.configure(0);
+        assert!(!space.active_planets().any(|p| p.name == "Prisma"));
+    }
+
     #[test]
     fn vespera_has_cold_snow_and_colliding_canyon_relief_in_its_own_orbit() {
         let mut space = Space::load().unwrap();
@@ -817,7 +999,7 @@ mod tests {
             }
             flight.position
         };
-        for name in ["Nivalis", "Onice", "Vespera"] {
+        for name in ["Nivalis", "Onice", "Vespera", "Prisma"] {
             assert!((simulate(name, 10) - simulate(name, 60)).norm() < 0.5);
         }
     }
