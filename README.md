@@ -316,8 +316,8 @@ Durante el acercamiento, los copos conservan un tamaño mínimo legible en
 pantalla. Su contraste se verifica sobre el terreno real, además de comprobar
 la transparencia y la oclusión de la nave.
 
-**Prisma** tiene una corteza cristalina facetada que mezcla azul, azul marino y
-púrpura, con vetas finas y reflejos en las superficies. Diez macizos reúnen
+**Prisma** tiene una corteza cristalina facetada que funde azul, azul marino y
+púrpura de forma continua, con reflejos en las superficies. Diez macizos reúnen
 sesenta crecimientos minerales anchos y entrelazados. Sus contornos tienen entre
 cinco y ocho lados irregulares, raíces ensanchadas, fracturas y terminaciones
 partidas de distintas alturas. Conserva pasos abiertos entre las formaciones.
@@ -329,8 +329,15 @@ OBJ y MTL sin imágenes. Cada grupo es un objeto editable separado. La semilla
 **73191**, el ruido de valores 3D, el muestreo Fibonacci y la separación angular
 determinan una distribución reproducible sobre toda la superficie.
 
+La corteza utiliza un único material neutro en el OBJ. El shader CPU mezcla
+los colores por fragmento mediante distorsión de coordenadas y varias capas de
+ruido fBm, siguiendo la técnica de `nebula.rs`. Las transiciones no dependen de
+los bordes de los triángulos y acompañan al planeta cuando rota. El `.blend`
+incluye un material procedural con transiciones continuas para editarlo sin
+texturas de imagen.
+
 Los macizos tienen núcleo opaco y cubierta translúcida. El shader CPU conserva
-las facetas iluminadas, añade vetas a la corteza y estrías a los crecimientos.
+las facetas iluminadas y las estrías de los crecimientos.
 Las cubiertas se dibujan
 después de los planetas opacos y de la nave, con mezcla de atrás hacia delante y
 prueba de profundidad. La transparencia no permite atravesar el cristal: tanto
