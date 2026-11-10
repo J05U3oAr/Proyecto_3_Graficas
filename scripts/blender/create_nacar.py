@@ -30,24 +30,42 @@ def smooth(a, b, v):
     return t * t * (3 - 2 * t)
 
 
+def hash_value(x, y, z):
+    n = (x * 374761393 + y * 668265263 + z * 2147483647) & 0xffffffff
+    n = ((n ^ (n >> 13)) * 1274126177) & 0xffffffff
+    return (n ^ (n >> 16)) / 0xffffffff
+
+
+def noise(p):
+    cell = [math.floor(v) for v in p]
+    t = [smooth(0,1,p[i]-cell[i]) for i in range(3)]
+    return sum(hash_value(cell[0]+x,cell[1]+y,cell[2]+z)
+               * (t[0] if x else 1-t[0]) * (t[1] if y else 1-t[1]) * (t[2] if z else 1-t[2])
+               for x in range(2) for y in range(2) for z in range(2))
+
+
 def plate_centers():
     rng = random.Random(SEMILLA)
     centers = []
-    for i in range(48):
-        y = 1 - 2 * (i + 0.5) / 48
-        angle = i * 2.39996323 + SEMILLA * 0.001
-        r = math.sqrt(1 - y*y)
-        point = Vector((r * math.cos(angle), y, r * math.sin(angle)))
-        jitter = Vector((rng.uniform(-0.06,0.06), rng.uniform(-0.06,0.06), rng.uniform(-0.06,0.06)))
-        centers.append((point + jitter).normalized())
+    for _ in range(48):
+        centers.append(Vector((rng.gauss(0,1),rng.gauss(0,1),rng.gauss(0,1))).normalized())
     return centers
 
 
 def ice_field(direction, centers):
-    nearest = sorted(((direction.dot(c), i) for i,c in enumerate(centers)), reverse=True)
+    warp = Vector((noise(direction*4+Vector((17,9,31)))-0.5,
+                   noise(direction*4+Vector((5,23,11)))-0.5,
+                   noise(direction*4+Vector((29,3,19)))-0.5)) * 0.18
+    warped = (direction+warp).normalized()
+    nearest = sorted(((warped.dot(c) + hash_value(i,SEMILLA,7)*0.035, i)
+                      for i,c in enumerate(centers)), reverse=True)
     edge = nearest[0][0] - nearest[1][0]
     index = nearest[0][1]
-    plate = smooth(0.002, 0.018, edge)
+    width = 0.004 + noise(direction*11+Vector((3,19,7))) * 0.022
+    fracture = smooth(width*0.12,width,edge)
+    # Refrozen bridges interrupt the polygon outlines instead of tracing every cell.
+    bridge = smooth(0.46,0.68,noise(direction*7+Vector((11,29,5)))) * 0.60
+    plate = fracture + (1-fracture)*bridge
     slope = 0.008 * math.sin(index * 2.7) * direction.x
     level = 1.0 + slope + 0.006 * math.sin(index * 1.9)
     return 0.955 * (1 - plate) + level * plate, plate, index
@@ -77,51 +95,51 @@ def ocean(scene, centers, materials):
     ico.verts.ensure_lookup_table()
     ico.verts.index_update()
     vertices = []
+    areas = [0]*len(centers)
     for vertex in ico.verts:
         direction = vertex.co.normalized()
-        vertices.append(direction * ice_field(direction, centers)[0])
+        radius,_,index = ice_field(direction,centers)
+        vertices.append(direction*radius)
+        areas[index] += 1
     faces, ids = [], []
     for face in ico.faces:
         triangle = tuple(v.index for v in face.verts)
         point = sum((vertices[i] for i in triangle), Vector()) / 3
         _, plate, index = ice_field(point.normalized(), centers)
         faces.append(triangle)
-        ids.append(0 if plate < 0.40 else 3 if plate < 0.90 else 1 + index % 2)
+        ids.append(0 if plate < 0.40 else 3 if plate < 0.90 else 1)
     ico.free()
     obj = make_object(scene, "Nacar | oceano congelado y placas", vertices, faces, ids, materials)
     group = obj.vertex_groups.new(name="Canales entre placas")
     group.add([i for i,p in enumerate(vertices) if p.length < 0.98], 1.0, "REPLACE")
     obj["semilla"] = SEMILLA
-    obj["diseno"] = "48 placas esfericas de Voronoi; canales hundidos en la geometria"
+    obj["diseno"] = "Semillas aleatorias ponderadas, fracturas curvas y puentes recongelados"
+    mean = sum(areas)/len(areas)
+    obj["variacion_de_areas"] = math.sqrt(sum((a-mean)**2 for a in areas)/len(areas))/mean
     return obj
 
 
 def icebergs(scene, materials):
     rng = random.Random(SEMILLA + 1)
-    candidates = list(range(96))
-    rng.shuffle(candidates)
     centers, objects = [], []
-    for i in candidates:
-        y = 1 - 2 * (i + 0.5) / 96
-        angle = i * 2.39996323
-        r = math.sqrt(1 - y*y)
-        axis = Vector((r * math.cos(angle), y, r * math.sin(angle)))
-        if any(axis.dot(c) > 0.91 for c in centers):
+    for _ in range(512):
+        axis = Vector((rng.gauss(0,1),rng.gauss(0,1),rng.gauss(0,1))).normalized()
+        if any(axis.dot(c) > 0.96 for c in centers):
             continue
         centers.append(axis)
         right = axis.cross(Vector((0,1,0))).normalized()
         forward = right.cross(axis)
-        width, length = rng.uniform(0.12,0.23), rng.uniform(0.10,0.21)
-        height = rng.uniform(0.10,0.23)
+        width, length = rng.uniform(0.08,0.28), rng.uniform(0.09,0.27)
+        height = rng.uniform(0.07,0.25)
         tilt_x, tilt_z = rng.uniform(-0.45,0.45), rng.uniform(-0.35,0.35)
         lean = right * rng.uniform(-0.07,0.07) + forward * rng.uniform(-0.06,0.06)
-        corners = rng.choice([4,5,6])
+        corners = rng.choice([4,5,6,7])
         spin = rng.random() * math.tau
         footprint = []
         for j in range(corners):
-            theta = spin + j * math.tau / corners + rng.uniform(-0.07,0.07)
-            footprint.append((math.cos(theta) * width * rng.uniform(0.85,1.15),
-                              math.sin(theta) * length * rng.uniform(0.85,1.15)))
+            theta = spin + j * math.tau / corners + rng.uniform(-0.14,0.14)
+            footprint.append((math.cos(theta) * width * rng.uniform(0.75,1.20),
+                              math.sin(theta) * length * rng.uniform(0.75,1.20)))
         vertices = []
         for top in [False,True]:
             for x,z in footprint:
