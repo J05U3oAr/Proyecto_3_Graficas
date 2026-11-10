@@ -274,6 +274,18 @@ La integración utiliza [iteradores y fragmentos de memoria independientes de Ra
 revisar el acercamiento, la colisión y la explosión usando la física del juego.
 Admite los cuatro nombres de planeta y es una alternativa a `--near-black-hole`.
 
+## Nivalis: planeta de hielo de Umbría
+
+En **Umbría**, Nivalis ocupa el lugar de Boreal y presenta una superficie sólida
+de nieve, macizos glaciares irregulares y un lago congelado. Su modelo se genera
+en Blender y el juego carga el OBJ exportado. Boreal conserva su
+modelo anterior en las otras galaxias. Los glaciares son relieve tridimensional
+con colisión; el lago es una cuenca plana con fracturas procedurales en el hielo.
+
+Elige Umbría y acércate a Nivalis. Frena con `Espacio` antes del terreno; `L`
+activa la navegación local y `Q/E` ajustan la altura. Puedes pasar entre las
+paredes glaciares y sobrevolar el lago sin cambiar de escena.
+
 ## Organización
 
 - `src/fleet.rs`: modelos, nombres y acabados de las naves.
@@ -292,6 +304,7 @@ Admite los cuatro nombres de planeta y es una alternativa a `--near-black-hole`.
 - `src/collision.rs`: colisión continua con las mallas de los planetas y sus túneles.
 - `src/explosion.rs`: fuego, fragmentos y humo del impacto en coordenadas del mundo.
 - `src/space.rs`: carga, posición y rotación de los planetas.
+- `src/ice_planet.rs`: carga del modelo Blender de Nivalis y validación del relieve.
 - `src/dust.rs`: nube animada de arena de Siroco y partículas con transparencia.
 - `src/texture.rs`: carga y muestreo bilineal de mapas de color PNG.
 - `src/renderer.rs`: rasterizado compartido, vistas del hangar y perspectiva de vuelo.
