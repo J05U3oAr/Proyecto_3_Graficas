@@ -603,7 +603,7 @@ fn debris_model() -> Model {
 mod tests {
     use super::*;
     #[test]
-    fn prismas_ground_contains_blue_navy_and_purple_crystal_regions() {
+    fn prismas_ground_uses_one_neutral_material_for_continuous_fragment_coloring() {
         let mut space = Space::load().unwrap();
         space.configure(2);
         let model = &space
@@ -611,34 +611,14 @@ mod tests {
             .find(|p| p.name == "Prisma")
             .unwrap()
             .model;
-        let ground: Vec<_> = model
+        let neutral = model
             .faces
             .iter()
-            .filter(|f| {
-                f.opacity >= 1.0 && f.indices.iter().all(|&i| model.vertices[i].norm() < 1.06)
-            })
-            .collect();
-        let blue = ground
-            .iter()
-            .filter(|f| {
-                f.color.g >= 65 && f.color.b >= 120 && f.color.b as f32 > f.color.r as f32 * 1.6
-            })
+            .filter(|face| face.color == crate::color::Color::new(255, 255, 255))
             .count();
-        let navy = ground
-            .iter()
-            .filter(|f| f.color.b <= 110 && f.color.b as f32 > f.color.r as f32 * 1.7)
-            .count();
-        let purple = ground
-            .iter()
-            .filter(|f| {
-                f.color.r >= 65
-                    && (f.color.g as f32) < f.color.r as f32 * 0.8
-                    && f.color.b as f32 > f.color.r as f32 * 1.2
-            })
-            .count();
-        assert!(
-            blue > 200 && navy > 100 && purple > 100,
-            "El suelo debe tener zonas de cristal azul, azul marino y purpura: {blue}/{navy}/{purple}"
+        assert_eq!(
+            neutral, 5120,
+            "Toda la corteza debe compartir el material del shader continuo"
         );
     }
 

@@ -96,12 +96,30 @@ impl SurfaceEffect {
             Self::Crystal => {
                 let grain = noise::noise(point * 37.0);
                 if point.norm() < 1.045 {
-                    let plates = noise::noise(point * 7.0 + Vec3::new(19.0, 5.0, 31.0));
-                    let fracture = (point.x * 41.0 + point.z * 23.0 + plates * 4.0).sin().abs();
-                    let edge = (1.0 - noise::smoothstep(0.015, 0.06, fracture)) * 0.15;
-                    let base = color.shaded(0.85 + grain * 0.12 + plates * 0.15);
-                    let lift = |v: u8, tint: f32| (v as f32 + edge * tint).min(255.0) as u8;
-                    return Color::new(lift(base.r, 45.0), lift(base.g, 75.0), lift(base.b, 110.0));
+                    // Like nebula.rs: domain warping, layered fBm and continuous RGB mixing.
+                    // A neutral ground material carries face lighting into this palette.
+                    let p = point.normalize();
+                    let warp = noise::noise(p * 3.2 + Vec3::new(7.0, 2.0, 5.0)) - 0.5;
+                    let clouds = noise::fbm(p * 5.0 + Vec3::new(15.0 + warp, 3.0, -8.0));
+                    let wisps = noise::fbm(p * 13.0 + Vec3::new(4.0, 23.0 + warp * 2.0, 6.0));
+                    let hue = noise::smoothstep(
+                        0.27,
+                        0.72,
+                        noise::fbm(p * 2.5 + Vec3::new(19.0, 5.0, 31.0)) + (clouds - 0.5) * 0.5,
+                    );
+                    let navy = Vec3::new(14.0, 29.0, 78.0);
+                    let blue = Vec3::new(26.0, 107.0, 179.0);
+                    let purple = Vec3::new(118.0, 53.0, 174.0);
+                    let tint = blue + (purple - blue) * hue;
+                    let density = 0.35 + noise::smoothstep(0.26, 0.76, clouds) * 0.65;
+                    let palette = navy + (tint - navy) * density;
+                    let light = (color.r as f32 + color.g as f32 + color.b as f32) / (3.0 * 255.0);
+                    let result = palette * light * (0.85 + wisps * 0.30);
+                    return Color::new(
+                        result.x.clamp(0.0, 255.0) as u8,
+                        result.y.clamp(0.0, 255.0) as u8,
+                        result.z.clamp(0.0, 255.0) as u8,
+                    );
                 }
                 let striation = (point.y * 173.0 + grain * 2.0).sin().abs();
                 let glint = noise::smoothstep(0.94, 0.995, striation) * 0.10;
@@ -245,6 +263,33 @@ impl SurfaceEffect {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn crystal_ground_blends_blue_and_purple_continuously_in_object_space() {
+        let mut blue = 0;
+        let mut purple = 0;
+        for i in 0..256 {
+            let y = 1.0 - 2.0 * (i as f32 + 0.5) / 256.0;
+            let angle = i as f32 * 2.3999632;
+            let r = (1.0 - y * y).sqrt();
+            let point = Vec3::new(r * angle.cos(), y, r * angle.sin());
+            let a = SurfaceEffect::Crystal.modulate(Color::new(220, 220, 220), point);
+            let b = SurfaceEffect::Crystal
+                .modulate(Color::new(220, 220, 220), point + Vec3::x() * 0.0001);
+            blue += usize::from(a.g > a.r + 10 && a.b > a.r + 35);
+            purple += usize::from(a.r > a.g + 10 && a.b > a.r + 15);
+            for (x, y) in [(a.r, b.r), (a.g, b.g), (a.b, b.b)] {
+                assert!(
+                    (x as i32 - y as i32).abs() < 10,
+                    "La mezcla no debe tener saltos de color"
+                );
+            }
+        }
+        assert!(
+            blue > 20 && purple > 20,
+            "Debe mezclar azul y purpura: {blue}/{purple}"
+        );
+    }
+
     #[test]
     fn jovara_flow_stays_inside_the_photograph_at_every_angle_and_keeps_animating() {
         let texture = Texture::load(concat!(

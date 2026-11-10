@@ -16,13 +16,11 @@ from mathutils import Vector
 DIRECTORIO_SALIDA = ""
 SEMILLA = 73191
 MATERIALES = [
-    ("Cristal azul marino", (0.055, 0.12, 0.30), 1.0),
-    ("Cristal azul de la corteza", (0.10, 0.32, 0.56), 1.0),
+    ("Corteza cristalina continua", (0.15, 0.25, 0.52), 1.0),
     ("Nucleo azul", (0.12, 0.28, 0.38), 1.0),
     ("Nucleo amatista", (0.27, 0.17, 0.39), 1.0),
     ("Cristal azul translucido", (0.28, 0.67, 0.86), 0.34),
     ("Cristal amatista translucido", (0.57, 0.40, 0.79), 0.38),
-    ("Cristal purpura de la corteza", (0.31, 0.17, 0.48), 1.0),
 ]
 
 
@@ -84,9 +82,7 @@ def crust(scene, materials):
     for face in ico.faces:
         triangle = tuple(v.index for v in face.verts)
         faces.append(triangle)
-        direction = sum((vertices[i] for i in triangle), Vector()).normalized()
-        hue = noise(direction * 3.2 + Vector((5, 23, 7)))
-        ids.append(0 if hue < 0.40 else 6 if hue > 0.57 else 1)
+        ids.append(0)
     ico.free()
     return make_mesh(scene, "Prisma | corteza cristalina azul marino y purpura", vertices, faces, ids, materials)
 
@@ -149,7 +145,7 @@ def crystals(scene, materials):
                 start = len(vertices)
                 factor = 1.0 if shell else 0.79
                 vertices.extend(anchor + (v - anchor) * factor for v in outer)
-                material = (5 if amethyst else 4) if shell else (3 if amethyst else 2)
+                material = (4 if amethyst else 3) if shell else (2 if amethyst else 1)
                 for ring in range(2):
                     for corner in range(corners):
                         nxt = (corner + 1) % corners
@@ -188,7 +184,7 @@ def main():
     scene = bpy.data.scenes.new("Prisma | mundo de cristal azul marino y purpura")
     bpy.context.window.scene = scene
     materials = []
-    for name, rgb, opacity in MATERIALES:
+    for material_index, (name, rgb, opacity) in enumerate(MATERIALES):
         mat = bpy.data.materials.new(name)
         mat.diffuse_color = (*rgb, opacity)
         mat.use_nodes = True
@@ -197,6 +193,23 @@ def main():
         bsdf.inputs["Roughness"].default_value = 0.12 if opacity < 1 else 0.22
         bsdf.inputs["Transmission Weight"].default_value = 0.55 if opacity < 1 else 0
         bsdf.inputs["IOR"].default_value = 1.46
+        if material_index == 0:
+            # The editable Blender material also mixes colors continuously, without images.
+            coords = mat.node_tree.nodes.new("ShaderNodeTexCoord")
+            cloud = mat.node_tree.nodes.new("ShaderNodeTexNoise")
+            cloud.inputs["Scale"].default_value = 4.5
+            cloud.inputs["Detail"].default_value = 4.0
+            cloud.inputs["Distortion"].default_value = 0.35
+            mat.node_tree.links.new(coords.outputs["Object"], cloud.inputs["Vector"])
+            ramp = mat.node_tree.nodes.new("ShaderNodeValToRGB")
+            ramp.color_ramp.interpolation = "EASE"
+            ramp.color_ramp.elements[0].position = 0.25
+            ramp.color_ramp.elements[0].color = (0.055, 0.12, 0.30, 1)
+            ramp.color_ramp.elements[1].position = 0.75
+            ramp.color_ramp.elements[1].color = (0.46, 0.21, 0.68, 1)
+            ramp.color_ramp.elements.new(0.50).color = (0.10, 0.42, 0.70, 1)
+            mat.node_tree.links.new(cloud.outputs["Fac"], ramp.inputs["Fac"])
+            mat.node_tree.links.new(ramp.outputs["Color"], bsdf.inputs["Base Color"])
         materials.append(mat)
     objects = [crust(scene, materials)] + crystals(scene, materials)
     offset, triangles = 0, 0
@@ -217,7 +230,7 @@ def main():
                 triangles += 1
             offset += len(obj.data.vertices)
     (output / "prisma.mtl").write_text("".join(
-        f"newmtl material_{i}\nKd {r} {g} {b}\nd {opacity}\nillum 2\n"
+        f"newmtl material_{i}\nKd {1.0 if i == 0 else r} {1.0 if i == 0 else g} {1.0 if i == 0 else b}\nd {opacity}\nillum 2\n"
         for i, (_, (r, g, b), opacity) in enumerate(MATERIALES)), encoding="utf-8")
     bpy.context.view_layer.objects.active = objects[0]
     for obj in objects:
@@ -229,6 +242,7 @@ def main():
             if area.type == "VIEW_3D":
                 area.spaces.active.region_3d.view_distance = 3.8
                 area.spaces.active.shading.color_type = "MATERIAL"
+                area.spaces.active.shading.type = "MATERIAL"
     bpy.context.preferences.filepaths.save_version = 0
     bpy.ops.wm.save_as_mainfile(filepath=str(output / "prisma.blend"), compress=True)
     print(f"PRISMA: {len(objects)-1} grupos, {offset} vertices, {triangles} triangulos; {output}", flush=True)
