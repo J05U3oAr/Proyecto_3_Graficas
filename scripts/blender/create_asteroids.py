@@ -90,30 +90,32 @@ def main():
         materials.append(mat)
     for index, (name, subdivisions, axes, crater_count, lod_faces) in enumerate(VARIANTES):
         rng = random.Random(92371+index*137)
+        large = name.startswith("grande_")
         impacts = []
         for j in range(crater_count):
             # One broad, readable impact; smaller irregular depressions elsewhere.
             center = Vector((0.25, -0.30, 1)).normalized() if j == 0 else Vector(
                 (rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(-1, 1))).normalized()
-            impacts.append((center, 0.44 if j == 0 else rng.uniform(0.18, 0.36),
-                            rng.uniform(0.13, 0.24)))
+            radius = 0.44 if j == 0 else rng.uniform(0.27 if large else 0.18, 0.36)
+            depth = rng.uniform(0.08, 0.14) if large else rng.uniform(0.13, 0.24)
+            impacts.append((center, radius, depth))
         waves = [(Vector((rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(-1, 1))).normalized(),
                   rng.uniform(3, 7), rng.random()*math.tau) for _ in range(5)]
 
         def relief(d):
             broad = sum(math.sin(d.dot(v)*frequency+phase) for v, frequency, phase in waves)/5
-            fine = noise(d*37+Vector((index*13, 7, 11)))*2-1
-            height = 1+0.26*broad+0.018*fine
+            fine = noise(d*(12 if large else 37)+Vector((index*13, 7, 11)))*2-1
+            height = 1+0.26*broad+(0.004 if large else 0.018)*fine
             floor, rim = 0.0, 0.0
             for center, radius, depth in impacts:
                 angle = math.acos(max(-1, min(1, d.dot(center))))
                 t = angle/radius * (1+0.07*math.sin(d.x*23+d.y*17))
                 if t > 1.5:
                     continue
-                bowl = 1-smooth(0.08, 0.92, t)
-                lip = math.exp(-((t-1)/0.16)**2)
+                bowl = 1-smooth(0.0 if large else 0.08, 0.98 if large else 0.92, t)
+                lip = math.exp(-((t-1)/(0.25 if large else 0.16))**2)
                 height -= depth*bowl
-                height += 0.045*lip
+                height += (0.012 if large else 0.045)*lip
                 floor, rim = max(floor, bowl), max(rim, lip)
             return height, floor, rim
 
@@ -132,12 +134,19 @@ def main():
         for face in obj.data.polygons:
             d = sum((directions[v] for v in face.vertices), Vector()).normalized()
             _, floor, rim = relief(d)
-            face.material_index = 2 if floor > 0.55 else 3 if rim > 0.6 else (index % 2)
+            # Large rocks rely on the relief for shading, without painted polygonal steps.
+            face.material_index = (index % 2) if large else (2 if floor > 0.55 else 3 if rim > 0.6 else (index % 2))
         bm = bmesh.new()
         bm.from_mesh(obj.data)
         bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
         bm.to_mesh(obj.data)
         bm.free()
+        if large:
+            bpy.context.view_layer.objects.active = obj
+            erosion = obj.modifiers.new("Erosion suave de picos y bordes de impacto", "SMOOTH")
+            erosion.factor = 0.45
+            erosion.iterations = 4
+            bpy.ops.object.modifier_apply(modifier=erosion.name)
         obj["semilla"] = 92371+index*137
         obj["crateres"] = crater_count
         obj["tamano"] = name.split("_")[0]
