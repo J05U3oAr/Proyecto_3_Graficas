@@ -57,11 +57,11 @@ Las galaxias del mapa tienen ilustraciones procedurales diferentes: Aurora es un
 
 | Destino | Planetas | Decoración |
 | --- | --- | --- |
-| Aurora | Siroco, Oquedad, Jovara y Boreal | Campo estelar y tormenta de arena; distribución original |
-| Hélice | Siroco y Jovara | Fondo cálido y 42 asteroides decorativos |
-| Umbría | Asterion, Ónice, Nivalis, Véspera, Prisma, Nácar y Umbriel | Sol blanco azulado masivo, mundos de roca, hielo y cristal, y un gigante gaseoso anillado |
+| Aurora | Helios II, Flareon, Siroco, Kepler-186f, Metis y Jovara | Sistema orbital y 180 asteroides |
+| Hélice | Siroco, Oquedad, Jovara y Boreal | Cuatro mundos y 120 asteroides dispersos |
+| Umbría | Asterion, Ónice, Nivalis, Véspera, Prisma, Nácar y Umbriel | Sol blanco azulado masivo, mundos de roca, hielo y cristal, un gigante gaseoso anillado y 240 asteroides |
 
-Los asteroides se generan con una semilla fija por región y no tienen colisión. El agujero negro está presente en los tres destinos. Las mallas y texturas de los planetas se cargan una sola vez; al confirmar otro destino se actualizan las transformaciones y se reconstruyen sus colisiones antes del despegue. El acercamiento a un planeta conserva la misma escena de vuelo.
+Los modelos de los asteroides se crean en Blender. Sus instancias se distribuyen con una semilla fija por galaxia y no tienen colisión. El agujero negro está presente en los tres destinos. Las mallas y texturas de los planetas se cargan una sola vez; al confirmar otro destino se actualizan las transformaciones y se reconstruyen sus colisiones antes del despegue. El acercamiento a un planeta conserva la misma escena de vuelo.
 
 | Control | Acción |
 | --- | --- |
@@ -323,3 +323,34 @@ La integración, el port a Rust y el menú se realizaron con asistencia de Codex
 - **Crucer espacial**: modelo original `Crucer_espacial.obj` y materiales `Crucer_espacial.mtl`, construidos a partir de la imagen de referencia de la nave de Rick Sánchez de *Rick y Morty* aportada por el usuario. Reemplaza la tercera nave de la flota. Incluye casco gris de platillo, franjas amarillas, dos motores acanalados, faros, asientos marrones y cúpula transparente. [Detalles y regeneración](assets/ships/README.md).
 
 El renderizador C++ de [J05U3oAr/Lab4-graficas](https://github.com/J05U3oAr/Lab4-graficas) se portó a módulos Rust: carga de OBJ/MTL, validación y triangulación de caras, rasterizado baricéntrico con profundidad, iluminación difusa y exportación PNG. La ventana y los controles usan `minifb`. No se conservaron archivos `.cpp`, `.h` ni dependencias de SDL.
+
+
+## Asteroides de Blender
+
+Las tres galaxias contienen rocas pequeñas, medianas y grandes, con radios de
+1–3, 4–7.5 y 10–16 unidades respectivamente. Hay seis modelos diferentes:
+fragmento pequeño, pequeño erosionado, mediano alargado, mediano con cráteres,
+gran macizo y grande fracturado. Sus ejes desiguales, deformaciones asimétricas
+y relieve irregular cambian la silueta. Cuatro variantes tienen cráteres hundidos
+en la geometría con bordes elevados; las otras dos son fragmentos sin impactos.
+La iluminación es mate y el shader CPU añade granulado sutil sin crear geometría.
+
+`scripts/blender/create_asteroids.py` genera `assets/asteroids/asteroides.blend`,
+un objeto editable por variante y sus versiones simplificadas ocultas. Cada
+modelo tiene su propio OBJ y comparte `asteroides.mtl`. Las mallas detalladas
+usan 320, 1,280 o 5,120 triángulos según su categoría; las versiones a distancia
+usan 80, 160 o 320. La simplificación también se realiza en Blender. No se
+crean PNGs ni texturas de imagen.
+
+Rust carga los OBJ una sola vez, selecciona el detalle según el tamaño proyectado
+y descarta objetos fuera de la vista antes de dibujarlos. A menos de 12 píxeles
+de radio proyectado se utiliza la malla simplificada. Ambas versiones mantienen
+el mismo centro y escala para evitar saltos al cambiar de detalle.
+
+Hélice tiene 120 instancias dispersas, Aurora 180 y Umbría 240. Se combinan
+cinturones en Aurora y Umbría con rocas flotantes en todas las galaxias, a distintas
+alturas, distancias y orientaciones. Predominan los fragmentos pequeños y los
+grandes son menos frecuentes. La distribución utiliza la semilla de cada galaxia,
+evita solapamientos entre rocas y conserva espacio libre alrededor del despegue,
+el sol, las órbitas planetarias y los anillos de Umbriel. Las rocas rotan lentamente
+según el tiempo transcurrido; por ahora conservan su función decorativa sin colisión.
