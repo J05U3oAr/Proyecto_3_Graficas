@@ -93,10 +93,10 @@ impl SurfaceEffect {
     pub fn modulate(self, color: Color, point: Vec3) -> Color {
         match self {
             Self::Snow { seconds } => {
-                let grain = noise::noise(point * 97.0);
+                let grain = noise::noise(point * 145.0);
+                let crust = noise::noise(point * 51.0);
                 let wind = noise::noise(point * 22.0 + Vec3::new(seconds * 0.045, 7.0, 19.0));
-                let ripples = (point.x * 155.0 + point.y * 37.0 + wind * 4.0).sin();
-                color.shaded(0.95 + grain * 0.05 + ripples * 0.035)
+                color.shaded(0.76 + grain * 0.30 + crust * 0.13 + (wind - 0.5) * 0.025)
             }
             Self::Obsidian => {
                 let grain = noise::noise(point * 63.0);

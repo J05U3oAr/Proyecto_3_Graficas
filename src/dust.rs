@@ -78,20 +78,20 @@ impl DustStorm {
     pub fn snow() -> Self {
         let mut storm = Self::new();
         storm.snow = true;
-        storm.grains.truncate(1600);
+        storm.grains.truncate(3600);
         let count = storm.grains.len() as f32;
         for (index, grain) in storm.grains.iter_mut().enumerate() {
             grain.height = 1.0 - 2.0 * (index as f32 + 0.5) / count;
             grain.fine = index % 8 != 0;
             grain.size = if grain.fine {
-                0.0012 + grain.altitude * 0.0013
+                0.0025 + grain.altitude * 0.0015
             } else {
-                0.025 + grain.altitude * 0.015
+                0.020 + grain.altitude * 0.015
             };
             grain.opacity = if grain.fine {
-                0.18 + grain.altitude * 0.12
+                0.55 + grain.altitude * 0.25
             } else {
-                0.04 + grain.altitude * 0.02
+                0.08 + grain.altitude * 0.04
             };
         }
         storm
@@ -114,7 +114,7 @@ impl DustStorm {
             let height = (grain.height + (seconds * 0.28 + grain.phase).sin() * 0.012)
                 .clamp(-0.9999, 0.9999);
             let latitude_radius = (1.0 - height * height).sqrt();
-            let wind = (0.18 + 0.24 * latitude_radius) * if self.snow { 0.32 } else { 1.0 };
+            let wind = (0.18 + 0.24 * latitude_radius) * if self.snow { 0.65 } else { 1.0 };
             let angle = grain.angle + seconds * wind + (height * 9.0 + seconds * 0.23).sin() * 0.12;
             let (sin, cos) = angle.sin_cos();
             let direction =
@@ -134,7 +134,13 @@ impl DustStorm {
             let Some(screen) = view.project(world) else {
                 continue;
             };
-            let radius = (grain.size * planet.radius * FLIGHT_FOCAL * screen.z).min(48.0);
+            let projected_radius = grain.size * planet.radius * FLIGHT_FOCAL * screen.z;
+            let planet_radius = planet.radius * FLIGHT_FOCAL * screen.z;
+            let radius = if self.snow && grain.fine && planet_radius > 80.0 {
+                projected_radius.clamp(0.9, 3.5)
+            } else {
+                projected_radius.min(48.0)
+            };
             if radius < 0.65
                 || screen.x + radius < 0.0
                 || screen.y + radius < 0.0
@@ -144,7 +150,7 @@ impl DustStorm {
                 continue;
             }
             let color = if self.snow {
-                if grain.fine { 0xe5e1f4 } else { 0xb9b2d1 }
+                if grain.fine { 0xf5faff } else { 0xb6c9db }
             } else if grain.fine {
                 0xf4c27b
             } else if grain.altitude > 0.5 {
@@ -153,7 +159,12 @@ impl DustStorm {
                 0xc4955e
             };
             let normal = (world - planet.position) / (planet.radius * altitude);
-            let lighting = 0.48 + view.view_direction(normal).dot(&light).max(0.0) * 0.52;
+            let diffuse = view.view_direction(normal).dot(&light).max(0.0);
+            let lighting = if self.snow {
+                0.80 + diffuse * 0.20
+            } else {
+                0.48 + diffuse * 0.52
+            };
             let shade = |shift: u32| ((((color >> shift) & 255) as f32 * lighting).round()) as u32;
             let color = shade(16) << 16 | shade(8) << 8 | shade(0);
             let flow = if grain.fine {
@@ -347,6 +358,51 @@ mod tests {
             changed > 10000,
             "The global cloud must visibly flow: {changed}"
         );
+    }
+
+    #[test]
+    fn snowfall_is_visible_over_vesperas_actual_surface_during_approach() {
+        let mut space = Space::load().unwrap();
+        space.configure(2);
+        let planet = space
+            .active_planets()
+            .find(|p| p.name == "Vespera")
+            .unwrap();
+        let transform = planet.world_transform(0.0);
+        let mut flight = space.new_flight();
+        space.approach(&mut flight, "Vespera").unwrap();
+        flight.camera.pitch = 0.0;
+        let view = FlightView::new(&flight, 640, 420);
+        let mut fb = Framebuffer::new(640, 420);
+        crate::renderer::draw_world_model_shaded(
+            &mut fb,
+            &planet.model,
+            &view,
+            transform,
+            space.sun_position(0.0),
+            planet.surface_effect(0.0),
+        );
+        let before = fb.pixels.clone();
+        let depth = fb.depth.clone();
+        planet
+            .dust
+            .as_ref()
+            .unwrap()
+            .draw(&mut fb, &view, transform, 0.0);
+        let visible = before
+            .iter()
+            .zip(&fb.pixels)
+            .filter(|(a, b)| {
+                [0, 8, 16].iter().any(|shift| {
+                    (((**a >> shift) & 255) as i32 - ((**b >> shift) & 255) as i32).abs() >= 16
+                })
+            })
+            .count();
+        assert!(
+            visible >= 200,
+            "La nieve debe tener contraste sobre el terreno real: {visible}"
+        );
+        assert_eq!(depth, fb.depth);
     }
 
     #[test]

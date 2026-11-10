@@ -552,7 +552,7 @@ fn debris_model() -> Model {
 mod tests {
     use super::*;
     #[test]
-    fn vespera_has_lavender_terrain_and_colliding_canyon_relief_in_its_own_orbit() {
+    fn vespera_has_cold_snow_and_colliding_canyon_relief_in_its_own_orbit() {
         let mut space = Space::load().unwrap();
         space.configure(2);
         let planet = space
@@ -566,6 +566,15 @@ mod tests {
                 .faces
                 .iter()
                 .all(|f| f.color.b > f.color.r && !f.unlit)
+        );
+        assert!(
+            planet
+                .model
+                .faces
+                .iter()
+                .filter(|f| f.color.r >= 150)
+                .all(|f| f.color.b - f.color.r <= 24),
+            "La nieve debe ser casi neutra, sin saturacion violeta de material cremoso"
         );
         assert!(planet.model.vertices.iter().any(|v| v.norm() < 0.87));
         assert!(planet.model.vertices.iter().any(|v| v.norm() > 1.1));
