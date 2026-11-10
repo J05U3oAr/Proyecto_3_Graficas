@@ -1,4 +1,4 @@
-"""Build Vespera in Blender: lavender snow dunes, mesas and branching canyons.
+"""Build Vespera in Blender: wind-sculpted snow, mesas and branching canyons.
 
 blender --background --factory-startup --python scripts/blender/create_vespera.py
 No images are rendered or baked. Also runs in Blender's Text Editor.
@@ -32,8 +32,8 @@ CANONES = [
     ((0.20, -0.57, -0.80), -0.75, 0.59, 0.080, 0.16),
 ]
 DUNAS = [(0.55, 0.35, 0.76), (-0.45, -0.55, 0.70), (-0.55, 0.45, -0.70), (0.65, -0.30, -0.69)]
-COLORES = [(0.66, 0.64, 0.79), (0.83, 0.80, 0.90), (0.40, 0.35, 0.50), (0.25, 0.22, 0.34)]
-NOMBRES = ["Nieve lavanda", "Cimas escarchadas", "Estratos erosionados", "Fondo de canon"]
+COLORES = [(0.83, 0.87, 0.90), (0.95, 0.97, 0.99), (0.35, 0.40, 0.46), (0.17, 0.22, 0.28)]
+NOMBRES = ["Nieve gris azulada", "Cimas escarchadas", "Estratos de pizarra", "Fondo de canon"]
 
 
 def smooth(a, b, v):
@@ -82,7 +82,9 @@ def elevation(direction, terrain):
             continue
         x, y = point
         mask = 1 - smooth(0.3, 1.0, (x / 0.52) ** 2 + (y / 0.64) ** 2)
-        wave = (0.5 + 0.5 * math.sin(x * 27 + math.sin(y * 9) * 1.7)) ** 2
+        phase = (x * 6.0 + math.sin(y * 7) * 0.25) % 1.0
+        # Broad windward slopes and sharp leeward crests read as wind-packed snow.
+        wave = smooth(0.0, 0.72, phase) * (1 - smooth(0.72, 1.0, phase))
         drift += mask * wave * 0.028
     for basis, length, width, depth in canyons:
         point = local(direction, basis)
@@ -139,7 +141,7 @@ def main():
                 add((a, b, c))
             if lat < ANILLOS - 1:
                 add((b, d, c))
-    scene = bpy.data.scenes.new("Vespera | desierto de nieve lavanda")
+    scene = bpy.data.scenes.new("Vespera | desierto de nieve y pizarra")
     bpy.context.window.scene = scene
     mesh = bpy.data.meshes.new("Vespera | dunas, mesetas y canones")
     mesh.from_pydata([(p.x, -p.z, p.y) for p in vertices], [], faces)
