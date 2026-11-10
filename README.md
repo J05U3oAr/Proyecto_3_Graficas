@@ -106,6 +106,9 @@ permitiendo apuntar a los elementos de la interfaz y colocar portales con clic,
 pero su posición no dirige la nave. Mantén las flechas para girar o inclinar la
 proa; al soltarlas, el giro se suaviza hasta detenerse. Cambiar de modo cancela
 el giro pendiente. La selección se conserva al reaparecer y cambiar de destino.
+En vuelo espacial, la inclinación permite vueltas completas con mouse o flechas,
+sin bloquearse al apuntar hacia arriba o abajo. La cámara acompaña el giro al
+pasar por la vertical.
 
 La cámara está detrás y ligeramente por encima de la nave, mirando de la cola hacia la proa. Sigue los cambios de dirección con suavidad y la nave inclina las alas al girar. Las tres naves se dibujan en perspectiva y las estrellas se desplazan según la posición y velocidad reales, con estelas al avanzar. El HUD muestra posición y velocidad. El vuelo se pausa mientras inspeccionas la nave o la ventana pierde el foco.
 
@@ -305,7 +308,9 @@ Las pruebas de navegación local verifican una circunnavegación completa con la
 orientación del horizonte, ascenso, frenado, salida sin teletransporte y descenso
 contra la superficie real. También cubren contacto seguido de ascenso y nuevo
 descenso, recuperación de la inclinación al abandonar el radio local y selección
-de dirección con flechas sin interferencia del mouse.
+de dirección con flechas sin interferencia del mouse. Después del contacto,
+se verifican vueltas completas en ambos sentidos en vuelo espacial a 10 y 60 FPS,
+sin bloqueo ni inversión de la inclinación al atravesar la vertical.
 
 ## Integración y procedencia
 

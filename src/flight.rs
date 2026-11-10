@@ -365,7 +365,7 @@ impl Flight {
                 self.heading.up_axis = None;
                 self.heading.yaw = (self.heading.yaw + self.steering.0 * 1.35 * dt).rem_euclid(TAU);
                 self.heading.pitch =
-                    (self.heading.pitch + self.steering.1 * 1.05 * dt).clamp(-1.15, 1.15);
+                    (self.heading.pitch + self.steering.1 * 1.05 * dt + PI).rem_euclid(TAU) - PI;
             }
             self.bank += (-self.steering.0 * 0.55 - self.bank) * response;
 
@@ -511,7 +511,10 @@ impl Flight {
             } else {
                 let yaw_error = (self.heading.yaw - self.camera.yaw + PI).rem_euclid(TAU) - PI;
                 self.camera.yaw = (self.camera.yaw + yaw_error * follow).rem_euclid(TAU);
-                self.camera.pitch += (self.heading.pitch + 0.14 - self.camera.pitch) * follow;
+                let pitch_error =
+                    (self.heading.pitch + 0.14 - self.camera.pitch + PI).rem_euclid(TAU) - PI;
+                self.camera.pitch =
+                    (self.camera.pitch + pitch_error * follow + PI).rem_euclid(TAU) - PI;
                 if let Some(up) = self.camera.up_axis {
                     let up = crate::local_navigation::blend_up(
                         up,
@@ -542,6 +545,48 @@ mod tests {
         flight.heading.yaw = PI;
         assert!(flight.toggle_local_navigation());
         flight
+    }
+
+    #[test]
+    fn arrows_keep_pitching_in_both_directions_after_surface_contact() {
+        let mut space = crate::space::Space::load().unwrap();
+        space.configure(1);
+        for sign in [-1.0, 1.0] {
+            for fps in [10, 60] {
+                let mut flight = space.new_flight();
+                space.approach(&mut flight, "Kepler-186f").unwrap();
+                assert!(flight.toggle_local_navigation());
+                flight.set_local_climb(-1.0);
+                for _ in 0..fps * 10 {
+                    flight.advance(1.0 / fps as f32, (0.0, 0.0), false, false);
+                }
+                assert!(flight.contact_notice > 0.0);
+                assert!(flight.toggle_local_navigation());
+                flight.toggle_steering_mode();
+                flight.heading.pitch = sign * 1.1;
+                let mut swept = 0.0;
+                let mut previous = flight.heading.basis().2;
+                for _ in 0..fps * 8 {
+                    let right = flight.heading.basis().0;
+                    flight.steer_input(None, (0.0, sign));
+                    flight.advance(1.0 / fps as f32, (0.0, 0.0), false, false);
+                    let forward = flight.heading.basis().2;
+                    let angle = previous
+                        .cross(&forward)
+                        .dot(&right)
+                        .atan2(previous.dot(&forward));
+                    assert!(
+                        angle * -sign > 0.0,
+                        "La flecha no debe bloquearse ni invertir el giro"
+                    );
+                    swept += angle.abs();
+                    assert!(flight.camera.basis().2.iter().all(|v| v.is_finite()));
+                    assert!(flight.crash.is_none());
+                    previous = forward;
+                }
+                assert!(swept > TAU, "Debe permitir un giro completo: {swept}");
+            }
+        }
     }
 
     #[test]
@@ -825,7 +870,7 @@ mod tests {
             let camera_to_ship = flight.position - flight.camera_position();
             assert!(camera_to_ship.dot(&flight.heading.basis().2) > 6.0);
             assert!((camera_to_ship.norm() - (64.0f32 + 2.56).sqrt()).abs() < 0.001);
-            assert!(flight.heading.pitch.abs() <= 1.15);
+            assert!(flight.heading.pitch.abs() <= PI);
         }
     }
 
