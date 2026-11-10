@@ -59,7 +59,7 @@ Las galaxias del mapa tienen ilustraciones procedurales diferentes: Aurora es un
 | --- | --- | --- |
 | Aurora | Siroco, Oquedad, Jovara y Boreal | Campo estelar y tormenta de arena; distribución original |
 | Hélice | Siroco y Jovara | Fondo cálido y 42 asteroides decorativos |
-| Umbría | Nivalis | Planeta glaciar, fondo violeta y 64 asteroides decorativos |
+| Umbría | Asterion y Nivalis | Sol blanco azulado masivo, planeta glaciar en órbita y cinturón de 64 asteroides |
 
 Los asteroides se generan con una semilla fija por región y no tienen colisión. El agujero negro está presente en los tres destinos. Las mallas y texturas de los planetas se cargan una sola vez; al confirmar otro destino se actualizan las transformaciones y se reconstruyen sus colisiones antes del despegue. El acercamiento a un planeta conserva la misma escena de vuelo.
 
@@ -275,6 +275,17 @@ revisar el acercamiento, la colisión y la explosión usando la física del jueg
 Admite los cuatro nombres de planeta y es una alternativa a `--near-black-hole`.
 
 ## Nivalis: planeta de hielo de Umbría
+
+**Asterion** es el sol del sistema: tiene un radio de 360 unidades, más de cinco
+veces el de Nivalis. Su modelo editable y su OBJ se generan con
+`scripts/blender/create_asterion.py`, sin crear imágenes. El shader CPU anima
+la convección de su superficie blanca azulada y su corona es cian. Su modelo
+está en `assets/planets/asterion/asterion.blend`.
+
+Nivalis orbita Asterion a 1,400 unidades, con posición y velocidad calculadas
+a partir del tiempo transcurrido. La iluminación, las colisiones y la navegación
+local siguen esa posición orbital. Los asteroides quedan entre el sol y la
+órbita; el agujero negro permanece en la periferia del sistema.
 
 En **Umbría**, Nivalis ocupa el lugar de Boreal y presenta una superficie sólida
 de nieve, macizos glaciares irregulares y un lago congelado. Su modelo se genera
