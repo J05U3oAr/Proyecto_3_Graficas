@@ -59,7 +59,7 @@ Las galaxias del mapa tienen ilustraciones procedurales diferentes: Aurora es un
 | --- | --- | --- |
 | Aurora | Siroco, Oquedad, Jovara y Boreal | Campo estelar y tormenta de arena; distribución original |
 | Hélice | Siroco y Jovara | Fondo cálido y 42 asteroides decorativos |
-| Umbría | Asterion, Ónice, Nivalis y Véspera | Sol blanco azulado masivo, mundos de roca, hielo y nieve fría en órbita |
+| Umbría | Asterion, Ónice, Nivalis, Véspera y Prisma | Sol blanco azulado masivo, mundos de roca, hielo, nieve y cristales en órbita |
 
 Los asteroides se generan con una semilla fija por región y no tienen colisión. El agujero negro está presente en los tres destinos. Las mallas y texturas de los planetas se cargan una sola vez; al confirmar otro destino se actualizan las transformaciones y se reconstruyen sus colisiones antes del despegue. El acercamiento a un planeta conserva la misma escena de vuelo.
 
@@ -315,6 +315,22 @@ El nombre del planeta para los comandos de acercamiento es `vespera`.
 Durante el acercamiento, los copos conservan un tamaño mínimo legible en
 pantalla. Su contraste se verifica sobre el terreno real, además de comprobar
 la transparencia y la oclusión de la nave.
+
+**Prisma** combina llanuras de basalto oscuro con doce grupos de cinco cristales
+hexagonales azules y amatista. Las formaciones tienen alturas, tamaños e
+inclinaciones distintos, con pasos abiertos entre ellas. El modelo tiene
+18,768 triángulos y un radio de 78 unidades; orbita Asterion a 2,450 unidades.
+
+`scripts/blender/create_prisma.py` genera `assets/planets/prisma/prisma.blend`,
+OBJ y MTL sin imágenes. Cada grupo es un objeto editable separado. La semilla
+**73191**, el ruido de valores 3D, el muestreo Fibonacci y la separación angular
+determinan una distribución reproducible sobre toda la superficie.
+
+Los cristales tienen núcleo opaco y cubierta translúcida. El shader CPU conserva
+las facetas iluminadas y añade estrías minerales finas. Las cubiertas se dibujan
+después de los planetas opacos y de la nave, con mezcla de atrás hacia delante y
+prueba de profundidad. La transparencia no permite atravesar el cristal: tanto
+la corteza como la cubierta exterior participan en las colisiones.
 
 En **Umbría**, Nivalis ocupa el lugar de Boreal y presenta una superficie sólida
 de nieve, macizos glaciares irregulares y un lago congelado. Su modelo se genera
