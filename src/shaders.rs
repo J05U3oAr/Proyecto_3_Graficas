@@ -46,6 +46,9 @@ pub enum SurfaceEffect {
     Lava {
         seconds: f32,
     },
+    CrimsonLava {
+        seconds: f32,
+    },
     Solar {
         seconds: f32,
     },
@@ -438,6 +441,15 @@ impl SurfaceEffect {
                 )
             }
             Self::Ice { .. } => ice_surface(self, color, point),
+            Self::Lava { seconds } | Self::CrimsonLava { seconds } => {
+                let grain = noise::noise(point * 21.0 + Vec3::new(7.0, 3.0, 11.0));
+                let pulse = if color.r > 170 {
+                    (seconds * 2.0 + point.y * 9.0).sin() * 0.08
+                } else {
+                    0.0
+                };
+                color.shaded(0.86 + grain * 0.24 + pulse)
+            }
             Self::Rock { seconds, seed } => {
                 let value =
                     noise::noise(point * 22.0 + Vec3::new(seed, seconds * 0.045, -seconds * 0.025));
@@ -449,6 +461,29 @@ impl SurfaceEffect {
 
     pub fn sample(self, texture: &Texture, uv: Vec2) -> Color {
         match self {
+            Self::CrimsonLava { seconds } => {
+                let base = Self::Lava { seconds }.sample(texture, uv);
+                let heat = (base.r as f32 * 0.8 + base.g as f32 * 0.2) / 255.0;
+                // La paleta conserva las fisuras animadas y separa la roca granate de la lava carmesi.
+                let stops = [
+                    (0.0, Color::new(20, 4, 11)),
+                    (0.22, Color::new(75, 9, 30)),
+                    (0.62, Color::new(184, 20, 43)),
+                    (0.9, Color::new(255, 55, 42)),
+                    (1.0, Color::new(255, 180, 132)),
+                ];
+                let pair = stops
+                    .windows(2)
+                    .find(|pair| heat <= pair[1].0)
+                    .unwrap_or(&stops[3..]);
+                let t = ((heat - pair[0].0) / (pair[1].0 - pair[0].0)).clamp(0.0, 1.0);
+                let mix = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * t).round() as u8;
+                Color::new(
+                    mix(pair[0].1.r, pair[1].1.r),
+                    mix(pair[0].1.g, pair[1].1.g),
+                    mix(pair[0].1.b, pair[1].1.b),
+                )
+            }
             Self::None => texture.sample(uv),
             Self::GasGiant { .. } | Self::RingIce | Self::Asteroid => {
                 self.modulate(texture.sample(uv), sphere_direction(uv).0)

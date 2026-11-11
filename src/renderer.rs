@@ -417,6 +417,7 @@ fn draw_world_with_basis(
             | crate::shaders::SurfaceEffect::PackIce { .. }
             | crate::shaders::SurfaceEffect::GasGiant { .. }
             | crate::shaders::SurfaceEffect::Lava { .. }
+            | crate::shaders::SurfaceEffect::CrimsonLava { .. }
     ) && camera.view_point(transform.position).norm_squared()
         > transform.radius * transform.radius;
     for face in &model.faces {
@@ -525,6 +526,8 @@ fn draw_world_with_basis(
             let surface = if matches!(
                 effect,
                 crate::shaders::SurfaceEffect::Rock { .. }
+                    | crate::shaders::SurfaceEffect::Lava { .. }
+                    | crate::shaders::SurfaceEffect::CrimsonLava { .. }
                     | crate::shaders::SurfaceEffect::Ice { .. }
                     | crate::shaders::SurfaceEffect::Stellar { .. }
                     | crate::shaders::SurfaceEffect::GoldenStar { .. }
