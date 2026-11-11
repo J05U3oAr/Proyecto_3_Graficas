@@ -196,7 +196,9 @@ fn ice_surface(effect: SurfaceEffect, base: Color, p: Vec3) -> Color {
     let surface_normal =
         (surface_normal + (crate::ice_planet::lake_axis() - surface_normal) * lake).normalize();
     let tangent_gradient = gradient - surface_normal * gradient.dot(&surface_normal);
-    let bump = (0.008 + ice_weight * 0.01) * (1.0 - lake) + lake * 0.004;
+    // Rounded snowdrifts use broad normal variation, without fine surface grain.
+    // The lake stays flat and glacier walls keep their subtler ice finish.
+    let bump = (0.32 * (1.0 - ice_weight) + ice_weight * 0.018) * (1.0 - lake) + lake * 0.004;
     let normal = (surface_normal - tangent_gradient * bump).normalize();
     let light = (sun - p).normalize();
     let view = (eye - p).normalize();
