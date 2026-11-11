@@ -362,3 +362,16 @@ grandes son menos frecuentes. La distribución utiliza la semilla de cada galaxi
 evita solapamientos entre rocas y conserva espacio libre alrededor del despegue,
 el sol, las órbitas planetarias y los anillos de Umbriel. Las rocas rotan lentamente
 según el tiempo transcurrido; por ahora conservan su función decorativa sin colisión.
+
+
+Los anillos de **Umbriel** también utilizan las seis variantes de
+`assets/asteroids/asteroides.blend`: 96 copias de sus mallas LOD, con orientaciones
+variadas y radios de aproximadamente 0.6 a 4.2 unidades. El script
+`scripts/blender/create_umbriel.py` incorpora esos modelos en Blender y exporta
+los anillos en `assets/planets/umbriel/anillos.obj`, separados de `umbriel.obj`.
+Cada asteroide es editable por separado en `umbriel.blend` y conserva el nombre
+de su modelo de origen. Sus posiciones evitan solapamientos y mantienen libres
+los huecos entre las bandas. Las bandas translúcidas siguen siendo visuales;
+los asteroides participan en las colisiones y acompañan la órbita del planeta.
+Para regenerar ambos recursos, ejecuta primero `create_asteroids.py` y luego
+`create_umbriel.py` con Blender. No se crea geometría de asteroides en Rust.
