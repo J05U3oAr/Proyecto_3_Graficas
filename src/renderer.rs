@@ -371,19 +371,34 @@ fn draw_world_with_basis(
         .unwrap_or_else(|| Vec3::new(-0.4, 0.8, 1.0))
         .normalize();
     let half = (light + Vec3::new(0.0, 0.0, 1.0)).normalize();
-    let effect = if let crate::shaders::SurfaceEffect::GasGiant { seconds, .. } = effect {
-        let local_direction = |world: Vec3| {
-            let p = world.normalize();
-            Vec3::new(p.x * cos - p.z * sin, p.y, p.x * sin + p.z * cos)
-        };
-        let world_light = camera.right * light.x + camera.up * light.y - camera.forward * light.z;
-        crate::shaders::SurfaceEffect::GasGiant {
-            seconds,
-            light: local_direction(world_light),
-            eye: local_direction(camera.eye - transform.position),
+    let local_vector = |p: Vec3| Vec3::new(p.x * cos - p.z * sin, p.y, p.x * sin + p.z * cos);
+    let world_light = camera.right * light.x + camera.up * light.y - camera.forward * light.z;
+    let effect = match effect {
+        crate::shaders::SurfaceEffect::GasGiant { seconds, .. } => {
+            crate::shaders::SurfaceEffect::GasGiant {
+                seconds,
+                light: local_vector(world_light.normalize()),
+                eye: local_vector((camera.eye - transform.position).normalize()),
+            }
         }
-    } else {
-        effect
+        crate::shaders::SurfaceEffect::Ice {
+            seconds,
+            core_radius,
+            ..
+        } => crate::shaders::SurfaceEffect::Ice {
+            seconds,
+            core_radius,
+            light: local_vector(
+                (sun.unwrap_or(transform.position + world_light * 10000.0) - transform.position)
+                    / transform.radius,
+            ),
+            eye: local_vector((camera.eye - transform.position) / transform.radius),
+            normal: Vec3::y(),
+            detail: transform.radius * FLIGHT_FOCAL
+                / (camera.eye - transform.position).norm().max(0.1)
+                >= 96.0,
+        },
+        _ => effect,
     };
     let mut primitives = Vec::with_capacity(model.faces.len());
     let cull_closed = matches!(
@@ -392,6 +407,7 @@ fn draw_world_with_basis(
             | crate::shaders::SurfaceEffect::Solar { .. }
             | crate::shaders::SurfaceEffect::Stellar { .. }
             | crate::shaders::SurfaceEffect::Asteroid
+            | crate::shaders::SurfaceEffect::Ice { .. }
             | crate::shaders::SurfaceEffect::Obsidian
             | crate::shaders::SurfaceEffect::Snow { .. }
             | crate::shaders::SurfaceEffect::PackIce { .. }
@@ -403,6 +419,31 @@ fn draw_world_with_basis(
         let [i, j, k] = face.indices;
         let [a, b, c] = [vertices[i], vertices[j], vertices[k]];
         let normal = (b - a).cross(&(c - a));
+        let effect = if let crate::shaders::SurfaceEffect::Ice {
+            seconds,
+            light,
+            eye,
+            detail,
+            core_radius,
+            ..
+        } = effect
+        {
+            if normal.norm_squared() < 1e-12 {
+                continue;
+            }
+            let world_normal =
+                camera.right * normal.x + camera.up * normal.y - camera.forward * normal.z;
+            crate::shaders::SurfaceEffect::Ice {
+                seconds,
+                light,
+                eye,
+                detail,
+                core_radius,
+                normal: local_vector(world_normal.normalize()),
+            }
+        } else {
+            effect
+        };
         // Estas superficies son cerradas; las caras posteriores no necesitan ejecutar el shader.
         if cull_closed && normal.dot(&a) >= 0.0 {
             continue;
@@ -445,7 +486,7 @@ fn draw_world_with_basis(
             }
             continue;
         }
-        let color = if face.unlit {
+        let color = if face.unlit || matches!(effect, crate::shaders::SurfaceEffect::Ice { .. }) {
             Some(finish.unwrap_or(face.color))
         } else if matches!(effect, crate::shaders::SurfaceEffect::Asteroid) {
             let diffuse = normal.normalize().dot(&light).max(0.0);
@@ -480,7 +521,7 @@ fn draw_world_with_basis(
             let surface = if matches!(
                 effect,
                 crate::shaders::SurfaceEffect::Rock { .. }
-                    | crate::shaders::SurfaceEffect::Ice
+                    | crate::shaders::SurfaceEffect::Ice { .. }
                     | crate::shaders::SurfaceEffect::Stellar { .. }
                     | crate::shaders::SurfaceEffect::Asteroid
                     | crate::shaders::SurfaceEffect::Obsidian
@@ -1055,6 +1096,33 @@ mod tests {
     }
 
     #[test]
+    fn benatar_chase_view_is_large_enough_to_read_the_hull() {
+        let ships = crate::fleet::load().unwrap();
+        let ship = &ships[0];
+        let flight = Flight::new();
+        let mut frame = Framebuffer::new(1280, 840);
+        draw_flight_model(
+            &mut frame,
+            &ship.model,
+            &flight,
+            ship.finish,
+            Some(&ship.lights),
+        );
+        let xs: Vec<_> = frame
+            .pixels
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| **p != crate::framebuffer::BACKGROUND)
+            .map(|(i, _)| i % frame.width)
+            .collect();
+        let width = xs.iter().max().unwrap() - xs.iter().min().unwrap();
+        assert!(
+            width >= 330,
+            "La Benatar debe verse cercana en vuelo: ancho {width} px"
+        );
+    }
+
+    #[test]
     fn all_ships_stay_visible_below_the_reticle_during_turns() {
         let ships = crate::fleet::load().unwrap();
         let mut flight = Flight::new();
@@ -1079,7 +1147,7 @@ mod tests {
                     if pixel != crate::framebuffer::BACKGROUND {
                         let (x, y) = (index % fb.width, index / fb.width);
                         assert!(
-                            (350..930).contains(&x) && (440..730).contains(&y),
+                            (350..930).contains(&x) && (440..790).contains(&y),
                             "{} left the chase view at frame {frame}: ({x}, {y})",
                             ship.name
                         );

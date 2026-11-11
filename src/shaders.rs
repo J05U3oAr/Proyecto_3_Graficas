@@ -6,7 +6,14 @@ use std::f32::consts::{PI, TAU};
 pub enum SurfaceEffect {
     #[default]
     None,
-    Ice,
+    Ice {
+        seconds: f32,
+        light: Vec3,
+        eye: Vec3,
+        normal: Vec3,
+        detail: bool,
+        core_radius: f32,
+    },
     Obsidian,
     Asteroid,
     Crystal,
@@ -97,6 +104,153 @@ fn polar_flow(uv: Vec2, seconds: f32) -> (Vec2, f32) {
     (
         center + rotated.component_mul(&axes),
         0.90 + turbulence * 0.22,
+    )
+}
+
+fn ice_surface(effect: SurfaceEffect, base: Color, p: Vec3) -> Color {
+    let SurfaceEffect::Ice {
+        seconds,
+        light: sun,
+        eye,
+        normal: geometric_normal,
+        detail,
+        core_radius,
+    } = effect
+    else {
+        return base;
+    };
+    let radial = p.normalize();
+    let geometric_normal = geometric_normal.normalize();
+    let broad = noise::noise(p * 5.0 + Vec3::new(4.0, 17.0, 26.0));
+    let strata = noise::noise(p * 23.0 + Vec3::new(11.0, 3.0, 7.0));
+    let (grain, gradient) = if detail {
+        noise::noise_with_gradient(p * 9.0 + Vec3::new(7.0, 19.0, 3.0))
+    } else {
+        (strata, Vec3::zeros())
+    };
+    // Broad, low-contrast variations keep the snow clean instead of granular.
+    let snow = Vec3::new(202.0, 210.0, 213.0) * (0.97 + broad * 0.035);
+    let mut glacial = Vec3::new(97.0, 122.0, 137.0) + Vec3::new(18.0, 20.0, 21.0) * broad;
+    // Lake faces use the continuous shoreline mask below, not their triangle edges.
+    let ice_weight = if (70..=160).contains(&base.r) {
+        1.0
+    } else {
+        0.0
+    };
+    let deposition = if ice_weight == 0.0 {
+        1.0
+    } else {
+        noise::smoothstep(
+            0.67,
+            0.96,
+            geometric_normal.dot(&radial) * 0.80 + broad * 0.20,
+        )
+    };
+    glacial += (snow - glacial) * deposition * 0.60;
+    let mut albedo = snow + (glacial - snow) * ice_weight;
+    let lake_distance = (radial - crate::ice_planet::lake_axis()).norm();
+    // A defined, irregular shoreline separates opaque snow from opaque ice.
+    // Only a narrow antialiasing fringe softens the contour, not the whole bank.
+    let shore_distance = lake_distance + (broad - 0.5) * 0.04 + (grain - 0.5) * 0.03;
+    let lake = 1.0 - noise::smoothstep(0.321, 0.324, shore_distance);
+    if lake > 0.0 {
+        let axis = crate::ice_planet::lake_axis();
+        let right = axis.cross(&Vec3::y()).normalize();
+        let up = right.cross(&axis).normalize();
+        let uv = Vec2::new(p.dot(&right), p.dot(&up)) * 19.0
+            + Vec2::new(broad - 0.5, strata - 0.5) * 0.45;
+        let cell = uv.map(|v| v.floor() as i32);
+        let mut nearest = [f32::INFINITY; 2];
+        for y in -1..=1 {
+            for x in -1..=1 {
+                let (cx, cy) = (cell.x + x, cell.y + y);
+                let site = Vec2::new(
+                    cx as f32 + noise::hash(cx, cy, 17),
+                    cy as f32 + noise::hash(cx, cy, 31),
+                );
+                let distance = (uv - site).norm_squared();
+                if distance < nearest[0] {
+                    nearest = [distance, nearest[0]];
+                } else if distance < nearest[1] {
+                    nearest[1] = distance;
+                }
+            }
+        }
+        let fracture = (1.0 - noise::smoothstep(0.015, 0.070, nearest[1] - nearest[0]))
+            * noise::smoothstep(0.42, 0.70, strata);
+        let mut frozen = Vec3::new(37.0, 62.0, 75.0) + Vec3::new(12.0, 18.0, 24.0) * broad;
+        frozen += (Vec3::new(142.0, 162.0, 171.0) - frozen) * fracture * 0.65;
+        // A thin, opaque frost shelf softens the contact without fading the lake.
+        let frost = noise::smoothstep(0.312, 0.314, shore_distance);
+        frozen += (Vec3::new(91.0, 115.0, 127.0) - frozen) * frost * 0.65;
+        albedo += (frozen - albedo) * lake;
+    }
+    // Only loose powder moves; the ice, fractures and baked terrain remain fixed.
+    if detail {
+        let wind = noise::noise(
+            Vec3::new(p.x * 9.0, p.y * 27.0, p.z * 9.0)
+                + Vec3::new(seconds * 0.016, 7.0, -seconds * 0.011),
+        );
+        let veil = noise::smoothstep(0.48, 0.78, wind) * deposition * (0.035 + lake * 0.025);
+        albedo += (Vec3::new(215.0, 222.0, 225.0) - albedo) * veil;
+    }
+    // Snow follows the smooth sphere; the flat lake follows its own plane.
+    // Glacier walls retain their modeled relief instead of rounding the obstacles.
+    let surface_normal = radial + (geometric_normal - radial) * ice_weight;
+    let surface_normal =
+        (surface_normal + (crate::ice_planet::lake_axis() - surface_normal) * lake).normalize();
+    let tangent_gradient = gradient - surface_normal * gradient.dot(&surface_normal);
+    // Rounded snowdrifts use broad normal variation, without fine surface grain.
+    // The lake stays flat and glacier walls keep their subtler ice finish.
+    // Snowdrifts flatten gradually before reaching the shore, so they do not
+    // form a raised rim around the planar ice.
+    let snow_relief = noise::smoothstep(0.28, 0.48, shore_distance);
+    let bump = (0.32 * (1.0 - ice_weight) * snow_relief + ice_weight * 0.018) * (1.0 - lake)
+        + lake * 0.004;
+    // Round only the snow lip through lighting, keeping its color boundary sharp.
+    let lip =
+        (1.0 - noise::smoothstep(0.324, 0.342, shore_distance)) * (1.0 - lake) * (1.0 - ice_weight);
+    let bank_direction =
+        radial * radial.dot(&crate::ice_planet::lake_axis()) - crate::ice_planet::lake_axis();
+    let bank_direction = bank_direction
+        .try_normalize(0.00001)
+        .unwrap_or(Vec3::zeros());
+    let normal =
+        (surface_normal - tangent_gradient * bump - bank_direction * lip * 0.18).normalize();
+    let light = (sun - p).normalize();
+    let view = (eye - p).normalize();
+    // The solid planetary core hides the sun from back-facing glacier walls.
+    let toward_center = -p.dot(&light);
+    let visibility = if toward_center > 0.0 {
+        let closest = p.norm_squared() - toward_center * toward_center;
+        noise::smoothstep(
+            core_radius * core_radius * 0.94,
+            core_radius * core_radius * 1.04,
+            closest,
+        )
+    } else {
+        1.0
+    };
+    let diffuse = normal.dot(&light).max(0.0) * visibility;
+    let half = (light + view).try_normalize(0.00001).unwrap_or(normal);
+    let facing = normal.dot(&view).max(0.0);
+    let fresnel = 0.035 + 0.965 * (1.0 - facing).powi(5);
+    let surface_gloss = if ice_weight > 0.5 {
+        normal.dot(&half).max(0.0).powi(48) * 0.40
+    } else {
+        normal.dot(&half).max(0.0).powi(16) * 0.045
+    };
+    let lake_gloss = normal.dot(&half).max(0.0).powi(96) * 0.85;
+    let gloss = surface_gloss + (lake_gloss - surface_gloss) * lake;
+    let highlight = gloss * (0.12 + fresnel) * diffuse;
+    let haze = (1.0 - radial.dot(&view).max(0.0)).powi(3) * diffuse * 0.045;
+    let result = albedo * (0.055 + diffuse * 0.945)
+        + Vec3::new(224.0, 234.0, 239.0) * highlight
+        + Vec3::new(82.0, 106.0, 121.0) * haze;
+    Color::new(
+        result.x.clamp(0.0, 255.0) as u8,
+        result.y.clamp(0.0, 255.0) as u8,
+        result.z.clamp(0.0, 255.0) as u8,
     )
 }
 
@@ -267,42 +421,7 @@ impl SurfaceEffect {
                     255,
                 )
             }
-            Self::Ice => {
-                let grain = noise::noise(point * 95.0);
-                if (point.normalize() - crate::ice_planet::lake_axis()).norm() < 0.35 {
-                    // Irregular frozen plates: borders between the nearest Voronoi sites.
-                    let p = Vec2::new(point.x, point.y) * 22.0;
-                    let cell = p.map(|v| v.floor() as i32);
-                    let mut closest = [f32::INFINITY; 2];
-                    for y in -1..=1 {
-                        for x in -1..=1 {
-                            let (cx, cy) = (cell.x + x, cell.y + y);
-                            let site = Vec2::new(
-                                cx as f32 + noise::hash(cx, cy, 17),
-                                cy as f32 + noise::hash(cx, cy, 31),
-                            );
-                            let distance = (p - site).norm_squared();
-                            if distance < closest[0] {
-                                closest = [distance, closest[0]];
-                            } else if distance < closest[1] {
-                                closest[1] = distance;
-                            }
-                        }
-                    }
-                    let frost =
-                        (1.0 - noise::smoothstep(0.01, 0.045, closest[1] - closest[0])) * 0.65;
-                    let mix =
-                        |base: u8, ice: f32| (base as f32 * (1.0 - frost) + ice * frost) as u8;
-                    Color::new(
-                        mix(color.r, 175.0),
-                        mix(color.g, 218.0),
-                        mix(color.b, 231.0),
-                    )
-                    .shaded(0.94 + grain * 0.10)
-                } else {
-                    color.shaded(0.96 + grain * 0.06)
-                }
-            }
+            Self::Ice { .. } => ice_surface(self, color, point),
             Self::Rock { seconds, seed } => {
                 let value =
                     noise::noise(point * 22.0 + Vec3::new(seed, seconds * 0.045, -seconds * 0.025));
@@ -323,7 +442,7 @@ impl SurfaceEffect {
             Self::Snow { .. } => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Obsidian => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Stellar { .. } => self.modulate(texture.sample(uv), sphere_direction(uv).0),
-            Self::Ice => self.modulate(texture.sample(uv), sphere_direction(uv).0),
+            Self::Ice { .. } => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Kepler { seconds } => {
                 let (coordinates, intensity) = kepler_flow(uv, seconds);
                 texture.sample(coordinates).shaded(intensity)
@@ -378,6 +497,96 @@ impl SurfaceEffect {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nivalis_snow_is_smooth_across_mesh_faces() {
+        let p = Vec3::new(0.3, 0.5, -0.7).normalize() * 0.83;
+        let shade = |normal| {
+            SurfaceEffect::Ice {
+                seconds: 0.0,
+                light: Vec3::new(1.0, 3.0, -4.0),
+                eye: Vec3::new(0.0, 0.0, -3.0),
+                normal,
+                detail: true,
+                core_radius: 0.79,
+            }
+            .modulate(Color::new(209, 232, 237), p)
+        };
+        let a = shade(Vec3::y());
+        let b = shade(Vec3::z());
+        assert_eq!(
+            (a.r, a.g, a.b),
+            (b.r, b.g, b.b),
+            "La nieve no debe mostrar las caras triangulares de la malla"
+        );
+    }
+
+    #[test]
+    fn nivalis_layers_follow_sunlight_animate_powder_and_preserve_depth() {
+        use crate::{
+            flight::Flight,
+            framebuffer::Framebuffer,
+            renderer::{self, FlightView, WorldTransform},
+        };
+        let mut space = crate::space::Space::load().unwrap();
+        space.configure(2);
+        let planet = space
+            .active_planets()
+            .find(|p| p.name == "Nivalis")
+            .unwrap();
+        let mut flight = Flight::new();
+        flight.camera.pitch = 0.0;
+        let view = FlightView::new(&flight, 320, 240);
+        let transform = WorldTransform {
+            position: Vec3::new(0.0, 0.0, -260.0),
+            radius: 45.0,
+            yaw: 0.0,
+        };
+        let render = |seconds, sun| {
+            let mut frame = Framebuffer::new(320, 240);
+            frame.pixels.fill(0);
+            frame.point(160, 120, 2.0, 0xff00ff, true);
+            renderer::draw_world_model_shaded(
+                &mut frame,
+                &planet.model,
+                &view,
+                transform,
+                Some(sun),
+                planet.surface_effect(seconds),
+            );
+            frame
+        };
+        let day = render(0.0, Vec3::new(0.0, 100.0, 300.0));
+        let moving = render(12.0, Vec3::new(0.0, 100.0, 300.0));
+        let night = render(0.0, Vec3::new(0.0, 100.0, -900.0));
+        assert_eq!(
+            day.depth, moving.depth,
+            "Las capas no deben cambiar el terreno ni sus colisiones"
+        );
+        assert_eq!(moving.pixels[120 * 320 + 160], 0xff00ff);
+        let changed = day
+            .pixels
+            .iter()
+            .zip(&moving.pixels)
+            .filter(|(a, b)| a != b)
+            .count();
+        assert!(
+            changed > 100,
+            "Debe apreciarse la deriva de nieve fina: {changed}"
+        );
+        let brightness = |frame: &Framebuffer| {
+            frame
+                .pixels
+                .iter()
+                .map(|p| ((p >> 16) & 255) as u64 + ((p >> 8) & 255) as u64 + (p & 255) as u64)
+                .sum::<u64>()
+        };
+        assert!(
+            brightness(&day) > brightness(&night) * 4,
+            "El hielo no debe emitir luz en la sombra"
+        );
+    }
+
     #[test]
     fn crystal_ground_blends_blue_and_purple_continuously_in_object_space() {
         let mut blue = 0;
