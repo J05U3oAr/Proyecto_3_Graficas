@@ -59,7 +59,7 @@ Las galaxias del mapa tienen ilustraciones procedurales diferentes: Aurora es un
 | --- | --- | --- |
 | Aurora | Helios II, Flareon, Siroco, Kepler-186f, Metis y Jovara | Sistema orbital y 180 asteroides |
 | Hélice | Siroco, Oquedad, Jovara y Boreal | Cuatro mundos y 120 asteroides dispersos |
-| Umbría | Asterion, Ónice, Nivalis, Véspera, Prisma, Nácar y Umbriel | Sol blanco azulado masivo, mundos de roca, hielo y cristal, un gigante gaseoso anillado y 240 asteroides |
+| Umbría | Asterion, Ónice, Nivalis, Véspera, Prisma, Nácar y Umbriel | Sol blanco azulado masivo, mundos de roca, hielo y cristal, un gigante gaseoso anillado y 480 asteroides |
 
 Los modelos de los asteroides se crean en Blender. Sus instancias se distribuyen con una semilla fija por galaxia y no tienen colisión. El agujero negro está presente en los tres destinos. Las mallas y texturas de los planetas se cargan una sola vez; al confirmar otro destino se actualizan las transformaciones y se reconstruyen sus colisiones antes del despegue. El acercamiento a un planeta conserva la misma escena de vuelo.
 
@@ -350,7 +350,12 @@ y descarta objetos fuera de la vista antes de dibujarlos. A menos de 12 píxeles
 de radio proyectado se utiliza la malla simplificada. Ambas versiones mantienen
 el mismo centro y escala para evitar saltos al cambiar de detalle.
 
-Hélice tiene 120 instancias dispersas, Aurora 180 y Umbría 240. Se combinan
+Hélice tiene 120 instancias dispersas, Aurora 180 y Umbría 480. Umbría reserva
+320 modelos de Blender para un cinturón entre Ónice y Nivalis, repartidos en
+32 sectores alrededor de Asterion. Sus radios orbitales abarcan 735–775 unidades
+y su espesor vertical es de 40 unidades. Incluye las seis variantes y una mayor
+presencia de rocas medianas y grandes; las 160 instancias restantes se distribuyen
+fuera de ese grupo reservado. Se combinan
 cinturones en Aurora y Umbría con rocas flotantes en todas las galaxias, a distintas
 alturas, distancias y orientaciones. Predominan los fragmentos pequeños y los
 grandes son menos frecuentes. La distribución utiliza la semilla de cada galaxia,
