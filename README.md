@@ -25,7 +25,7 @@ El primer inicio compila las dependencias declaradas en `Cargo.toml`. Rayon repa
 La aplicación inicia en **Beyond the Interstellar**, con el título grande sobre la nebulosa y una flecha junto a la opción seleccionada:
 
 - **Seleccionar nave:** abre el hangar.
-- **Elegir destino:** abre directamente el mapa con la nave seleccionada; al iniciar se usa Guardgalaxy.
+- **Elegir destino:** abre directamente el mapa con la nave seleccionada; al iniciar se usa Benatar.
 - **Controles:** muestra las teclas de navegación, vuelo e inspección.
 - **Instrucciones:** explica cómo preparar la nave, elegir un destino y explorar.
 - **Salir:** cierra el juego.
@@ -40,7 +40,7 @@ Los menús usan el fondo procedural adaptado de `referencia.rs`: una nebulosa co
 
 | Tecla | Acción |
 | --- | --- |
-| `1`, `2`, `3` | Seleccionar Guardgalaxy, Galactwar o Crucer espacial |
+| `1`, `2`, `3` | Seleccionar Benatar, Galactwar o Crucer espacial |
 | `Tab` / `Shift+Tab` o flechas | Cambiar de selección |
 | `Enter` | Continuar al selector de galaxias |
 | `Espacio` o botón de pausa | Pausar / reanudar el giro de la nave principal |
@@ -225,7 +225,7 @@ El HUD muestra la distancia y avisa de la atracción. Puedes ver
 
 | Tecla | Acción |
 | --- | --- |
-| `1`, `2`, `3` | Elegir Guardgalaxy, Galactwar o Crucer espacial |
+| `1`, `2`, `3` | Elegir Benatar, Galactwar o Crucer espacial |
 | Flechas o `W`, `A`, `S`, `D` | Orbitar la cámara |
 | `Q`, `E` | Alejar o acercar |
 | `M` | Cambiar entre sólido, malla y holograma |
@@ -326,7 +326,7 @@ sin bloqueo ni inversión de la inclinación al atravesar la vertical.
 
 La integración, el port a Rust y el menú se realizaron con asistencia de Codex.
 
-- **Guardgalaxy**: modelo `Benatar.obj`, del proyecto [hmndzzl/Graficas_Lab4](https://github.com/hmndzzl/Graficas_Lab4). Su MTL original no define colores difusos, por lo que el hangar aplica un acabado cobrizo inspirado en el visualizador original.
+- **Benatar**: refinamiento en Blender de la base del proyecto [hmndzzl/Graficas_Lab4](https://github.com/hmndzzl/Graficas_Lab4), conservada en `assets/ships/source/Benatar_base.obj`. Usa como referencia visual el [modelo de Naruret Limst en Sketchfab](https://sketchfab.com/3d-models/guardians-of-the-galaxy-benatar-ship-model-90feb21135734062ac03557cbf2dc328); su malla no se descarga ni se incorpora al juego. La versión propia tiene 3,734 triángulos frente a los 2,340 de la base. Incorpora cabina azul con marcos, juntas de paneles sobre las alas, materiales cobrizos y metálicos, álabes de turbina, carcasas y rejillas mecánicas en las raíces de las alas, toberas y cola doble refinada. `scripts/blender/create_benatar.py` genera `Benatar.blend`, `Benatar.obj` y `Benatar.mtl`, sin texturas de imagen. El acabado uniforme anterior se sustituye por materiales independientes.
 - **Galactwar**: modelo `nave-lab3-PC.obj`, del proyecto [Pxdro-410/lab4-Graficas-PC](https://github.com/Pxdro-410/lab4-Graficas-PC). El ZIP no incluía el MTL referenciado, así que `Galactwar.mtl` completa los cuatro materiales que aparecen en el OBJ.
 - **Crucer espacial**: modelo original `Crucer_espacial.obj` y materiales `Crucer_espacial.mtl`, construidos a partir de la imagen de referencia de la nave de Rick Sánchez de *Rick y Morty* aportada por el usuario. Reemplaza la tercera nave de la flota. Incluye casco gris de platillo, franjas amarillas, dos motores acanalados, faros, asientos marrones y cúpula transparente. [Detalles y regeneración](assets/ships/README.md).
 
