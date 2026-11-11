@@ -107,6 +107,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut planet = false;
         let mut target = None;
         let mut near_black_hole = false;
+        let mut observe_black_hole = false;
         let mut near_planet = None;
         let mut local_navigation = false;
         let mut portal_demo = false;
@@ -172,6 +173,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     target = Some(args.next().ok_or("Falta el nombre del escenario")?.as_str());
                 }
                 "--near-black-hole" => near_black_hole = true,
+                "--observe-black-hole" => observe_black_hole = true,
                 "--local-navigation" => local_navigation = true,
                 "--portal-demo" => portal_demo = true,
                 "--gate-ready" => gate_ready = true,
@@ -231,6 +233,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         if benchmark_frames > 0 && export_screen != Screen::Flight {
             return Err("La medicion requiere --render-flight".into());
+        }
+        if observe_black_hole
+            && (export_screen != Screen::Flight
+                || near_black_hole
+                || near_planet.is_some()
+                || local_navigation
+                || portal_demo)
+        {
+            return Err("--observe-black-hole requiere --render-flight, sin otros acercamientos ni portales".into());
         }
         if local_navigation
             && (export_screen != Screen::Flight
@@ -323,6 +334,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             if near_black_hole {
                 flight.position =
                     flight.black_hole.position + nalgebra_glm::Vec3::new(0.0, 0.0, 250.0);
+            }
+            if observe_black_hole {
+                flight.position =
+                    flight.black_hole.position + nalgebra_glm::Vec3::new(0.0, 100.0, 1200.0);
             }
             if local_navigation && !flight.toggle_local_navigation() {
                 return Err("No se puede activar la navegacion local en esta posicion".into());

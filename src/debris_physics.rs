@@ -49,6 +49,7 @@ struct Cache {
     tick: u64,
     states: Vec<Particle>,
     checkpoints: BTreeMap<u64, Arc<[Particle]>>,
+    recent: VecDeque<(u64, Arc<[Particle]>)>,
     samples: VecDeque<(u32, Arc<[State]>)>,
 }
 
@@ -77,6 +78,7 @@ impl Field {
                 tick: 0,
                 states,
                 checkpoints,
+                recent: VecDeque::new(),
                 samples: VecDeque::new(),
             }),
         }
@@ -111,8 +113,18 @@ impl Field {
     fn seek(&self, cache: &mut Cache, tick: u64) {
         if tick < cache.tick {
             let (&checkpoint, states) = cache.checkpoints.range(..=tick).next_back().unwrap();
-            cache.tick = checkpoint;
-            cache.states = states.to_vec();
+            if let Some((recent_tick, recent_states)) = cache
+                .recent
+                .iter()
+                .rev()
+                .find(|(time, _)| *time <= tick && *time > checkpoint)
+            {
+                cache.tick = *recent_tick;
+                cache.states = recent_states.to_vec();
+            } else {
+                cache.tick = checkpoint;
+                cache.states = states.to_vec();
+            }
         }
         while cache.tick < tick {
             self.step(&mut cache.states);
@@ -126,6 +138,16 @@ impl Field {
                     let oldest = *cache.checkpoints.keys().nth(1).unwrap();
                     cache.checkpoints.remove(&oldest);
                 }
+            }
+        }
+        // A collision substep can ask for t just before its interpolated endpoint.
+        // Keep nearby ticks so float roundoff cannot trigger a two-second replay.
+        if cache.recent.back().is_none_or(|(time, _)| *time != tick) {
+            cache
+                .recent
+                .push_back((tick, Arc::from(cache.states.clone())));
+            if cache.recent.len() > SAMPLE_CACHE {
+                cache.recent.pop_front();
             }
         }
     }

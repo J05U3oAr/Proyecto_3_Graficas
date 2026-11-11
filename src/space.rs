@@ -217,6 +217,7 @@ pub struct Space {
     black_hole: crate::black_hole::BlackHole,
     debris_models: &'static [crate::asteroids::Meshes],
     debris: Vec<crate::asteroids::Instance>,
+    debris_motion: Arc<crate::debris_physics::Field>,
     nivalis: Arc<Model>,
     boreal: Arc<Model>,
     prisma_opaque: Model,
@@ -464,6 +465,10 @@ impl Space {
             black_hole: crate::galaxy::black_hole(0),
             debris_models: crate::asteroids::load()?,
             debris: Vec::new(),
+            debris_motion: Arc::new(crate::debris_physics::Field::new(
+                crate::galaxy::black_hole(0),
+                Vec::new(),
+            )),
             nivalis: Arc::clone(&models[8]),
             boreal: Arc::clone(&models[3]),
             prisma_opaque: opacity_layer(&models[12], false),
@@ -535,16 +540,53 @@ impl Space {
                 }
             })
         });
-        colliders.extend(self.debris.iter().map(|rock| {
+        self.debris_motion = Arc::new(crate::debris_physics::Field::new(
+            self.black_hole,
+            self.debris
+                .iter()
+                .map(|rock| crate::debris_physics::Body {
+                    position: rock.transform.position,
+                    velocity: rock.velocity,
+                    radius: rock.transform.radius,
+                })
+                .collect(),
+        ));
+        colliders.extend(self.debris.iter().enumerate().map(|(index, rock)| {
             self.debris_models[rock.variant]
                 .collision
                 .instance(rock.transform, rock.rotation_speed())
+                .with_debris(Arc::clone(&self.debris_motion), index)
         }));
         self.collisions = Arc::new(CollisionWorld::new(colliders));
     }
 
     pub fn active_planets(&self) -> impl Iterator<Item = &Planet> {
         self.planets.iter().filter(|planet| planet.active)
+    }
+
+    fn debris_at(&self, seconds: f32) -> Vec<crate::asteroids::Instance> {
+        let states = self.debris_motion.sample(seconds);
+        self.debris
+            .iter()
+            .zip(states.iter())
+            .filter_map(|(rock, state)| {
+                if state.captured {
+                    return None;
+                }
+                let mut instance = *rock;
+                instance.transform.position = state.position;
+                instance.velocity = state.velocity;
+                Some(instance)
+            })
+            .collect()
+    }
+
+    pub fn debris_captured(&self, seconds: f32) -> usize {
+        self.debris_motion
+            .sample(seconds)
+            .iter()
+            .filter(|state| state.captured)
+            .count()
     }
 
     pub fn sun_position(&self, seconds: f32) -> Option<Vec3> {
@@ -614,7 +656,7 @@ impl Space {
             fb,
             view,
             self.debris_models,
-            &self.debris,
+            &self.debris_at(seconds),
             self.sun_position(seconds),
             seconds,
         );
@@ -734,15 +776,18 @@ mod tests {
         for galaxy in 0..3 {
             space.configure(galaxy);
             for variant in 0..6 {
-                let rock = *space
+                let (rock_index, &rock) = space
                     .debris
                     .iter()
-                    .find(|rock| rock.variant == variant)
+                    .enumerate()
+                    .find(|(_, rock)| rock.variant == variant)
                     .unwrap();
                 for time in [0.0, 45.0] {
+                    let state = space.debris_motion.sample(time)[rock_index];
+                    assert!(!state.captured);
                     let reach = rock.transform.radius + crate::collision::SHIP_RADIUS + 4.0;
                     let probe = space.collisions.move_ship(
-                        rock.transform.position + Vec3::z() * reach,
+                        state.position + Vec3::z() * reach,
                         -Vec3::z() * reach * 2.0,
                         time,
                         0.0,
@@ -765,7 +810,7 @@ mod tests {
                             .map(|vertex| {
                                 let p = (vertex - model.center)
                                     * (rock.transform.radius / model.radius);
-                                rock.transform.position
+                                space.debris_motion.sample(seconds)[rock_index].position
                                     + Vec3::new(p.x * cos + p.z * sin, p.y, p.z * cos - p.x * sin)
                             })
                             .max_by(|a, b| a.z.total_cmp(&b.z))
@@ -776,16 +821,16 @@ mod tests {
                     let mut slow = space.new_flight();
                     slow.seconds = time;
                     slow.position = start;
-                    slow.velocity = -normal * 10.0;
+                    slow.velocity = state.velocity - normal * 10.0;
                     slow.advance(1.0 / 30.0, (0.0, 0.0), false, false);
                     assert!(slow.crash.is_none());
                     assert!(slow.contact_notice > 0.0);
-                    assert!(slow.velocity.dot(&normal) > -1.0);
+                    assert!((slow.velocity - state.velocity).dot(&normal) > -1.0);
                     for fps in [10, 60] {
                         let mut fast = space.new_flight();
                         fast.seconds = time;
                         fast.position = start;
-                        fast.velocity = -normal * 62.0;
+                        fast.velocity = state.velocity - normal * 62.0;
                         fast.advance(1.0 / fps as f32, (0.0, 0.0), true, false);
                         let crash = fast
                             .crash
@@ -800,7 +845,9 @@ mod tests {
                             assert!(fast.crash.is_none() && fast.respawn_notice > 0.0);
                             assert_eq!(fast.position, crate::flight::SPAWN_POSITION);
                             fast.position = start_at(fast.seconds);
-                            fast.velocity = -normal * 62.0;
+                            fast.velocity = space.debris_motion.sample(fast.seconds)[rock_index]
+                                .velocity
+                                - normal * 62.0;
                             fast.advance(1.0 / 60.0, (0.0, 0.0), true, false);
                             assert!(
                                 fast.crash.as_ref().unwrap().planet.starts_with("Asteroide"),

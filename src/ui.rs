@@ -746,6 +746,25 @@ impl Ui {
             }
         }
 
+        if distance < 1800.0 {
+            rounded(fb, Rect::new(970, 300, 276, 93), 12, 0x101d2c, 0x304154);
+            self.fonts
+                .text(fb, 14, 988, 314, "MATERIA EN CAIDA", 0xffba69);
+            self.fonts.text(
+                fb,
+                14,
+                988,
+                341,
+                &format!(
+                    "Asteroides absorbidos: {}",
+                    self.space.debris_captured(seconds)
+                ),
+                TEXT,
+            );
+            self.fonts
+                .text(fb, 14, 988, 368, "Trayectorias por gravedad", MUTED);
+        }
+
         self.fonts.text(
             fb,
             14,

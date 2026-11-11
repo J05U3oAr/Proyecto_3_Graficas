@@ -27,6 +27,7 @@ pub struct Meshes {
 pub struct Instance {
     pub transform: WorldTransform,
     pub variant: usize,
+    pub velocity: Vec3,
 }
 
 impl Instance {
@@ -94,6 +95,8 @@ pub fn distribute(galaxy: usize, mut clear: impl FnMut(WorldTransform) -> bool) 
     };
     let center = if galaxy == 2 {
         crate::galaxy::UMBRIA_CENTER
+    } else if galaxy == 0 {
+        crate::galaxy::HELIX_CENTER
     } else {
         Vec3::zeros()
     };
@@ -104,6 +107,7 @@ pub fn distribute(galaxy: usize, mut clear: impl FnMut(WorldTransform) -> bool) 
         }
         // Reserve a full, evenly covered belt before placing Umbria's scattered rocks.
         let umbria_belt = galaxy == 2 && instances.len() < 320;
+        let infalling = instances.len() >= definition.debris - 24;
         let category = next();
         let (small_limit, medium_limit) = if umbria_belt {
             (0.50, 0.87)
@@ -130,7 +134,15 @@ pub fn distribute(galaxy: usize, mut clear: impl FnMut(WorldTransform) -> bool) 
             angle_fraction * std::f32::consts::TAU
         };
         let region = next();
-        let position = if umbria_belt || (galaxy == 1 && region < 0.40) {
+        let position = if infalling {
+            let distance = 240.0 + next() * 680.0;
+            crate::galaxy::black_hole(galaxy).position
+                + Vec3::new(
+                    angle.cos() * distance,
+                    (next() - 0.5) * 240.0,
+                    angle.sin() * distance,
+                )
+        } else if umbria_belt || (galaxy == 1 && region < 0.40) {
             let distance = if umbria_belt {
                 735.0 + next() * 40.0
             } else {
@@ -173,7 +185,18 @@ pub fn distribute(galaxy: usize, mut clear: impl FnMut(WorldTransform) -> bool) 
         {
             continue;
         }
-        instances.push(Instance { transform, variant });
+        let velocity = if infalling {
+            let toward = (crate::galaxy::black_hole(galaxy).position - position).normalize();
+            let tangent = toward.cross(&Vec3::y()).normalize();
+            toward * (8.0 + next() * 12.0) + tangent * (5.0 + next() * 13.0)
+        } else {
+            Vec3::zeros()
+        };
+        instances.push(Instance {
+            transform,
+            variant,
+            velocity,
+        });
     }
     instances
 }

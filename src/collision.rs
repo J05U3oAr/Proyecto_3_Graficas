@@ -28,11 +28,20 @@ struct Hit {
     penetration: f32,
 }
 
+struct Sweep {
+    start: Vec3,
+    end: Vec3,
+    radius: f32,
+    time: f32,
+    dt: f32,
+}
+
 pub struct PlanetCollider {
     name: &'static str,
     transform: WorldTransform,
     rotation_speed: f32,
     motion: crate::orbit::Motion,
+    debris: Option<(Arc<crate::debris_physics::Field>, usize)>,
     tree: Arc<Node>,
 }
 
@@ -344,6 +353,7 @@ impl PlanetCollider {
             transform,
             rotation_speed,
             motion: crate::orbit::Motion::default(),
+            debris: None,
             tree: Arc::new(Node::build(&mut triangles)),
         }
     }
@@ -355,6 +365,7 @@ impl PlanetCollider {
             transform,
             rotation_speed,
             motion: self.motion,
+            debris: self.debris.clone(),
             tree: Arc::clone(&self.tree),
         }
     }
@@ -364,25 +375,57 @@ impl PlanetCollider {
         self
     }
 
+    pub fn with_debris(mut self, field: Arc<crate::debris_physics::Field>, index: usize) -> Self {
+        self.debris = Some((field, index));
+        self
+    }
+
+    fn captured(&self, time: f32) -> bool {
+        self.debris
+            .as_ref()
+            .is_some_and(|(field, index)| field.sample(time)[*index].captured)
+    }
+
     fn center(&self, time: f32) -> Vec3 {
-        self.transform.position + self.motion.displacement(time)
+        self.debris.as_ref().map_or_else(
+            || self.transform.position + self.motion.displacement(time),
+            |(field, index)| field.sample(time)[*index].position,
+        )
     }
 
     fn surface_velocity(&self, position: Vec3, time: f32) -> Vec3 {
-        self.motion.velocity(time)
-            + Vec3::y().cross(&(position - self.center(time))) * self.rotation_speed
+        self.debris.as_ref().map_or_else(
+            || self.motion.velocity(time),
+            |(field, index)| field.sample(time)[*index].velocity,
+        ) + Vec3::y().cross(&(position - self.center(time))) * self.rotation_speed
     }
 
-    fn local(&self, point: Vec3, time: f32) -> Vec3 {
+    fn local(&self, point: Vec3, time: f32, center: Vec3) -> Vec3 {
         rotate(
-            point - self.center(time),
+            point - center,
             -(self.transform.yaw + self.rotation_speed * time),
         ) / self.transform.radius
     }
 
-    fn hit(&self, start: Vec3, end: Vec3, radius: f32, time: f32, dt: f32) -> Option<Hit> {
-        let a = self.local(start, time);
-        let b = self.local(end, time + dt);
+    fn hit(
+        &self,
+        sweep: &Sweep,
+        debris: Option<(crate::debris_physics::State, crate::debris_physics::State)>,
+    ) -> Option<Hit> {
+        let Sweep {
+            start,
+            end,
+            radius,
+            time,
+            dt,
+        } = *sweep;
+        if debris.is_some_and(|(state, _)| state.captured) {
+            return None;
+        }
+        let center_a = debris.map_or_else(|| self.center(time), |(a, _)| a.position);
+        let center_b = debris.map_or_else(|| self.center(time + dt), |(_, b)| b.position);
+        let a = self.local(start, time, center_a);
+        let b = self.local(end, time + dt, center_b);
         let r = radius / self.transform.radius;
         let query = Bounds {
             min: a.zip_map(&b, f32::min) - Vec3::repeat(r),
@@ -409,9 +452,10 @@ impl CollisionWorld {
     /// Floating portals need a clear disk and room for the ship at their exit.
     /// Conservative bounding spheres also reject portals buried inside a planet.
     pub fn sphere_clear(&self, center: Vec3, radius: f32, time: f32) -> bool {
-        self.planets
-            .iter()
-            .all(|planet| (planet.center(time) - center).norm() > planet.transform.radius + radius)
+        self.planets.iter().all(|planet| {
+            planet.captured(time)
+                || (planet.center(time) - center).norm() > planet.transform.radius + radius
+        })
     }
 
     pub fn move_ship(&self, start: Vec3, displacement: Vec3, time: f32, dt: f32) -> Motion {
@@ -421,13 +465,36 @@ impl CollisionWorld {
         let mut time = time;
         let mut duration = dt;
         for _ in 0..6 {
+            // Share the two immutable snapshots across all rocks, rather than
+            // acquiring the simulation mutex separately for every mesh triangle query.
+            let mut snapshots = Vec::new();
+            for planet in &self.planets {
+                if let Some((field, _)) = &planet.debris {
+                    let key = Arc::as_ptr(field) as usize;
+                    if !snapshots.iter().any(|(id, _, _)| *id == key) {
+                        snapshots.push((key, field.sample(time), field.sample(time + duration)));
+                    }
+                }
+            }
+            let sweep = Sweep {
+                start: position,
+                end: position + remaining,
+                radius: SHIP_RADIUS,
+                time,
+                dt: duration,
+            };
             let hit = self
                 .planets
                 .iter()
                 .filter_map(|planet| {
-                    planet
-                        .hit(position, position + remaining, SHIP_RADIUS, time, duration)
-                        .map(|h| (planet, h))
+                    let debris = planet.debris.as_ref().map(|(field, index)| {
+                        let (_, start, end) = snapshots
+                            .iter()
+                            .find(|(id, _, _)| *id == Arc::as_ptr(field) as usize)
+                            .unwrap();
+                        (start[*index], end[*index])
+                    });
+                    planet.hit(&sweep, debris).map(|h| (planet, h))
                 })
                 .min_by(|a, b| a.1.time.total_cmp(&b.1.time));
             let Some((planet, hit)) = hit else {
@@ -455,6 +522,84 @@ impl CollisionWorld {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_falling_asteroid_hits_a_stationary_ship_at_ten_and_sixty_fps() {
+        let models = crate::asteroids::load().unwrap();
+        for fps in [10, 60] {
+            let transform = WorldTransform {
+                position: Vec3::new(0.0, 0.0, -50.0),
+                radius: 8.0,
+                yaw: 0.0,
+            };
+            let field = Arc::new(crate::debris_physics::Field::new(
+                crate::black_hole::BLACK_HOLE,
+                vec![crate::debris_physics::Body {
+                    position: transform.position,
+                    radius: 8.0,
+                    velocity: Vec3::z() * 80.0,
+                }],
+            ));
+            let world = Arc::new(CollisionWorld::new(vec![
+                models[4]
+                    .collision
+                    .instance(transform, 0.0)
+                    .with_debris(field, 0),
+            ]));
+            let mut flight = crate::flight::Flight::with_collisions(world);
+            flight.position = Vec3::zeros();
+            for _ in 0..fps {
+                flight.advance(1.0 / fps as f32, (0.0, 0.0), false, false);
+                if flight.crash.is_some() {
+                    break;
+                }
+            }
+            assert_eq!(
+                flight.crash.as_ref().map(|c| c.planet),
+                Some("Asteroide grande")
+            );
+        }
+    }
+
+    #[test]
+    fn captured_rocks_disappear_from_collision_and_portal_clearance_queries() {
+        let models = crate::asteroids::load().unwrap();
+        let hole = crate::black_hole::BLACK_HOLE;
+        let transform = WorldTransform {
+            position: hole.position + Vec3::x() * 80.0,
+            radius: 8.0,
+            yaw: 0.0,
+        };
+        let field = Arc::new(crate::debris_physics::Field::new(
+            hole,
+            vec![crate::debris_physics::Body {
+                position: transform.position,
+                radius: 8.0,
+                velocity: -Vec3::x() * 150.0,
+            }],
+        ));
+        let world = CollisionWorld::new(vec![
+            models[4]
+                .collision
+                .instance(transform, 0.0)
+                .with_debris(Arc::clone(&field), 0),
+        ]);
+        assert!(!world.sphere_clear(transform.position, 1.0, 0.0));
+        let state = field.sample(2.0)[0];
+        assert!(state.captured);
+        assert!(world.sphere_clear(state.position, 1.0, 2.0));
+        assert!(
+            world
+                .move_ship(
+                    state.position + Vec3::z() * 30.0,
+                    -Vec3::z() * 60.0,
+                    2.0,
+                    0.1
+                )
+                .contacts
+                .is_empty()
+        );
+    }
 
     #[test]
     fn swept_sphere_hits_faces_edges_and_vertices_without_tunneling() {
