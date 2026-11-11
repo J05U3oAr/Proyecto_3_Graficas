@@ -33,6 +33,39 @@ pub fn noise(point: Vec3) -> f32 {
     )
 }
 
+/// Value noise and its analytic gradient share the same eight lattice samples.
+pub fn noise_with_gradient(point: Vec3) -> (f32, Vec3) {
+    let cell = point.map(|v| v.floor() as i32);
+    let t = point - point.map(f32::floor);
+    let fade = t.map(|v| v * v * (3.0 - 2.0 * v));
+    let derivative = t.map(|v| 6.0 * v * (1.0 - v));
+    let mix = |a: f32, b: f32, t: f32| a + (b - a) * t;
+    let c000 = hash(cell.x, cell.y, cell.z);
+    let c100 = hash(cell.x + 1, cell.y, cell.z);
+    let c010 = hash(cell.x, cell.y + 1, cell.z);
+    let c110 = hash(cell.x + 1, cell.y + 1, cell.z);
+    let c001 = hash(cell.x, cell.y, cell.z + 1);
+    let c101 = hash(cell.x + 1, cell.y, cell.z + 1);
+    let c011 = hash(cell.x, cell.y + 1, cell.z + 1);
+    let c111 = hash(cell.x + 1, cell.y + 1, cell.z + 1);
+    let x00 = mix(c000, c100, fade.x);
+    let x10 = mix(c010, c110, fade.x);
+    let x01 = mix(c001, c101, fade.x);
+    let x11 = mix(c011, c111, fade.x);
+    let y0 = mix(x00, x10, fade.y);
+    let y1 = mix(x01, x11, fade.y);
+    let dx = mix(
+        mix(c100 - c000, c110 - c010, fade.y),
+        mix(c101 - c001, c111 - c011, fade.y),
+        fade.z,
+    ) * derivative.x;
+    let dy = mix(x10 - x00, x11 - x01, fade.z) * derivative.y;
+    (
+        mix(y0, y1, fade.z),
+        Vec3::new(dx, dy, (y1 - y0) * derivative.z),
+    )
+}
+
 pub fn fbm(point: Vec3) -> f32 {
     let (mut sum, mut weight, mut amplitude, mut frequency) = (0.0, 0.0, 0.5, 1.0);
     for _ in 0..5 {
@@ -42,4 +75,27 @@ pub fn fbm(point: Vec3) -> f32 {
         frequency *= 2.03;
     }
     sum / weight
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn noise_gradient_matches_finite_differences_including_negative_coordinates() {
+        for p in [
+            Vec3::new(0.23, 1.37, -2.41),
+            Vec3::new(-4.2, -0.7, 3.17),
+            Vec3::new(1.0, 2.0, 3.0),
+        ] {
+            let (value, gradient) = noise_with_gradient(p);
+            assert!((value - noise(p)).abs() < 0.00001);
+            for axis in 0..3 {
+                let mut offset = Vec3::zeros();
+                offset[axis] = 0.001;
+                let measured = (noise(p + offset) - noise(p - offset)) / 0.002;
+                assert!((gradient[axis] - measured).abs() < 0.003);
+            }
+        }
+    }
 }

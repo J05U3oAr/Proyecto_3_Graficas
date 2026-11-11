@@ -377,12 +377,17 @@ fn draw_world_with_basis(
         crate::shaders::SurfaceEffect::GasGiant { seconds, .. } => {
             crate::shaders::SurfaceEffect::GasGiant {
                 seconds,
-                light: local_vector(world_light),
+                light: local_vector(world_light.normalize()),
                 eye: local_vector((camera.eye - transform.position).normalize()),
             }
         }
-        crate::shaders::SurfaceEffect::Ice { seconds, .. } => crate::shaders::SurfaceEffect::Ice {
+        crate::shaders::SurfaceEffect::Ice {
             seconds,
+            core_radius,
+            ..
+        } => crate::shaders::SurfaceEffect::Ice {
+            seconds,
+            core_radius,
             light: local_vector(
                 (sun.unwrap_or(transform.position + world_light * 10000.0) - transform.position)
                     / transform.radius,
@@ -402,6 +407,7 @@ fn draw_world_with_basis(
             | crate::shaders::SurfaceEffect::Solar { .. }
             | crate::shaders::SurfaceEffect::Stellar { .. }
             | crate::shaders::SurfaceEffect::Asteroid
+            | crate::shaders::SurfaceEffect::Ice { .. }
             | crate::shaders::SurfaceEffect::Obsidian
             | crate::shaders::SurfaceEffect::Snow { .. }
             | crate::shaders::SurfaceEffect::PackIce { .. }
@@ -418,6 +424,7 @@ fn draw_world_with_basis(
             light,
             eye,
             detail,
+            core_radius,
             ..
         } = effect
         {
@@ -431,6 +438,7 @@ fn draw_world_with_basis(
                 light,
                 eye,
                 detail,
+                core_radius,
                 normal: local_vector(world_normal.normalize()),
             }
         } else {
@@ -478,9 +486,7 @@ fn draw_world_with_basis(
             }
             continue;
         }
-        let color = if face.unlit {
-            Some(finish.unwrap_or(face.color))
-        } else if matches!(effect, crate::shaders::SurfaceEffect::Ice { .. }) {
+        let color = if face.unlit || matches!(effect, crate::shaders::SurfaceEffect::Ice { .. }) {
             Some(finish.unwrap_or(face.color))
         } else if matches!(effect, crate::shaders::SurfaceEffect::Asteroid) {
             let diffuse = normal.normalize().dot(&light).max(0.0);

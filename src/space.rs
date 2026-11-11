@@ -41,6 +41,7 @@ impl Planet {
                 eye: Vec3::z() * 3.0,
                 normal: Vec3::y(),
                 detail: true,
+                core_radius: 0.96 / self.model.radius,
             },
             "Asterion" => SurfaceEffect::Stellar { seconds },
             "Onice" => SurfaceEffect::Obsidian,
