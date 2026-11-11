@@ -1,0 +1,7 @@
+{
+  "tool": "image_gen",
+  "mode": "edit",
+  "source": "aurora-kepler-186f-surface.png",
+  "output": "aurora-kepler-186f-warm.png",
+  "prompt": "Edit target: the supplied existing equirectangular planet albedo texture. RECOLOR ONLY. Preserve the exact full rectangular image extent (2048 x 1024, 2:1), every location and shape of all swirls, fine strands, cloud bands, light-dark variations, top and bottom pole bands, and left-right seam alignment. Do not create new patterns, crop, add lighting, or depict a sphere. Convert the existing purple/magenta/blue palette into a warm fire-world palette: magenta and lavender become golden yellow and amber-orange; blue becomes burnt orange and copper; deepest navy becomes deep brown-charcoal; whites become pale warm cream-gold highlights. Keep all original detail and contrast, no remaining pink or purple, no text, no border. This is a UV texture asset, not a rendered planet illustration. Save the final edited bitmap in the project workspace if supported."
+}

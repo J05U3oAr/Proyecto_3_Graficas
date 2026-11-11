@@ -68,6 +68,10 @@ def prepare(identifier, source, unlit, width, samples):
     image.filepath_raw = str(texture)
     image.file_format = 'PNG'
     image.save()
+    # La variante calida de Kepler se conserva al regenerar su geometria.
+    warm = directory / 'textures' / 'aurora-kepler-186f-warm.png'
+    if identifier == 'kepler-186f' and warm.is_file():
+        texture = warm
     original_triangles = sum(len(poly.vertices) - 2 for poly in obj.data.polygons)
     decimate = obj.modifiers.new('Copia para renderizador CPU', 'DECIMATE')
     decimate.ratio = 0.125

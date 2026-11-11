@@ -211,11 +211,15 @@ pub fn draw(
 ) {
     for instance in instances {
         let mut transform = instance.transform;
-        if !view.sphere_visible(transform.position, transform.radius) {
+        if fb.render_options.culling && !view.sphere_visible(transform.position, transform.radius) {
             continue;
         }
         transform.yaw += seconds * instance.rotation_speed();
-        let model = meshes[instance.variant].for_view(view, transform);
+        let model = if fb.render_options.automatic_lod {
+            meshes[instance.variant].for_view(view, transform)
+        } else {
+            &meshes[instance.variant].detailed
+        };
         renderer::draw_world_model_shaded(fb, model, view, transform, sun, SurfaceEffect::Asteroid);
     }
 }
@@ -223,6 +227,30 @@ pub fn draw(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn disabling_automatic_lod_processes_the_detailed_mesh_at_the_same_camera() {
+        let meshes = load().unwrap();
+        let flight = crate::flight::Flight::new();
+        let view = FlightView::new(&flight, 320, 240);
+        let rock = Instance {
+            transform: WorldTransform {
+                position: view.eye() + view.basis().2 * 2000.0,
+                radius: 14.0,
+                yaw: 0.0,
+            },
+            variant: 4,
+            velocity: Vec3::zeros(),
+        };
+        let mut automatic = Framebuffer::new(320, 240);
+        let mut detailed = Framebuffer::new(320, 240);
+        detailed.render_options.automatic_lod = false;
+        draw(&mut automatic, &view, meshes, &[rock], None, 0.0);
+        draw(&mut detailed, &view, meshes, &[rock], None, 0.0);
+        assert_eq!(automatic.triangles_processed, meshes[4].distant.faces.len());
+        assert_eq!(detailed.triangles_processed, meshes[4].detailed.faces.len());
+        assert!(detailed.triangles_processed >= automatic.triangles_processed * 10);
+    }
 
     #[test]
     fn blender_meshes_have_reduced_lods_and_three_distinct_size_categories() {

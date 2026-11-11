@@ -63,6 +63,7 @@ impl Planet {
                 flow: 0.018,
             },
             "Flareon" => SurfaceEffect::Lava { seconds },
+            "Volcarona" => SurfaceEffect::CrimsonLava { seconds },
             "Metis" => SurfaceEffect::Rock {
                 seconds,
                 seed: 19.0,
@@ -87,7 +88,7 @@ impl Planet {
         match self.name {
             // These Blender meshes have unit-radius ground and separate raised terrain.
             "Nivalis" | "Onice" | "Vespera" | "Prisma" | "Nacar" | "Micelia" | "Azufria"
-            | "Ferrita" => self.transform.radius / self.model.radius,
+            | "Ferrita" | "Volcarona" => self.transform.radius / self.model.radius,
             _ => self.transform.radius,
         }
     }
@@ -126,12 +127,23 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
                 "helix/azufria/azufria.obj",
                 "helix/ferrita/ferrita.obj",
                 "aureon/aureon.obj",
+                "volcarona/volcarona.obj",
+                "volcarona/volcarona.obj",
             ];
             paths
                 .iter()
                 .enumerate()
                 .map(|(index, path)| {
-                    let mut model = if index == 8 {
+                    let mut model = if index >= 20 {
+                        crate::volcarona::load(
+                            assets.join(path),
+                            if index == 20 {
+                                crate::volcarona::SUBDIVISIONS
+                            } else {
+                                0
+                            },
+                        )?
+                    } else if index == 8 {
                         crate::ice_planet::load(assets.join(path))?
                     } else {
                         Model::load(assets.join(path))?
@@ -225,6 +237,7 @@ pub struct Space {
     umbriel_rings: Arc<Model>,
     ring_fragments: &'static [crate::ring_debris::Fragment],
     ring_motion: Option<Arc<crate::debris_physics::Field>>,
+    volcarona_distant: Arc<Model>,
     umbriel_rings_glass: Model,
 }
 
@@ -449,6 +462,16 @@ impl Space {
                 rotation_speed: 0.014,
                 dust: None,
             },
+            Planet {
+                active: false,
+                name: "Volcarona",
+                model: Arc::clone(&models[20]),
+                motion: crate::orbit::Motion::default(),
+                is_sun: false,
+                transform: crate::galaxy::planet_transform(1, 18),
+                rotation_speed: 0.025,
+                dust: None,
+            },
         ];
         let collisions = Arc::new(CollisionWorld::new(
             planets
@@ -472,6 +495,7 @@ impl Space {
             )),
             nivalis: Arc::clone(&models[8]),
             boreal: Arc::clone(&models[3]),
+            volcarona_distant: Arc::clone(&models[21]),
             prisma_opaque: opacity_layer(&models[12], false),
             prisma_glass: opacity_layer(&models[12], true),
             umbriel_rings: Arc::clone(&models[15]),
@@ -659,7 +683,14 @@ impl Space {
     pub fn draw_view(&self, fb: &mut Framebuffer, view: &FlightView, seconds: f32) {
         for planet in self.active_planets() {
             let transform = planet.world_transform(seconds);
-            let model = if planet.name == "Prisma" {
+            let model = if planet.name == "Volcarona"
+                && fb.render_options.automatic_lod
+                && transform.radius * renderer::FLIGHT_FOCAL
+                    / (view.eye() - transform.position).norm().max(0.1)
+                    < 60.0
+            {
+                &self.volcarona_distant
+            } else if planet.name == "Prisma" {
                 &self.prisma_opaque
             } else {
                 &planet.model
@@ -811,6 +842,61 @@ impl Space {
 mod tests {
     use super::*;
     #[test]
+    fn volcarona_is_an_independent_orbital_world_in_aurora_with_real_volcanoes() {
+        let mut space = Space::load().unwrap();
+        space.configure(1);
+        let body = &space.planets[18];
+        assert_eq!(body.name, "Volcarona");
+        assert!(body.active && !body.is_sun);
+        assert!(!Arc::ptr_eq(&body.model, &space.planets[5].model));
+        assert!(body.model.faces.len() > space.planets[5].model.faces.len() * 4);
+        assert!(body.model.faces.iter().any(|f| f.unlit));
+        assert!(
+            (body.world_transform(30.0).position - body.world_transform(0.0).position).norm()
+                > 100.0
+        );
+        assert!(body.world_transform(30.0).yaw > body.world_transform(0.0).yaw);
+        for galaxy in [0, 2] {
+            space.configure(galaxy);
+            assert!(!space.planets[18].active);
+        }
+        let kepler = &space.planets[6].model;
+        let warm = (1..20)
+            .flat_map(|x| {
+                (1..20).map(move |y| nalgebra_glm::Vec2::new(x as f32 / 20.0, y as f32 / 20.0))
+            })
+            .filter(|&uv| {
+                let c = kepler.textures[0].sample(uv);
+                c.r >= c.g && c.g >= c.b
+            })
+            .count();
+        assert!(warm > 340);
+    }
+    #[test]
+    fn planetary_gravity_uses_the_current_galaxy_and_tracks_its_moving_worlds() {
+        let mut space = Space::load().unwrap();
+        for galaxy in 0..3 {
+            space.configure(galaxy);
+            let mut flight = space.new_flight();
+            for planet in space.active_planets() {
+                for time in [0.0, 40.0, 120.0] {
+                    let transform = planet.world_transform(time);
+                    flight.seconds = time;
+                    flight.position = transform.position
+                        + Vec3::y() * (planet.navigation_surface_radius() + 15.0);
+                    let pull = flight.planetary_acceleration();
+                    assert!(
+                        pull.y < -0.05,
+                        "{} en galaxia {galaxy}, t={time}: {pull:?}",
+                        planet.name
+                    );
+                    assert!(pull.norm() <= crate::planet_gravity::MAX_ACCELERATION + 0.0001);
+                }
+            }
+        }
+    }
+
+    #[test]
     fn all_asteroid_variants_stop_slow_ships_and_destroy_fast_ships_in_every_galaxy() {
         let mut space = Space::load().unwrap();
         for galaxy in 0..3 {
@@ -881,6 +967,9 @@ mod tests {
                         if galaxy == 2 && variant == 4 && time == 45.0 && fps == 60 {
                             for _ in 0..125 {
                                 fast.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+                                if fast.respawn_notice > 0.0 {
+                                    break;
+                                }
                             }
                             assert!(fast.crash.is_none() && fast.respawn_notice > 0.0);
                             assert_eq!(fast.position, crate::flight::SPAWN_POSITION);
@@ -1851,7 +1940,7 @@ mod tests {
     fn aurora_draws_and_collides_at_the_same_orbital_positions() {
         let mut space = Space::load().unwrap();
         space.configure(1);
-        assert_eq!(space.active_planets().count(), 6);
+        assert_eq!(space.active_planets().count(), 7);
         assert_eq!(space.sun_position(600.0), Some(Vec3::zeros()));
         let hole = space.new_flight().black_hole;
         for seconds in [0.0, 120.0, 600.0] {
@@ -2046,7 +2135,8 @@ mod tests {
             let mut flight = space.new_flight();
             assert_eq!(flight.position, crate::flight::SPAWN_POSITION);
             flight.advance(1.0 / 60.0, (0.0, 0.0), false, false);
-            assert_eq!(flight.position, crate::flight::SPAWN_POSITION);
+            // El sol ya puede provocar una pequena deriva durante el primer cuadro.
+            assert!((flight.position - crate::flight::SPAWN_POSITION).norm() < 0.01);
             assert_eq!(space.debris.len(), definition.debris);
             let first_debris: Vec<_> = space.debris.iter().map(|t| t.transform.position).collect();
             space.configure(galaxy);
@@ -2178,6 +2268,9 @@ mod tests {
         assert_eq!(fast.crash.as_ref().unwrap().age, 0.0);
         for _ in 0..125 {
             fast.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+            if fast.respawn_notice > 0.0 {
+                break;
+            }
         }
         assert!(fast.crash.is_none() && fast.respawn_notice > 0.0);
         assert_eq!(fast.position, crate::flight::SPAWN_POSITION);

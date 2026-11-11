@@ -210,6 +210,8 @@ pub struct Ui {
     deep_space: crate::deep_space::DeepSpace,
     portal_art: &'static crate::portal_art::Art,
     galaxy: usize,
+    pub render_options: crate::framebuffer::RenderOptions,
+    pub performance_paused: bool,
 }
 
 struct Star {
@@ -245,6 +247,8 @@ impl Ui {
         }
         Ok(Self {
             galaxy: 0,
+            render_options: Default::default(),
+            performance_paused: false,
             fonts: Fonts::load()?,
             background,
             stars,
@@ -398,6 +402,7 @@ impl Ui {
         show_ship: bool,
     ) {
         fb.clear();
+        fb.render_options = self.render_options;
         if self.galaxy == 1 {
             crate::skybox::draw_view(fb, view);
         } else {
@@ -444,6 +449,7 @@ impl Ui {
 
     pub fn flight(&self, fb: &mut Framebuffer, ship: &Ship, flight: &Flight, seconds: f32) {
         fb.clear();
+        fb.render_options = self.render_options;
         if self.galaxy == 1 {
             crate::skybox::draw(fb, &flight.camera);
         } else {
@@ -458,6 +464,8 @@ impl Ui {
         let focal = renderer::FLIGHT_FOCAL;
         let eye = flight.camera_position();
         let speed = flight.velocity.norm();
+        flight.impulse.draw_background(fb, &flight.camera, seconds);
+        let jump_strength = flight.impulse.visual_strength();
         for star in &self.stars {
             // Recycle a world-space volume around the camera for endless travel.
             let relative = (star.position - eye).map(|v| (v + 280.0).rem_euclid(560.0) - 280.0);
@@ -484,8 +492,10 @@ impl Ui {
                     * focal
                     / depth
                     * 0.045;
-                let vx = vx.clamp(-24.0, 24.0);
-                let vy = vy.clamp(-24.0, 24.0);
+                let stretch = 1.0 + jump_strength * 2.5;
+                let limit = 24.0 + jump_strength * 70.0;
+                let vx = (vx * stretch).clamp(-limit, limit);
+                let vy = (vy * stretch).clamp(-limit, limit);
                 rule(
                     fb,
                     (point.0, point.1),
@@ -689,6 +699,27 @@ impl Ui {
                 self.fonts.text(fb, 14, 406, 135, notice, TEXT);
             }
         }
+        if ship.impulse_capable {
+            rounded(fb, Rect::new(34, 110, 284, 76), 10, 0x101d2c, 0x304154);
+            self.fonts
+                .text(fb, 14, 50, 120, "CAPS LOCK + WASD / IMPULSO", ship.accent);
+            let state = if flight.impulse.remaining > 0.0 {
+                "SALTO CORTO ACTIVO".to_owned()
+            } else if flight.impulse.cooldown > 0.00001 {
+                format!("RECARGA {:.1} s", flight.impulse.cooldown)
+            } else {
+                "LISTO - SIN WASD: ADELANTE".to_owned()
+            };
+            self.fonts.text(fb, 14, 50, 146, &state, TEXT);
+            let charge = (1.0 - flight.impulse.cooldown / crate::impulse::COOLDOWN).clamp(0.0, 1.0);
+            rule(fb, (50, 172), (300, 172), BORDER);
+            rule(
+                fb,
+                (50, 172),
+                (50 + (250.0 * charge) as i32, 172),
+                ship.accent,
+            );
+        }
         rounded(fb, Rect::new(970, 25, 276, 92), 12, 0x101d2c, 0x304154);
         self.fonts.text(
             fb,
@@ -761,6 +792,18 @@ impl Ui {
                     &format!("SALIDA A {:.1} u DE ALTURA", reference.exit_height()),
                     MUTED,
                 );
+            } else {
+                let attraction = flight.planetary_acceleration().norm();
+                if attraction > 0.005 {
+                    self.fonts.text(
+                        fb,
+                        14,
+                        988,
+                        251,
+                        &format!("ATRACCION {:.2} u/s2", attraction),
+                        TEAL,
+                    );
+                }
             }
         }
 
@@ -790,6 +833,45 @@ impl Ui {
             91,
             &format!("C  DIRECCION: {}", flight.steering_mode.label()),
             MUTED,
+        );
+
+        rounded(fb, Rect::new(338, 26, 540, 78), 12, 0x101d2c, BORDER);
+        let triangles = fb.triangles_processed;
+        self.fonts.text(
+            fb,
+            14,
+            354,
+            38,
+            &format!(
+                "TRIANGULOS {} | F5 Descarte {}",
+                triangles,
+                if self.render_options.culling {
+                    "SI"
+                } else {
+                    "NO"
+                }
+            ),
+            TEXT,
+        );
+        self.fonts.text(
+            fb,
+            14,
+            354,
+            67,
+            &format!(
+                "LOD AUTOMATICO {} [F4] | F6 {}",
+                if self.render_options.automatic_lod {
+                    "SI"
+                } else {
+                    "NO"
+                },
+                if self.performance_paused {
+                    "Reanudar"
+                } else {
+                    "Pausar"
+                }
+            ),
+            TEAL,
         );
 
         let center = (WIDTH as i32 / 2, HEIGHT as i32 / 2);
@@ -1073,6 +1155,39 @@ pub(crate) fn ellipse(fb: &mut Framebuffer, center: (f32, f32), radius: (f32, f3
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn performance_switches_compare_triangle_work_without_changing_the_culled_image() {
+        let mut ui = super::Ui::new().unwrap();
+        ui.select_galaxy(2);
+        let ships = crate::fleet::load().unwrap();
+        let flight = ui.new_flight();
+        let render = |ui: &super::Ui| {
+            let mut frame = crate::framebuffer::Framebuffer::new(super::WIDTH, super::HEIGHT);
+            ui.flight(&mut frame, &ships[0], &flight, 0.0);
+            frame
+        };
+        let automatic = render(&ui);
+        ui.render_options.automatic_lod = false;
+        let high = render(&ui);
+        assert!(high.triangles_processed > automatic.triangles_processed);
+        ui.render_options.culling = false;
+        let uncull = render(&ui);
+        assert!(uncull.triangles_processed > high.triangles_processed);
+        for y in 0..super::HEIGHT {
+            for x in 0..super::WIDTH {
+                if (338..878).contains(&x) && (26..104).contains(&y) {
+                    continue;
+                }
+                assert_eq!(
+                    high.pixels[y * super::WIDTH + x],
+                    uncull.pixels[y * super::WIDTH + x]
+                );
+            }
+        }
+        assert_eq!(high.depth, uncull.depth);
+        assert_eq!(flight.seconds, 0.0);
+    }
+
     use super::*;
 
     #[test]

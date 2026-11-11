@@ -74,7 +74,7 @@ pub fn ships(ui: &Ui, fb: &mut Framebuffer, ships: &[Ship], view: &MenuView) {
     ui.fonts.text(fb, 14, 44, 220, "FLOTA DISPONIBLE", MUTED);
     let descriptions = [
         "Casco cobrizo y silueta amplia",
-        "Paneles oscuros y cabina roja",
+        "Impulso direccional con CAPS LOCK",
         "Platillo gris, cupula de cristal y franjas amarillas",
     ];
     for (index, entry) in ships.iter().enumerate() {

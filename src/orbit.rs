@@ -99,6 +99,12 @@ pub const JOVARA: Orbit = Orbit {
     phase: 3.95,
     inclination: -0.045,
 };
+pub const VOLCARONA: Orbit = Orbit {
+    radius: 1680.0,
+    speed: 0.0027 * ORBIT_SPEED_MULTIPLIER,
+    phase: -1.95,
+    inclination: 0.06,
+};
 pub const METIS: Orbit = Orbit {
     radius: 190.0,
     speed: 0.024 * ORBIT_SPEED_MULTIPLIER,
@@ -170,6 +176,7 @@ pub fn aurora_motion(body: usize) -> Motion {
             2 => Some(JOVARA),
             5 => Some(FLAREON),
             6 | 7 => Some(KEPLER),
+            18 => Some(VOLCARONA),
             _ => None,
         },
         satellite: (body == 7).then_some(METIS),
@@ -265,7 +272,7 @@ mod tests {
     #[test]
     fn planets_keep_their_orbits_and_metis_follows_kepler() {
         for seconds in [0.0, 20.0, 120.0, 600.0, 3600.0] {
-            for body in [0, 2, 5, 6] {
+            for body in [0, 2, 5, 6, 18] {
                 let motion = aurora_motion(body);
                 assert!(
                     (motion.offset(seconds).norm() - motion.primary.unwrap().radius).abs() < 0.001
@@ -283,7 +290,8 @@ mod tests {
             (0.0, FLAREON.radius, crate::galaxy::SUN_RADIUS, 48.0),
             (FLAREON.radius, SIROCO.radius, 48.0, 36.0),
             (SIROCO.radius, KEPLER.radius, 36.0, METIS.radius + 17.0),
-            (KEPLER.radius, JOVARA.radius, METIS.radius + 17.0, 95.0),
+            (KEPLER.radius, VOLCARONA.radius, METIS.radius + 17.0, 78.0),
+            (VOLCARONA.radius, JOVARA.radius, 78.0, 95.0),
         ] {
             assert!(outer - inner - inner_extent - outer_extent > 180.0);
         }
