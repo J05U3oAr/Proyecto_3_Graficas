@@ -223,7 +223,8 @@ pub struct Space {
     prisma_opaque: Model,
     prisma_glass: Model,
     umbriel_rings: Arc<Model>,
-    umbriel_rings_opaque: Model,
+    ring_fragments: &'static [crate::ring_debris::Fragment],
+    ring_motion: Option<Arc<crate::debris_physics::Field>>,
     umbriel_rings_glass: Model,
 }
 
@@ -474,7 +475,8 @@ impl Space {
             prisma_opaque: opacity_layer(&models[12], false),
             prisma_glass: opacity_layer(&models[12], true),
             umbriel_rings: Arc::clone(&models[15]),
-            umbriel_rings_opaque: opacity_layer(&models[15], false),
+            ring_fragments: crate::ring_debris::load()?,
+            ring_motion: None,
             umbriel_rings_glass: opacity_layer(&models[15], true),
         };
         space.configure(0);
@@ -510,16 +512,37 @@ impl Space {
                     .with_motion(p.motion)
             })
             .collect();
-        if let Some(planet) = self.active_planets().find(|p| p.name == "Umbriel") {
-            colliders.push(
-                PlanetCollider::new_opaque(
-                    "Anillos de Umbriel",
-                    &self.umbriel_rings,
-                    ring_transform(planet, &self.umbriel_rings, 0.0),
-                    0.0,
-                )
-                .with_motion(planet.motion),
+        self.ring_motion = None;
+        let ring_planet = self
+            .active_planets()
+            .find(|p| p.name == "Umbriel")
+            .map(|p| (p.transform, p.motion, p.model.radius));
+        if let Some((planet, motion, body_radius)) = ring_planet {
+            let transforms: Vec<_> = self
+                .ring_fragments
+                .iter()
+                .map(|f| f.transform(planet, body_radius))
+                .collect();
+            let bodies = transforms
+                .iter()
+                .map(|t| crate::debris_physics::Body {
+                    position: t.position,
+                    radius: t.radius,
+                    velocity: Vec3::zeros(),
+                })
+                .collect();
+            let field = Arc::new(
+                crate::debris_physics::Field::new(self.black_hole, bodies).with_carrier(motion),
             );
+            colliders.extend(self.ring_fragments.iter().zip(&transforms).enumerate().map(
+                |(index, (fragment, transform))| {
+                    fragment
+                        .collider
+                        .instance(*transform, 0.0)
+                        .with_debris(Arc::clone(&field), index)
+                },
+            ));
+            self.ring_motion = Some(field);
         }
         self.debris = crate::asteroids::distribute(index, |rock| {
             self.active_planets().all(|planet| {
@@ -582,11 +605,15 @@ impl Space {
     }
 
     pub fn debris_captured(&self, seconds: f32) -> usize {
-        self.debris_motion
+        let free = self
+            .debris_motion
             .sample(seconds)
             .iter()
             .filter(|state| state.captured)
-            .count()
+            .count();
+        free + self.ring_motion.as_ref().map_or(0, |field| {
+            field.sample(seconds).iter().filter(|s| s.captured).count()
+        })
     }
 
     pub fn sun_position(&self, seconds: f32) -> Option<Vec3> {
@@ -719,22 +746,35 @@ impl Space {
         seconds: f32,
         glass: bool,
     ) {
-        let model = if glass {
-            &self.umbriel_rings_glass
-        } else {
-            &self.umbriel_rings_opaque
-        };
+        if !glass {
+            if let Some(field) = &self.ring_motion {
+                let states = field.sample(seconds);
+                for (fragment, state) in self.ring_fragments.iter().zip(states.iter()) {
+                    if state.captured {
+                        continue;
+                    }
+                    let mut transform = fragment.transform(planet.transform, planet.model.radius);
+                    transform.position = state.position;
+                    renderer::draw_world_model_shaded(
+                        fb,
+                        &fragment.model,
+                        view,
+                        transform,
+                        self.sun_position(seconds),
+                        crate::shaders::SurfaceEffect::Asteroid,
+                    );
+                }
+            }
+            return;
+        }
+        let model = &self.umbriel_rings_glass;
         renderer::draw_world_model_shaded(
             fb,
             model,
             view,
             ring_transform(planet, model, seconds),
             self.sun_position(seconds),
-            if glass {
-                crate::shaders::SurfaceEffect::RingIce
-            } else {
-                crate::shaders::SurfaceEffect::Asteroid
-            },
+            crate::shaders::SurfaceEffect::RingIce,
         );
     }
 
@@ -1017,8 +1057,11 @@ mod tests {
         let outward = (b - a).cross(&(c - a)).normalize();
         for seconds in [0.0, 80.0] {
             let position = planet.world_transform(seconds).position;
+            let fragment = &space.ring_fragments[0];
+            let actual = space.ring_motion.as_ref().unwrap().sample(seconds)[0].position;
+            let drift = actual - (position + fragment.model.center * scale);
             let hit = space.collisions.move_ship(
-                position + center + outward * (crate::collision::SHIP_RADIUS + 1.0),
+                position + drift + center + outward * (crate::collision::SHIP_RADIUS + 1.0),
                 -outward * 2.0,
                 seconds,
                 0.01,
@@ -1026,7 +1069,8 @@ mod tests {
             assert!(
                 hit.contacts
                     .iter()
-                    .any(|c| c.planet == "Anillos de Umbriel")
+                    .any(|c| c.planet == "Anillos de Umbriel"),
+                "El contacto debe seguir la roca y su deriva gravitatoria en t={seconds}"
             );
         }
     }

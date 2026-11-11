@@ -56,6 +56,7 @@ struct Cache {
 pub struct Field {
     hole: BlackHole,
     bodies: Vec<Body>,
+    carrier: Option<crate::orbit::Motion>,
     cache: Mutex<Cache>,
 }
 
@@ -74,6 +75,7 @@ impl Field {
         Self {
             hole,
             bodies,
+            carrier: None,
             cache: Mutex::new(Cache {
                 tick: 0,
                 states,
@@ -85,25 +87,53 @@ impl Field {
     }
 
     /// A fixed 120 Hz velocity-Verlet step gives the same trajectory at 10 or 60 FPS.
-    fn step(&self, states: &mut [Particle]) {
+    pub fn with_carrier(mut self, motion: crate::orbit::Motion) -> Self {
+        self.carrier = Some(motion);
+        self
+    }
+
+    fn world_state(&self, particle: Particle, seconds: f32) -> State {
+        let mut state = particle.state();
+        if !state.captured {
+            if let Some(motion) = self.carrier {
+                state.position += motion.displacement(seconds);
+                state.velocity += motion.velocity(seconds);
+            }
+        }
+        state
+    }
+
+    fn step(&self, states: &mut [Particle], seconds: f32) {
+        let shift: DVec3 = self
+            .carrier
+            .map_or(Vec3::zeros(), |m| m.displacement(seconds))
+            .cast();
+        let next_shift: DVec3 = self
+            .carrier
+            .map_or(Vec3::zeros(), |m| m.displacement(seconds + STEP as f32))
+            .cast();
         for (state, body) in states.iter_mut().zip(&self.bodies) {
             if state.captured {
                 continue;
             }
             let first: DVec3 = self
                 .hole
-                .free_fall_acceleration(state.position.cast())
+                .free_fall_acceleration((state.position + shift).cast())
                 .cast();
             let next = state.position + state.velocity * STEP + first * (0.5 * STEP * STEP);
-            if self
-                .hole
-                .captures_sphere(state.position.cast(), next.cast(), body.radius)
-            {
-                state.position = next;
+            if self.hole.captures_sphere(
+                (state.position + shift).cast(),
+                (next + next_shift).cast(),
+                body.radius,
+            ) {
+                state.position = next + next_shift;
                 state.velocity = DVec3::zeros();
                 state.captured = true;
             } else {
-                let second: DVec3 = self.hole.free_fall_acceleration(next.cast()).cast();
+                let second: DVec3 = self
+                    .hole
+                    .free_fall_acceleration((next + next_shift).cast())
+                    .cast();
                 state.position = next;
                 state.velocity += (first + second) * (0.5 * STEP);
             }
@@ -127,7 +157,8 @@ impl Field {
             }
         }
         while cache.tick < tick {
-            self.step(&mut cache.states);
+            let seconds = (cache.tick as f64 / RATE) as f32;
+            self.step(&mut cache.states, seconds);
             cache.tick += 1;
             if cache.tick.is_multiple_of(CHECKPOINT_TICKS) {
                 cache
@@ -167,12 +198,19 @@ impl Field {
         let tick = continuous.floor() as u64;
         let fraction = (continuous - tick as f64) as f32;
         self.seek(&mut cache, tick);
-        let mut result: Vec<_> = cache.states.iter().copied().map(Particle::state).collect();
+        let lower_time = (tick as f64 / RATE) as f32;
+        let mut result: Vec<_> = cache
+            .states
+            .iter()
+            .copied()
+            .map(|p| self.world_state(p, lower_time))
+            .collect();
         if fraction > 0.0 {
             self.seek(&mut cache, tick + 1);
             for (state, next) in result.iter_mut().zip(&cache.states) {
-                state.position += (next.position.cast::<f32>() - state.position) * fraction;
-                state.velocity += (next.velocity.cast::<f32>() - state.velocity) * fraction;
+                let next = self.world_state(*next, ((tick + 1) as f64 / RATE) as f32);
+                state.position += (next.position - state.position) * fraction;
+                state.velocity += (next.velocity - state.velocity) * fraction;
                 state.captured |= next.captured;
             }
         }
@@ -189,6 +227,25 @@ impl Field {
 mod tests {
     use super::*;
     use crate::black_hole::BLACK_HOLE;
+
+    #[test]
+    fn ring_rocks_follow_their_planet_and_accumulate_black_hole_drift() {
+        let motion = crate::orbit::umbria_motion(13);
+        let initial = Body {
+            position: crate::galaxy::UMBRIA_CENTER + motion.offset(0.0) + Vec3::x() * 210.0,
+            velocity: Vec3::zeros(),
+            radius: 2.0,
+        };
+        let hole = crate::galaxy::black_hole(2);
+        let field = Field::new(hole, vec![initial]).with_carrier(motion);
+        let state = field.sample(40.0)[0];
+        let nominal = initial.position + motion.displacement(40.0);
+        assert!(!state.captured);
+        assert!((state.position - nominal).norm() > 1.0);
+        assert!((state.position - nominal).dot(&(hole.position - nominal)) > 0.0);
+        assert!((state.velocity - motion.velocity(40.0)).norm() > 0.01);
+        assert_eq!(field.sample(0.0)[0].position, initial.position);
+    }
 
     fn body(distance: f32, radius: f32, velocity: Vec3) -> Body {
         Body {

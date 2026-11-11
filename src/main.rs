@@ -26,6 +26,7 @@ mod portal;
 mod portal_art;
 mod raster_batch;
 mod renderer;
+mod ring_debris;
 mod shaders;
 mod skybox;
 mod space;
