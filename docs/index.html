@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080e17">
+  <meta name="description" content="Explora los nuevos planetas de Hélice en Beyond the Interstellar: Micelia, Azufria y Ferrita. Capturas reales del juego en Rust.">
+  <title>Hélice — Beyond the Interstellar</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="gallery.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#mundos">Saltar a los planetas</a>
+  <header class="site-header wrap">
+    <a class="brand" href="#inicio"><span class="orbit-mark" aria-hidden="true">✧</span> BEYOND THE INTERSTELLAR</a>
+    <a class="repo-link" href="https://github.com/J05U3oAr/Proyecto_3_Graficas">Ver proyecto <span aria-hidden="true">↗</span></a>
+  </header>
+  <main id="inicio" class="wrap">
+    <section class="intro" aria-labelledby="title">
+      <p class="eyebrow"><span class="signal" aria-hidden="true"></span> ATLAS DE EXPLORACIÓN / REGIÓN 01</p>
+      <h1 id="title">Más allá de lo conocido.<br><span>Bienvenido a Hélice.</span></h1>
+      <p class="lead">Siete mundos. Nuevas cordilleras, cráteres profundos y paisajes de otro universo. Elige tu próxima parada.</p>
+      <a class="text-link" href="#mundos">Descubrir los tres nuevos mundos <span aria-hidden="true">↓</span></a>
+    </section>
+
+    <section id="mundos" class="atlas" aria-labelledby="atlas-title">
+      <div class="section-top"><h2 id="atlas-title">Nuevas coordenadas</h2><span class="small-label">03 MUNDOS POR DESCUBRIR</span></div>
+      <div class="planet-tabs" aria-label="Elegir un planeta">
+        <button id="tab-micelia" type="button" data-world="micelia"><span>01</span> Micelia <span class="tab-kind">FÚNGICO</span></button>
+        <button id="tab-azufria" type="button" data-world="azufria"><span>02</span> Azufria <span class="tab-kind">SULFUROSO</span></button>
+        <button id="tab-ferrita" type="button" data-world="ferrita"><span>03</span> Ferrita <span class="tab-kind">METÁLICO</span></button>
+      </div>
+
+      <article id="micelia" class="world micelia" aria-labelledby="name-micelia">
+        <a class="world-image" href="assets/micelia.png" aria-label="Abrir captura completa de Micelia"><img src="assets/micelia.png" alt="Planeta violeta con hongos gigantes, montañas y cráteres de micelio verde" width="1280" height="840"><span class="image-note">CAPTURA DEL JUEGO <span aria-hidden="true">↗</span></span></a>
+        <div class="world-copy"><p class="eyebrow">01 / BOSQUE DE ESPORAS</p><h3 id="name-micelia">Micelia</h3><p class="world-tagline">Un bosque que alcanza las estrellas.</p><p>Hongos gigantes nacen entre cordilleras violetas. En las cuencas de impacto, el micelio esmeralda encuentra refugio; bajo los sombreros, las esporas conservan su luz.</p><dl><div><dt>Relieve</dt><dd>Crestas orgánicas</dd></div><div><dt>Cuencas de impacto</dt><dd>5</dd></div><div><dt>Hongos gigantes</dt><dd>58</dd></div></dl><p class="hint">Acércate en vuelo y pulsa <kbd>L</kbd> para recorrer su horizonte.</p></div>
+      </article>
+
+      <article id="azufria" class="world azufria" aria-labelledby="name-azufria">
+        <a class="world-image" href="assets/azufria.png" aria-label="Abrir captura completa de Azufria"><img src="assets/azufria.png" alt="Planeta amarillo con cordilleras de azufre y calderas profundas llenas de ácido verde jade" width="1280" height="840" loading="lazy"><span class="image-note">CAPTURA DEL JUEGO <span aria-hidden="true">↗</span></span></a>
+        <div class="world-copy"><p class="eyebrow">02 / CALDERAS DE AZUFRE</p><h3 id="name-azufria">Azufria</h3><p class="world-tagline">Oro mineral. Profundidades de jade.</p><p>Una corteza de azufre amarillo se pliega en largas cordilleras. Siete calderas interrumpen el paisaje, con paredes elevadas, estratos ocres y lagos ácidos en su interior.</p><dl><div><dt>Relieve</dt><dd>Cordilleras sulfurosas</dd></div><div><dt>Calderas</dt><dd>7</dd></div><div><dt>Lagos ácidos</dt><dd>7</dd></div></dl><p class="hint">Desciende con <kbd>Q</kbd> en navegación local para apreciar las paredes.</p></div>
+      </article>
+
+      <article id="ferrita" class="world ferrita" aria-labelledby="name-ferrita">
+        <a class="world-image" href="assets/ferrita.png" aria-label="Abrir captura completa de Ferrita"><img src="assets/ferrita.png" alt="Planeta de cobre rojizo con pátina verde, montañas estratificadas y cráteres concéntricos" width="1280" height="840" loading="lazy"><span class="image-note">CAPTURA DEL JUEGO <span aria-hidden="true">↗</span></span></a>
+        <div class="world-copy"><p class="eyebrow">03 / CORDILLERAS DE COBRE</p><h3 id="name-ferrita">Ferrita</h3><p class="world-tagline">La huella de cada impacto.</p><p>Montañas de cobre, óxido rojizo y vetas de cardenillo. Sus cráteres tienen bordes concéntricos y un pico central de rebote: cicatrices que se reconocen incluso desde el espacio.</p><dl><div><dt>Relieve</dt><dd>Estratos metálicos</dd></div><div><dt>Cráteres</dt><dd>8</dd></div><div><dt>Seña distintiva</dt><dd>Anillos de impacto</dd></div></dl><p class="hint">Sube con <kbd>E</kbd> para descubrir el perfil de las cordilleras.</p></div>
+      </article>
+    </section>
+
+    <section class="flight-section" aria-labelledby="flight-title">
+      <div class="section-top"><h2 id="flight-title">Una frontera más amplia</h2><span class="small-label">HÉLICE / 7 MUNDOS</span></div>
+      <a class="flight-image" href="assets/vuelo.png"><img src="assets/vuelo.png" width="1280" height="840" loading="lazy" alt="Vista de vuelo en Hélice con los siete planetas, asteroides y la nave Benatar"></a>
+      <p class="caption">Micelia, Azufria y Ferrita se suman a Siroco, Oquedad, Jovara y Boreal. Todo el relieve se ve desde el vuelo y tiene colisión con la nave.</p>
+    </section>
+
+    <section class="play" aria-labelledby="play-title"><div><p class="eyebrow">PREPARA TU NAVE</p><h2 id="play-title">Tu próxima parada: Hélice.</h2><p>Ejecuta el juego de escritorio, elige tu nave y selecciona Hélice en el mapa de destinos.</p><code>cargo run --release</code><p class="small-label">ESTA PÁGINA ES LA GALERÍA DEL JUEGO PARA ESCRITORIO.</p></div><a class="primary-link" href="https://github.com/J05U3oAr/Proyecto_3_Graficas#ejecutar">Abrir instrucciones <span aria-hidden="true">↗</span></a></section>
+  </main>
+  <footer class="wrap"><span>Beyond the Interstellar · Hélice</span><span>Modelos originales en Blender · Renderizado en Rust</span></footer>
+</body>
+</html>

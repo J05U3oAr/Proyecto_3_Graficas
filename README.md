@@ -51,17 +51,43 @@ La animación usa tiempo transcurrido y se pausa cuando la ventana pierde el foc
 
 ## Selector de galaxias
 
-La pantalla **Destinos** permite elegir tres regiones explorables. El mapa ocupa toda la ventana y gira lentamente de forma automática. La descripción aparece únicamente al seleccionar un destino mediante clic o teclado; se puede cerrar con la cruz o haciendo clic en el espacio vacío. Las regiones reutilizan los modelos existentes con distintas combinaciones y posiciones; no representan planetas nuevos.
+La pantalla **Destinos** permite elegir tres regiones explorables. El mapa ocupa toda la ventana y gira lentamente de forma automática. La descripción aparece únicamente al seleccionar un destino mediante clic o teclado; se puede cerrar con la cruz o haciendo clic en el espacio vacío. Cada región combina mundos propios con algunos planetas compartidos.
 
 Las galaxias del mapa tienen ilustraciones procedurales diferentes: Aurora es una espiral violeta inclinada; Hélice tiene dos brazos azules y un núcleo dorado con barra; Umbría se observa de canto, con un disco azulado y una franja oscura de polvo. Se tomaron como referencias visuales `galaxia1.png` y `galaxia2.png`; las imágenes no se cargan en el juego. El color se calcula por píxel una sola vez, se almacena en memoria y se dibuja con filtrado bilineal y mezcla de luz. Su movimiento lento continúa durante la selección.
 
 | Destino | Planetas | Decoración |
 | --- | --- | --- |
 | Aurora | Helios II, Flareon, Siroco, Kepler-186f, Metis y Jovara | Sistema orbital y 180 asteroides |
-| Hélice | Siroco, Oquedad, Jovara y Boreal | Cuatro mundos y 120 asteroides dispersos |
+| Hélice | Siroco, Oquedad, Jovara, Boreal, Micelia, Azufria y Ferrita | Siete mundos y 120 asteroides dispersos |
 | Umbría | Asterion, Ónice, Nivalis, Véspera, Prisma, Nácar y Umbriel | Sol blanco azulado masivo, mundos de roca, hielo y cristal, un gigante gaseoso anillado y 480 asteroides |
 
 Los modelos de los asteroides se crean en Blender. Sus instancias se distribuyen con una semilla fija por galaxia y tienen colisión contra sus mallas. El agujero negro está presente en los tres destinos. Las mallas y texturas de los planetas se cargan una sola vez; al confirmar otro destino se actualizan las transformaciones y se reconstruyen sus colisiones antes del despegue. El acercamiento a un planeta conserva la misma escena de vuelo.
+
+### Nuevos mundos de Hélice
+
+Los tres mundos nuevos tienen montañas y cuencas hundidas modeladas en Blender,
+rotación lenta, navegación local con `L` y colisión contra el relieve real.
+Su diseño utiliza un acabado facetado y materiales de color, sin texturas descargadas.
+
+- **Micelia**: cordilleras violetas, cinco cráteres de micelio esmeralda y
+  58 hongos gigantes con láminas luminosas. [Captura](docs/assets/micelia.png).
+- **Azufria**: cordilleras de azufre amarillo, siete calderas de paredes elevadas
+  y lagos de ácido jade. [Captura](docs/assets/azufria.png).
+- **Ferrita**: estratos de cobre y óxido, pátina verde y ocho cráteres con
+  bordes concéntricos y picos centrales. [Captura](docs/assets/ferrita.png).
+
+[Galería en GitHub Pages](https://J05U3oAr.github.io/Proyecto_3_Graficas/).
+La galería muestra capturas reales; el juego se ejecuta como aplicación de escritorio.
+El workflow `.github/workflows/pages.yml` publica únicamente `docs/` cuando cambia
+esa carpeta en `master`. [Modelos editables y regeneración](assets/planets/helix/README.md).
+
+```bash
+cargo run --release -- --render-flight output/helice.png --galaxy 1
+cargo run --release -- --render-planet output/micelia.png --galaxy 1 --target micelia
+cargo run --release -- --render-flight output/ferrita-local.png --galaxy 1 --near-planet ferrita --local-navigation
+```
+
+### Controles del selector
 
 | Control | Acción |
 | --- | --- |
