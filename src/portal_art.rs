@@ -168,6 +168,9 @@ impl Art {
                     image
                 })
             });
+            if let Some(image) = &destination {
+                fb.triangles_processed += image.triangles_processed;
+            }
             let frame = self.frame(kind, flight.seconds);
             let angle = if kind == Kind::Yellow {
                 flight.seconds * 0.32
