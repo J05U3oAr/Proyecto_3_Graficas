@@ -203,6 +203,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 "--help" => {
                     println!(
+                        "--render-flight salida.png --galaxy 1 --observe-black-hole --time 20 observa la caida de meteoritos desde una posicion fija."
+                    );
+                    println!(
                         "--render-gate salida.png --ship 3 --galaxy 2 --time 1.5 [--gate-ready]"
                     );
                     println!(
@@ -346,8 +349,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             flight.move_with_mouse(Some(mouse_target));
             for frame in 0..(seconds * 60.0).ceil() as u32 {
                 let dt = (seconds - frame as f32 / 60.0).min(1.0 / 60.0);
-                // Flight exports simulate holding W for the requested duration.
-                flight.advance(dt, (1.0, 0.0), false, false);
+                // Observation keeps the camera fixed while matter and planets advance.
+                let movement = if observe_black_hole {
+                    (0.0, 0.0)
+                } else {
+                    (1.0, 0.0)
+                };
+                flight.advance(dt, movement, false, false);
             }
             ui.flight(&mut framebuffer, &ships[selected], &flight, seconds);
             if benchmark_frames > 0 {

@@ -58,10 +58,15 @@ Las galaxias del mapa tienen ilustraciones procedurales diferentes: Aurora es un
 | Destino | Planetas | Decoración |
 | --- | --- | --- |
 | Aurora | Helios II, Flareon, Siroco, Kepler-186f, Metis y Jovara | Sistema orbital y 180 asteroides |
-| Hélice | Siroco, Oquedad, Jovara, Boreal, Micelia, Azufria y Ferrita | Siete mundos y 120 asteroides dispersos |
+| Hélice | Aureon, Siroco, Oquedad, Jovara, Boreal, Micelia, Azufria y Ferrita | Gran sol dorado, siete órbitas y 120 asteroides |
 | Umbría | Asterion, Ónice, Nivalis, Véspera, Prisma, Nácar y Umbriel | Sol blanco azulado masivo, mundos de roca, hielo y cristal, un gigante gaseoso anillado y 480 asteroides |
 
 Los modelos de los asteroides se crean en Blender. Sus instancias se distribuyen con una semilla fija por galaxia y tienen colisión contra sus mallas. El agujero negro está presente en los tres destinos. Las mallas y texturas de los planetas se cargan una sola vez; al confirmar otro destino se actualizan las transformaciones y se reconstruyen sus colisiones antes del despegue. El acercamiento a un planeta conserva la misma escena de vuelo.
+
+En Hélice, **Aureon** es un gran sol dorado de radio 320. Los siete planetas
+recorren órbitas inclinadas con radios de 490 a 2110 unidades y velocidades
+distintas. La luz, las colisiones y la navegación local siguen el mismo reloj.
+[Modelo del sol y parámetros orbitales](assets/planets/aureon/README.md).
 
 ### Nuevos mundos de Hélice
 
@@ -238,13 +243,38 @@ nave y los planetas, y sigue animándose aunque estés detenido. Las tormentas y
 rotación de los planetas se pausan al inspeccionar la nave o perder el foco; la
 pausa de las vistas previas del hangar no afecta al tiempo del vuelo.
 
-El agujero negro es un objeto tridimensional alcanzable, visible arriba a la
-derecha al despegar. Puedes rodear su centro esférico y su disco naranja animado.
+El agujero negro es un objeto tridimensional alcanzable, situado lejos de las
+órbitas planetarias. En Hélice está en (4400, 480, −4600), en Aurora en
+(6100, 650, −5200) y en Umbría en (−6200, 700, −6000).
+Puedes rodear su centro esférico y su disco naranja animado.
 Al entrar a menos de 320 unidades empieza a atraer la nave, incluso sin pulsar
 WASD. La fuerza aumenta al acercarte: usa WASD y `SHIFT` para intentar escapar.
 Si cruzas su horizonte, la nave es absorbida y reaparece en el punto inicial.
 El HUD muestra la distancia y avisa de la atracción. Puedes ver
 [capturas y parámetros](assets/deep-space/README.md).
+
+Todas las rocas libres reciben atracción a cualquier distancia del agujero negro,
+con una fuerza que disminuye según el cuadrado de la distancia. También se
+aplica una deriva gravitatoria a las 96 rocas de los anillos de Umbriel mientras
+acompañan a su planeta. Las trayectorias se integran a 120 pasos por segundo,
+acumulando posiciones y velocidades en doble precisión. El renderizado y las
+colisiones consultan la misma trayectoria: un meteorito puede chocar con una
+nave detenida, y una roca absorbida desaparece tanto de la imagen como de las
+consultas de colisión y espacio para portales.
+
+Cada galaxia reserva 24 de sus asteroides para una corriente de materia cerca
+del agujero negro. Tienen velocidad inicial radial y tangencial; algunos caen
+rápidamente y otros describen trayectorias curvas. Al acercarte a menos de
+1800 unidades, el HUD muestra el contador de asteroides absorbidos. La nave
+conserva su estabilización fuera de la zona de atracción de 320 unidades.
+
+```bash
+cargo run --release -- --render-flight output/caida.png --galaxy 1 --observe-black-hole --time 20
+```
+
+`--observe-black-hole` exporta una observación desde una posición fija a unas
+1200 unidades del centro, sin mantener W. Permite comparar la caída de materia
+en distintos tiempos sin mover la cámara ni añadir teletransportes al juego.
 
 ## Controles de inspección
 
@@ -327,6 +357,8 @@ Admite los cuatro nombres de planeta y es una alternativa a `--near-black-hole`.
 - `src/collision.rs`: colisión continua con las mallas de los planetas y sus túneles.
 - `src/explosion.rs`: fuego, fragmentos y humo del impacto en coordenadas del mundo.
 - `src/space.rs`: carga, posición y rotación de los planetas.
+- `src/debris_physics.rs`: trayectorias de rocas, integración fija, captura y caché reproducible.
+- `src/ring_debris.rs`: separación de las 96 rocas de los anillos conservando las mallas de Blender.
 - `src/ice_planet.rs`: carga del modelo Blender de Nivalis y validación del relieve.
 - `src/dust.rs`: nube animada de arena de Siroco y partículas con transparencia.
 - `src/texture.rs`: carga y muestreo bilineal de mapas de color PNG.
@@ -388,8 +420,8 @@ Hélice tiene 120 instancias dispersas, Aurora 180 y Umbría 480. Umbría reserv
 320 modelos de Blender para un cinturón entre Ónice y Nivalis, repartidos en
 32 sectores alrededor de Asterion. Sus radios orbitales abarcan 735–775 unidades
 y su espesor vertical es de 40 unidades. Incluye las seis variantes y una mayor
-presencia de rocas medianas y grandes; las 160 instancias restantes se distribuyen
-fuera de ese grupo reservado. Se combinan
+presencia de rocas medianas y grandes; de las 160 instancias restantes, 136 se
+distribuyen fuera del cinturón y 24 forman la corriente cercana al agujero negro. Se combinan
 cinturones en Aurora y Umbría con rocas flotantes en todas las galaxias, a distintas
 alturas, distancias y orientaciones. Predominan los fragmentos pequeños y los
 grandes son menos frecuentes. La distribución utiliza la semilla de cada galaxia,
@@ -415,7 +447,10 @@ los anillos en `assets/planets/umbriel/anillos.obj`, separados de `umbriel.obj`.
 Cada asteroide es editable por separado en `umbriel.blend` y conserva el nombre
 de su modelo de origen. Sus posiciones evitan solapamientos y mantienen libres
 los huecos entre las bandas. Las bandas translúcidas siguen siendo visuales;
-los asteroides participan en las colisiones y acompañan la órbita del planeta.
+los asteroides participan en las colisiones, acompañan la órbita del planeta y
+acumulan desplazamiento por la gravedad del agujero negro. Rust conserva cada
+objeto del OBJ como una roca independiente para que su imagen y su colisión
+se desplacen juntas, y desaparezcan juntas si es absorbida.
 Para regenerar ambos recursos, ejecuta primero `create_asteroids.py` y luego
 `create_umbriel.py` con Blender. No se crea geometría de asteroides en Rust.
 

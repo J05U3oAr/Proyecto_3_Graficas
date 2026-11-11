@@ -50,6 +50,19 @@ dt { color: var(--muted); } dd { margin: 0; text-align: right; }
 .hint { font-size: 12px !important; margin: 20px 0 0; }
 kbd { border: 1px solid #536778; border-radius: 4px; padding: 1px 5px; color: var(--text); font: 12px ui-monospace, Consolas, monospace; }
 .flight-section { margin-top: 72px; }
+.stellar-intro { margin-bottom: 72px; }
+details { margin-top: 24px; font-size: 13px; }
+summary { cursor: pointer; color: var(--accent); padding: 8px 0; }
+summary:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 5px; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+caption { color: var(--muted); text-align: left; padding-bottom: 10px; font-size: 11px; }
+th, td { border-bottom: 1px solid var(--line); padding: 7px 0; text-align: left; }
+th:last-child, td:last-child { text-align: right; }
+.time-control { margin-top: 20px; padding: 22px 26px; border: 1px solid var(--line); background: var(--surface); border-radius: 9px; }
+.time-control label { display: flex; justify-content: space-between; gap: 20px; font-size: 14px; }
+.time-control output { color: var(--accent); font: 14px ui-monospace, Consolas, monospace; }
+.time-control input { width: 100%; min-height: 44px; margin: 12px 0 0; accent-color: var(--accent); cursor: pointer; }
+.time-ticks { display: flex; justify-content: space-between; font: 11px ui-monospace, Consolas, monospace; color: var(--muted); }
 .flight-image { display: block; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .flight-image img { display: block; width: 100%; height: auto; }
 .caption { font-size: 13px; color: var(--muted); max-width: 800px; }

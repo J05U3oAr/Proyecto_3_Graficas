@@ -37,3 +37,15 @@ tabs.forEach((tab, index) => {
   });
 });
 selectWorld(0);
+
+const gravityTime = document.getElementById("gravity-time");
+const gravityImage = document.getElementById("gravity-image");
+const gravityOutput = document.getElementById("gravity-output");
+gravityTime.disabled = false;
+gravityTime.addEventListener("input", () => {
+  const seconds = Number(gravityTime.value);
+  gravityImage.src = `assets/caida-${seconds}.png`;
+  gravityImage.alt = `Observación del agujero negro y los asteroides tras ${seconds} segundos de simulación`;
+  gravityOutput.value = `${seconds} s`;
+  gravityTime.setAttribute("aria-valuetext", `${seconds} segundos de simulación`);
+});

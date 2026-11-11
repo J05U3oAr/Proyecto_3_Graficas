@@ -17,7 +17,7 @@ pub const HERO: Viewport = Viewport {
     height: 420,
 };
 
-pub const DESTINATION_PANEL: Rect = Rect::new(922, 375, 314, 334);
+pub const DESTINATION_PANEL: Rect = Rect::new(922, 375, 314, 354);
 pub const DESTINATION_CLOSE: Rect = Rect::new(1194, 391, 24, 24);
 pub const DESTINATION_BACK: Rect = Rect::new(44, 740, 190, 46);
 
@@ -291,7 +291,7 @@ pub fn galaxies(ui: &Ui, fb: &mut Framebuffer, ship: &Ship, view: &GalaxyView) {
             } else if view.selected == 2 {
                 "SOL Y MUNDOS HELADOS"
             } else {
-                "MUNDOS POR EXPLORAR"
+                "SOL Y SIETE PLANETAS"
             },
             selected.accent,
         );
@@ -302,6 +302,7 @@ pub fn galaxies(ui: &Ui, fb: &mut Framebuffer, ship: &Ship, view: &GalaxyView) {
                 7 => "Metis (luna de Kepler)",
                 8 => "Asterion (sol)",
                 13 => "Umbriel (gigante anillado)",
+                17 => "Aureon (sol)",
                 _ => crate::galaxy::BODY_NAMES[planet],
             };
             let spacing = if selected.planets.len() > 6 { 18 } else { 20 };

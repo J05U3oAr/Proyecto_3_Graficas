@@ -5,7 +5,7 @@ pub const KEPLER_RADIUS: f32 = 90.0;
 pub const SUN_RADIUS: f32 = 130.0;
 pub const ASTERION_RADIUS: f32 = 360.0;
 pub const UMBRIA_CENTER: Vec3 = Vec3::new(-440.0, 40.0, 300.0);
-pub const HELIX_CENTER: Vec3 = Vec3::new(-420.0, 40.0, -180.0);
+pub const HELIX_CENTER: Vec3 = Vec3::new(-380.0, -110.0, -420.0);
 pub const AUREON_RADIUS: f32 = 320.0;
 
 pub const BODY_NAMES: [&str; 18] = [

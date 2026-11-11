@@ -49,11 +49,16 @@ interior; los lagos intersectan sus paredes para formar la orilla.
 
 ## Integración con el juego
 
-| Mundo | Posición | Radio exterior | Rotación |
+| Mundo | Radio orbital alrededor de Aureon | Radio exterior | Rotación |
 | --- | --- | --- | --- |
-| Micelia | (−310, 25, −330) | 62 | 0.009 rad/s |
-| Azufria | (250, 100, −285) | 53 | 0.012 rad/s |
-| Ferrita | (250, −155, −160) | 49 | 0.010 rad/s |
+| Micelia | 1460 | 62 | 0.009 rad/s |
+| Azufria | 1760 | 53 | 0.012 rad/s |
+| Ferrita | 2110 | 49 | 0.010 rad/s |
+
+Aureon está en (−380, −110, −420), tiene radio 320 y también es un modelo
+editable de Blender. Los siete planetas de Hélice tienen órbitas inclinadas
+separadas. Sus posiciones, velocidades orbitales y referencias de vuelo local
+se actualizan con el mismo reloj. [Modelo y parámetros de Aureon](../aureon/README.md).
 
 Los tres mundos se activan únicamente en Hélice. Sus índices se añaden al final
 del catálogo para conservar los identificadores existentes. El cambio de galaxia

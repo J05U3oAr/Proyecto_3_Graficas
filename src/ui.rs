@@ -608,6 +608,24 @@ impl Ui {
                         rect.y += 21;
                     }
                     if rect.y < 740 {
+                        // Aureon can sit behind a nearby planet's label. Keep the
+                        // existing light lettering readable over its bright photosphere.
+                        let bright_background = (rect.x..rect.x + rect.w).step_by(8).any(|x| {
+                            let pixel = fb.pixels[(rect.y as usize + 8) * WIDTH + x as usize];
+                            let r = (pixel >> 16) & 255;
+                            let g = (pixel >> 8) & 255;
+                            let b = pixel & 255;
+                            r * 3 + g * 6 + b > 1200
+                        });
+                        if bright_background {
+                            rounded(
+                                fb,
+                                Rect::new(rect.x - 6, rect.y - 3, rect.w + 12, rect.h + 6),
+                                5,
+                                0x101d2c,
+                                0x304154,
+                            );
+                        }
                         self.fonts.text(fb, 14, rect.x, rect.y, &label, MUTED);
                         occupied_labels.push(rect);
                     }

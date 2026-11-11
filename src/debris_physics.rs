@@ -86,7 +86,7 @@ impl Field {
         }
     }
 
-    /// A fixed 120 Hz velocity-Verlet step gives the same trajectory at 10 or 60 FPS.
+    /// Keep a ring's prescribed planetary orbit while integrating its free-fall drift.
     pub fn with_carrier(mut self, motion: crate::orbit::Motion) -> Self {
         self.carrier = Some(motion);
         self
@@ -94,15 +94,16 @@ impl Field {
 
     fn world_state(&self, particle: Particle, seconds: f32) -> State {
         let mut state = particle.state();
-        if !state.captured {
-            if let Some(motion) = self.carrier {
-                state.position += motion.displacement(seconds);
-                state.velocity += motion.velocity(seconds);
-            }
+        if !state.captured
+            && let Some(motion) = self.carrier
+        {
+            state.position += motion.displacement(seconds);
+            state.velocity += motion.velocity(seconds);
         }
         state
     }
 
+    /// A fixed 120 Hz velocity-Verlet step gives the same trajectory at 10 or 60 FPS.
     fn step(&self, states: &mut [Particle], seconds: f32) {
         let shift: DVec3 = self
             .carrier
