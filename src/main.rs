@@ -22,6 +22,7 @@ mod model;
 mod nebula;
 mod noise;
 mod orbit;
+mod planet_gravity;
 mod portal;
 mod portal_art;
 mod raster_batch;
@@ -117,6 +118,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut args = args.iter();
         while let Some(argument) = args.next() {
             match argument.as_str() {
+                "--lod-high" => ui.render_options.automatic_lod = false,
+                "--no-culling" => ui.render_options.culling = false,
                 "--benchmark-frames" => {
                     benchmark_frames =
                         args.next().ok_or("Falta la cantidad de cuadros")?.parse()?;
@@ -202,6 +205,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
                 "--help" => {
+                    println!(
+                        "Vuelo: F4 alterna LOD automatico, F5 alterna descarte, F6 pausa la demostracion. Exportacion: --lod-high y --no-culling."
+                    );
                     println!(
                         "--render-flight salida.png --galaxy 1 --observe-black-hole --time 20 observa la caida de meteoritos desde una posicion fija."
                     );
@@ -358,6 +364,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                 flight.advance(dt, movement, false, false);
             }
             ui.flight(&mut framebuffer, &ships[selected], &flight, seconds);
+            println!(
+                "Triangulos procesados: {} | LOD automatico: {} | Descarte: {}",
+                framebuffer.triangles_processed,
+                ui.render_options.automatic_lod,
+                ui.render_options.culling
+            );
             if benchmark_frames > 0 {
                 let start = Instant::now();
                 for _ in 0..benchmark_frames {
@@ -747,7 +759,18 @@ fn main() -> Result<(), Box<dyn Error>> {
                 mode = mode.next();
             }
         } else {
-            if window_active {
+            if window_active && focused_input {
+                if window.is_key_pressed(Key::F4, KeyRepeat::No) {
+                    ui.render_options.automatic_lod = !ui.render_options.automatic_lod;
+                }
+                if window.is_key_pressed(Key::F5, KeyRepeat::No) {
+                    ui.render_options.culling = !ui.render_options.culling;
+                }
+                if window.is_key_pressed(Key::F6, KeyRepeat::No) {
+                    ui.performance_paused = !ui.performance_paused;
+                }
+            }
+            if window_active && !ui.performance_paused {
                 if focused_input && window.is_key_pressed(Key::C, KeyRepeat::No) {
                     flight.toggle_steering_mode();
                 }
@@ -997,6 +1020,9 @@ mod tests {
             assert_eq!(flight.crash.as_ref().map(|c| c.planet), Some(name));
             for _ in 0..150 {
                 flight.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+                if flight.respawn_notice > 0.0 {
+                    break;
+                }
             }
             assert!(flight.crash.is_none());
             assert_eq!(flight.position, flight::SPAWN_POSITION);
