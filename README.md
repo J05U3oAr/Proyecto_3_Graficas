@@ -57,11 +57,11 @@ Las galaxias del mapa tienen ilustraciones procedurales diferentes: Aurora es un
 
 | Destino | Planetas | Decoración |
 | --- | --- | --- |
-| Aurora | Siroco, Oquedad, Jovara y Boreal | Campo estelar y tormenta de arena; distribución original |
-| Hélice | Siroco y Jovara | Fondo cálido y 42 asteroides decorativos |
-| Umbría | Asterion, Ónice, Nivalis, Véspera, Prisma, Nácar y Umbriel | Sol blanco azulado masivo, mundos de roca, hielo y cristal, y un gigante gaseoso anillado |
+| Aurora | Helios II, Flareon, Siroco, Kepler-186f, Metis y Jovara | Sistema orbital y 180 asteroides |
+| Hélice | Siroco, Oquedad, Jovara y Boreal | Cuatro mundos y 120 asteroides dispersos |
+| Umbría | Asterion, Ónice, Nivalis, Véspera, Prisma, Nácar y Umbriel | Sol blanco azulado masivo, mundos de roca, hielo y cristal, un gigante gaseoso anillado y 480 asteroides |
 
-Los asteroides se generan con una semilla fija por región y no tienen colisión. El agujero negro está presente en los tres destinos. Las mallas y texturas de los planetas se cargan una sola vez; al confirmar otro destino se actualizan las transformaciones y se reconstruyen sus colisiones antes del despegue. El acercamiento a un planeta conserva la misma escena de vuelo.
+Los modelos de los asteroides se crean en Blender. Sus instancias se distribuyen con una semilla fija por galaxia y tienen colisión contra sus mallas. El agujero negro está presente en los tres destinos. Las mallas y texturas de los planetas se cargan una sola vez; al confirmar otro destino se actualizan las transformaciones y se reconstruyen sus colisiones antes del despegue. El acercamiento a un planeta conserva la misma escena de vuelo.
 
 | Control | Acción |
 | --- | --- |
@@ -120,28 +120,36 @@ tangencialmente alrededor del planeta; **Q** baja y **E** sube. El mouse permite
 orientar la nave y observar el entorno, o puedes usar las flechas mediante **C**.
 Inclinar la proa permite mirar el terreno; **Q/E** cambia la altura en modo local.
 **Espacio** frena el movimiento relativo
-al planeta y **Shift** proporciona un impulso local moderado.
+al planeta y **Shift** aumenta el impulso local a 1.8 veces la velocidad normal.
 
-La velocidad y la sensibilidad de giro disminuyen cerca del terreno. La nave
+La velocidad tangencial normal va de 18 a 48 unidades/s según el tamaño del
+planeta y la altura, y puede alcanzar 86.4 unidades/s con **Shift**. Cerca del
+suelo se mantiene un margen de precisión. **Q/E** limita el ascenso y descenso
+a 12 unidades/s, o 18 con **Shift**, para conservar el control vertical.
+La sensibilidad de giro disminuye cerca del terreno. La nave
 acompaña la traslación orbital del planeta, mientras su superficie continúa
 rotando. Los desplazamientos tangenciales siguen arcos sobre la esfera y la
 cámara adapta suavemente su horizonte, permitiendo circunnavegar sin cambiar
 de escena. El HUD distingue la velocidad mundial de **REL**, la velocidad local.
 
-La altura se calcula respecto al radio de referencia del modelo: es aproximada
-en montañas y túneles. Las colisiones siguen usando la malla real. Un contacto
+La altura se calcula respecto al radio de referencia del suelo: en los modelos
+de Umbría se distingue de la esfera que encierra glaciares, cristales e icebergs.
+Es aproximada en montañas, cráteres y túneles. **L** también puede activarse por
+debajo del radio exterior de los obstáculos; no exige estar por encima de sus cimas. Las colisiones siguen usando la malla real. Un contacto
 suave permite deslizarse; los impactos fuertes conservan la explosión existente.
 Esta asistencia de navegación utiliza un marco móvil y no añade gravedad
 planetaria.
 
 Pulsa **L** otra vez para volver al vuelo espacial conservando posición y
-velocidad. La zona de activación permite una altura de `max(30, radio × 0.6)`.
-El radio de salida, medido desde el centro, suma el radio del planeta, el radio
-de colisión de la nave y una altura de salida de `max(30, radio × 0.6) + max(15, radio × 0.25)`.
-Ese margen evita alternar repetidamente entre modos en el borde. En Kepler-186f
-la activación llega a 54 unidades de altura y la salida ocurre al superar 76.5;
-el HUD muestra ese límite. Al salir se libera la referencia de inclinación local
-y la proa vuelve a responder en el marco espacial.
+velocidad. La entrada permite aproximarse hasta `max(50, radio exterior × 0.8)`
+unidades por encima de la esfera exterior del planeta. La salida añade un margen
+de `max(15, radio exterior × 0.2)` para evitar alternar entre modos en el borde.
+Las alturas que muestra el HUD están medidas desde el suelo de referencia;
+incluyen la diferencia entre el radio del suelo y el exterior. En Kepler-186f,
+la entrada llega a 72 unidades de altura y la salida ocurre al superar 90.
+Si dos zonas están próximas, se prioriza un planeta con la navegación local
+disponible. Al salir se libera la inclinación local y la proa vuelve a responder
+en el marco espacial.
 
 El modo se desactiva al superar ese radio, atravesar un portal,
 reaparecer o cargar otro destino. No se activa en el sol ni con una nave destruida
@@ -323,3 +331,64 @@ La integración, el port a Rust y el menú se realizaron con asistencia de Codex
 - **Crucer espacial**: modelo original `Crucer_espacial.obj` y materiales `Crucer_espacial.mtl`, construidos a partir de la imagen de referencia de la nave de Rick Sánchez de *Rick y Morty* aportada por el usuario. Reemplaza la tercera nave de la flota. Incluye casco gris de platillo, franjas amarillas, dos motores acanalados, faros, asientos marrones y cúpula transparente. [Detalles y regeneración](assets/ships/README.md).
 
 El renderizador C++ de [J05U3oAr/Lab4-graficas](https://github.com/J05U3oAr/Lab4-graficas) se portó a módulos Rust: carga de OBJ/MTL, validación y triangulación de caras, rasterizado baricéntrico con profundidad, iluminación difusa y exportación PNG. La ventana y los controles usan `minifb`. No se conservaron archivos `.cpp`, `.h` ni dependencias de SDL.
+
+
+## Asteroides de Blender
+
+Las tres galaxias contienen rocas pequeñas, medianas y grandes, con radios de
+1–3, 4–7.5 y 10–16 unidades respectivamente. Hay seis modelos diferentes:
+fragmento pequeño, pequeño erosionado, mediano alargado, mediano con cráteres,
+gran macizo y grande fracturado. Sus ejes desiguales, deformaciones asimétricas
+y relieve irregular cambian la silueta. Cuatro variantes tienen cráteres hundidos
+en la geometría con bordes elevados; las otras dos son fragmentos sin impactos.
+Los grandes tienen depresiones amplias y poco profundas, bordes bajos y erosión
+suave aplicada en Blender para evitar picos y escalones. El material de su corteza
+es uniforme; el relieve determina las sombras de los cráteres.
+La iluminación es mate y el shader CPU añade granulado sutil sin crear geometría.
+
+`scripts/blender/create_asteroids.py` genera `assets/asteroids/asteroides.blend`,
+un objeto editable por variante y sus versiones simplificadas ocultas. Cada
+modelo tiene su propio OBJ y comparte `asteroides.mtl`. Las mallas detalladas
+usan 320, 1,280 o 5,120 triángulos según su categoría; las versiones a distancia
+usan 80, 160 o 320. La simplificación también se realiza en Blender. No se
+crean PNGs ni texturas de imagen.
+
+Rust carga los OBJ una sola vez, selecciona el detalle según el tamaño proyectado
+y descarta objetos fuera de la vista antes de dibujarlos. A menos de 12 píxeles
+de radio proyectado se utiliza la malla simplificada. Ambas versiones mantienen
+el mismo centro y escala para evitar saltos al cambiar de detalle.
+
+Hélice tiene 120 instancias dispersas, Aurora 180 y Umbría 480. Umbría reserva
+320 modelos de Blender para un cinturón entre Ónice y Nivalis, repartidos en
+32 sectores alrededor de Asterion. Sus radios orbitales abarcan 735–775 unidades
+y su espesor vertical es de 40 unidades. Incluye las seis variantes y una mayor
+presencia de rocas medianas y grandes; las 160 instancias restantes se distribuyen
+fuera de ese grupo reservado. Se combinan
+cinturones en Aurora y Umbría con rocas flotantes en todas las galaxias, a distintas
+alturas, distancias y orientaciones. Predominan los fragmentos pequeños y los
+grandes son menos frecuentes. La distribución utiliza la semilla de cada galaxia,
+evita solapamientos entre rocas y conserva espacio libre alrededor del despegue,
+el sol, las órbitas planetarias y los anillos de Umbriel. Las rocas rotan lentamente
+según el tiempo transcurrido. Todas tienen colisión contra su malla detallada,
+independiente del LOD visible, y su volumen de contacto acompaña su rotación.
+Las copias comparten las estructuras BVH de los seis modelos para evitar
+reconstruir geometría de colisión por cada instancia.
+
+Un contacto lento detiene el avance hacia la roca y permite alejarse o deslizarse.
+Un impacto cuya velocidad relativa hacia la superficie alcanza 28 unidades por
+segundo destruye la nave, muestra la misma explosión que los planetas y la
+hace reaparecer en el punto de partida después de dos segundos. El aviso identifica
+si el choque fue contra un asteroide pequeño, mediano o grande.
+
+
+Los anillos de **Umbriel** también utilizan las seis variantes de
+`assets/asteroids/asteroides.blend`: 96 copias de sus mallas LOD, con orientaciones
+variadas y radios de aproximadamente 0.6 a 4.2 unidades. El script
+`scripts/blender/create_umbriel.py` incorpora esos modelos en Blender y exporta
+los anillos en `assets/planets/umbriel/anillos.obj`, separados de `umbriel.obj`.
+Cada asteroide es editable por separado en `umbriel.blend` y conserva el nombre
+de su modelo de origen. Sus posiciones evitan solapamientos y mantienen libres
+los huecos entre las bandas. Las bandas translúcidas siguen siendo visuales;
+los asteroides participan en las colisiones y acompañan la órbita del planeta.
+Para regenerar ambos recursos, ejecuta primero `create_asteroids.py` y luego
+`create_umbriel.py` con Blender. No se crea geometría de asteroides en Rust.

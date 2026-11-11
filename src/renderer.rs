@@ -276,6 +276,7 @@ impl FlightView {
 }
 
 /// Opaque world objects and the ship share reciprocal depth in the framebuffer.
+#[cfg(test)]
 pub fn draw_world_model(
     fb: &mut Framebuffer,
     model: &Model,
@@ -285,6 +286,7 @@ pub fn draw_world_model(
     draw_world_model_lit(fb, model, camera, transform, None);
 }
 
+#[cfg(test)]
 pub fn draw_world_model_lit(
     fb: &mut Framebuffer,
     model: &Model,
@@ -389,6 +391,7 @@ fn draw_world_with_basis(
         crate::shaders::SurfaceEffect::Kepler { .. }
             | crate::shaders::SurfaceEffect::Solar { .. }
             | crate::shaders::SurfaceEffect::Stellar { .. }
+            | crate::shaders::SurfaceEffect::Asteroid
             | crate::shaders::SurfaceEffect::Obsidian
             | crate::shaders::SurfaceEffect::Snow { .. }
             | crate::shaders::SurfaceEffect::PackIce { .. }
@@ -444,6 +447,9 @@ fn draw_world_with_basis(
         }
         let color = if face.unlit {
             Some(finish.unwrap_or(face.color))
+        } else if matches!(effect, crate::shaders::SurfaceEffect::Asteroid) {
+            let diffuse = normal.normalize().dot(&light).max(0.0);
+            Some(face.color.shaded(0.14 + diffuse * 0.90))
         } else {
             lit_color(
                 (b - a).cross(&(c - a)),
@@ -476,6 +482,7 @@ fn draw_world_with_basis(
                 crate::shaders::SurfaceEffect::Rock { .. }
                     | crate::shaders::SurfaceEffect::Ice
                     | crate::shaders::SurfaceEffect::Stellar { .. }
+                    | crate::shaders::SurfaceEffect::Asteroid
                     | crate::shaders::SurfaceEffect::Obsidian
                     | crate::shaders::SurfaceEffect::Snow { .. }
                     | crate::shaders::SurfaceEffect::Crystal

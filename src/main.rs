@@ -1,3 +1,4 @@
+mod asteroids;
 mod black_hole;
 mod camera;
 mod collision;

@@ -794,7 +794,7 @@ impl Ui {
         } else if flight.contact_notice > 0.0 {
             Some((
                 "CONTACTO CON LA SUPERFICIE",
-                "Retrocede o gira para separarte del planeta.",
+                "Retrocede o gira para separarte del obstaculo.",
             ))
         } else if hole.strength(flight.position) > 0.001 {
             Some((
