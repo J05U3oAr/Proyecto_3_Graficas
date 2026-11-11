@@ -464,6 +464,8 @@ impl Ui {
         let focal = renderer::FLIGHT_FOCAL;
         let eye = flight.camera_position();
         let speed = flight.velocity.norm();
+        flight.impulse.draw_background(fb, &flight.camera, seconds);
+        let jump_strength = flight.impulse.visual_strength();
         for star in &self.stars {
             // Recycle a world-space volume around the camera for endless travel.
             let relative = (star.position - eye).map(|v| (v + 280.0).rem_euclid(560.0) - 280.0);
@@ -490,8 +492,10 @@ impl Ui {
                     * focal
                     / depth
                     * 0.045;
-                let vx = vx.clamp(-24.0, 24.0);
-                let vy = vy.clamp(-24.0, 24.0);
+                let stretch = 1.0 + jump_strength * 2.5;
+                let limit = 24.0 + jump_strength * 70.0;
+                let vx = (vx * stretch).clamp(-limit, limit);
+                let vy = (vy * stretch).clamp(-limit, limit);
                 rule(
                     fb,
                     (point.0, point.1),
@@ -694,6 +698,27 @@ impl Ui {
                 rounded(fb, Rect::new(390, 121, 554, 43), 10, 0x152331, 0x536940);
                 self.fonts.text(fb, 14, 406, 135, notice, TEXT);
             }
+        }
+        if ship.impulse_capable {
+            rounded(fb, Rect::new(34, 110, 284, 76), 10, 0x101d2c, 0x304154);
+            self.fonts
+                .text(fb, 14, 50, 120, "CAPS LOCK + WASD / IMPULSO", ship.accent);
+            let state = if flight.impulse.remaining > 0.0 {
+                "SALTO CORTO ACTIVO".to_owned()
+            } else if flight.impulse.cooldown > 0.00001 {
+                format!("RECARGA {:.1} s", flight.impulse.cooldown)
+            } else {
+                "LISTO - SIN WASD: ADELANTE".to_owned()
+            };
+            self.fonts.text(fb, 14, 50, 146, &state, TEXT);
+            let charge = (1.0 - flight.impulse.cooldown / crate::impulse::COOLDOWN).clamp(0.0, 1.0);
+            rule(fb, (50, 172), (300, 172), BORDER);
+            rule(
+                fb,
+                (50, 172),
+                (50 + (250.0 * charge) as i32, 172),
+                ship.accent,
+            );
         }
         rounded(fb, Rect::new(970, 25, 276, 92), 12, 0x101d2c, 0x304154);
         self.fonts.text(
