@@ -396,15 +396,16 @@ Para regenerar ambos recursos, ejecuta primero `create_asteroids.py` y luego
 ## Shader de Nivalis
 
 Nivalis conserva su modelo de Blender, los glaciares, el lago y las colisiones.
-Su shader CPU combina nieve gris blanca, hielo glaciar azul grisáceo, estratos,
+Su shader CPU combina nieve gris blanca, hielo glaciar azul grisáceo,
 escarcha y un lago de hielo más oscuro con fracturas irregulares interrumpidas.
 El borde del lago se mezcla con nieve para suavizar la transición visual.
 
-La iluminación se calcula por fragmento con las normales de la malla y la posición
-real de Asterion. El núcleo del planeta oculta la luz en el lado nocturno. La
+La iluminación se calcula por fragmento con normales suaves sobre la nieve,
+una normal plana sobre el lago y las normales de la malla en los glaciares, usando
+la posición real de Asterion. El núcleo del planeta oculta la luz en el lado nocturno. La
 nieve tiene reflejos suaves; el hielo expuesto y el lago usan brillos más cerrados
 con respuesta de Fresnel. El gradiente analítico del ruido perturba las normales
-para añadir microrrelieve sin deformar los vértices. Un velo tenue de nieve suelta
+con variaciones suaves de baja frecuencia, sin grano fino ni deformación de vértices. Un velo tenue de nieve suelta
 se desplaza con el tiempo; el terreno y las fracturas permanecen fijos.
 
 El microrrelieve y el velo de nieve se evalúan a partir de un radio proyectado de

@@ -124,21 +124,29 @@ fn ice_surface(effect: SurfaceEffect, base: Color, p: Vec3) -> Color {
     let broad = noise::noise(p * 5.0 + Vec3::new(4.0, 17.0, 26.0));
     let strata = noise::noise(p * 23.0 + Vec3::new(11.0, 3.0, 7.0));
     let (grain, gradient) = if detail {
-        noise::noise_with_gradient(p * 132.0 + Vec3::new(7.0, 19.0, 3.0))
+        noise::noise_with_gradient(p * 9.0 + Vec3::new(7.0, 19.0, 3.0))
     } else {
         (strata, Vec3::zeros())
     };
-    let snow = Vec3::new(196.0, 204.0, 207.0) * (0.88 + strata * 0.13 + grain * 0.07);
-    let banding = (p.norm() * 220.0 + strata * 6.0).sin() * 0.025;
-    let mut glacial =
-        Vec3::new(70.0, 96.0, 112.0) + Vec3::new(65.0, 63.0, 58.0) * (broad + banding);
-    let deposition = noise::smoothstep(
-        0.67,
-        0.96,
-        geometric_normal.dot(&radial) * 0.80 + broad * 0.20,
-    );
+    // Broad, low-contrast variations keep the snow clean instead of granular.
+    let snow = Vec3::new(202.0, 210.0, 213.0) * (0.97 + broad * 0.035);
+    let mut glacial = Vec3::new(97.0, 122.0, 137.0) + Vec3::new(18.0, 20.0, 21.0) * broad;
+    // Lake faces use the continuous shoreline mask below, not their triangle edges.
+    let ice_weight = if (70..=160).contains(&base.r) {
+        1.0
+    } else {
+        0.0
+    };
+    let deposition = if ice_weight == 0.0 {
+        1.0
+    } else {
+        noise::smoothstep(
+            0.67,
+            0.96,
+            geometric_normal.dot(&radial) * 0.80 + broad * 0.20,
+        )
+    };
     glacial += (snow - glacial) * deposition * 0.60;
-    let ice_weight = if base.r > 160 { 0.0 } else { 1.0 };
     let mut albedo = snow + (glacial - snow) * ice_weight;
     let lake_distance = (radial - crate::ice_planet::lake_axis()).norm();
     let lake = 1.0 - noise::smoothstep(0.28, 0.35, lake_distance);
@@ -182,9 +190,14 @@ fn ice_surface(effect: SurfaceEffect, base: Color, p: Vec3) -> Color {
         let veil = noise::smoothstep(0.48, 0.78, wind) * deposition * (0.035 + lake * 0.025);
         albedo += (Vec3::new(215.0, 222.0, 225.0) - albedo) * veil;
     }
-    let tangent_gradient = gradient - geometric_normal * gradient.dot(&geometric_normal);
-    let bump = (0.027 + ice_weight * 0.035) * (1.0 - lake) + lake * 0.018;
-    let normal = (geometric_normal - tangent_gradient * bump).normalize();
+    // Snow follows the smooth sphere; the flat lake follows its own plane.
+    // Glacier walls retain their modeled relief instead of rounding the obstacles.
+    let surface_normal = radial + (geometric_normal - radial) * ice_weight;
+    let surface_normal =
+        (surface_normal + (crate::ice_planet::lake_axis() - surface_normal) * lake).normalize();
+    let tangent_gradient = gradient - surface_normal * gradient.dot(&surface_normal);
+    let bump = (0.008 + ice_weight * 0.01) * (1.0 - lake) + lake * 0.004;
+    let normal = (surface_normal - tangent_gradient * bump).normalize();
     let light = (sun - p).normalize();
     let view = (eye - p).normalize();
     // The solid planetary core hides the sun from back-facing glacier walls.
@@ -465,6 +478,29 @@ impl SurfaceEffect {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nivalis_snow_is_smooth_across_mesh_faces() {
+        let p = Vec3::new(0.3, 0.5, -0.7).normalize() * 0.83;
+        let shade = |normal| {
+            SurfaceEffect::Ice {
+                seconds: 0.0,
+                light: Vec3::new(1.0, 3.0, -4.0),
+                eye: Vec3::new(0.0, 0.0, -3.0),
+                normal,
+                detail: true,
+                core_radius: 0.79,
+            }
+            .modulate(Color::new(209, 232, 237), p)
+        };
+        let a = shade(Vec3::y());
+        let b = shade(Vec3::z());
+        assert_eq!(
+            (a.r, a.g, a.b),
+            (b.r, b.g, b.b),
+            "La nieve no debe mostrar las caras triangulares de la malla"
+        );
+    }
 
     #[test]
     fn nivalis_layers_follow_sunlight_animate_powder_and_preserve_depth() {
