@@ -149,7 +149,10 @@ fn ice_surface(effect: SurfaceEffect, base: Color, p: Vec3) -> Color {
     glacial += (snow - glacial) * deposition * 0.60;
     let mut albedo = snow + (glacial - snow) * ice_weight;
     let lake_distance = (radial - crate::ice_planet::lake_axis()).norm();
-    let lake = 1.0 - noise::smoothstep(0.28, 0.35, lake_distance);
+    // A defined, irregular shoreline separates opaque snow from opaque ice.
+    // Only a narrow antialiasing fringe softens the contour, not the whole bank.
+    let shore_distance = lake_distance + (broad - 0.5) * 0.04 + (grain - 0.5) * 0.03;
+    let lake = 1.0 - noise::smoothstep(0.321, 0.324, shore_distance);
     if lake > 0.0 {
         let axis = crate::ice_planet::lake_axis();
         let right = axis.cross(&Vec3::y()).normalize();
@@ -177,8 +180,9 @@ fn ice_surface(effect: SurfaceEffect, base: Color, p: Vec3) -> Color {
             * noise::smoothstep(0.42, 0.70, strata);
         let mut frozen = Vec3::new(37.0, 62.0, 75.0) + Vec3::new(12.0, 18.0, 24.0) * broad;
         frozen += (Vec3::new(142.0, 162.0, 171.0) - frozen) * fracture * 0.65;
-        let shore = noise::smoothstep(0.20, 0.35, lake_distance) * (0.25 + grain * 0.35);
-        frozen += (snow - frozen) * shore;
+        // A thin, opaque frost shelf softens the contact without fading the lake.
+        let frost = noise::smoothstep(0.312, 0.314, shore_distance);
+        frozen += (Vec3::new(91.0, 115.0, 127.0) - frozen) * frost * 0.65;
         albedo += (frozen - albedo) * lake;
     }
     // Only loose powder moves; the ice, fractures and baked terrain remain fixed.
@@ -198,8 +202,21 @@ fn ice_surface(effect: SurfaceEffect, base: Color, p: Vec3) -> Color {
     let tangent_gradient = gradient - surface_normal * gradient.dot(&surface_normal);
     // Rounded snowdrifts use broad normal variation, without fine surface grain.
     // The lake stays flat and glacier walls keep their subtler ice finish.
-    let bump = (0.32 * (1.0 - ice_weight) + ice_weight * 0.018) * (1.0 - lake) + lake * 0.004;
-    let normal = (surface_normal - tangent_gradient * bump).normalize();
+    // Snowdrifts flatten gradually before reaching the shore, so they do not
+    // form a raised rim around the planar ice.
+    let snow_relief = noise::smoothstep(0.28, 0.48, shore_distance);
+    let bump = (0.32 * (1.0 - ice_weight) * snow_relief + ice_weight * 0.018) * (1.0 - lake)
+        + lake * 0.004;
+    // Round only the snow lip through lighting, keeping its color boundary sharp.
+    let lip =
+        (1.0 - noise::smoothstep(0.324, 0.342, shore_distance)) * (1.0 - lake) * (1.0 - ice_weight);
+    let bank_direction =
+        radial * radial.dot(&crate::ice_planet::lake_axis()) - crate::ice_planet::lake_axis();
+    let bank_direction = bank_direction
+        .try_normalize(0.00001)
+        .unwrap_or(Vec3::zeros());
+    let normal =
+        (surface_normal - tangent_gradient * bump - bank_direction * lip * 0.18).normalize();
     let light = (sun - p).normalize();
     let view = (eye - p).normalize();
     // The solid planetary core hides the sun from back-facing glacier walls.
@@ -218,13 +235,13 @@ fn ice_surface(effect: SurfaceEffect, base: Color, p: Vec3) -> Color {
     let half = (light + view).try_normalize(0.00001).unwrap_or(normal);
     let facing = normal.dot(&view).max(0.0);
     let fresnel = 0.035 + 0.965 * (1.0 - facing).powi(5);
-    let gloss = if lake > 0.5 {
-        normal.dot(&half).max(0.0).powi(96) * 0.85
-    } else if ice_weight > 0.5 {
+    let surface_gloss = if ice_weight > 0.5 {
         normal.dot(&half).max(0.0).powi(48) * 0.40
     } else {
         normal.dot(&half).max(0.0).powi(16) * 0.045
     };
+    let lake_gloss = normal.dot(&half).max(0.0).powi(96) * 0.85;
+    let gloss = surface_gloss + (lake_gloss - surface_gloss) * lake;
     let highlight = gloss * (0.12 + fresnel) * diffuse;
     let haze = (1.0 - radial.dot(&view).max(0.0)).powi(3) * diffuse * 0.045;
     let result = albedo * (0.055 + diffuse * 0.945)
