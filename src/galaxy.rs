@@ -32,9 +32,9 @@ pub const BODY_NAMES: [&str; 18] = [
 pub fn black_hole(galaxy: usize) -> crate::black_hole::BlackHole {
     let mut hole = crate::black_hole::BLACK_HOLE;
     if galaxy == 1 {
-        hole.position = Vec3::new(3000.0, 500.0, -2600.0);
+        hole.position = Vec3::new(6100.0, 650.0, -5200.0);
     } else if galaxy == 2 {
-        hole.position = Vec3::new(-4200.0, 650.0, -3600.0);
+        hole.position = Vec3::new(-6200.0, 700.0, -6000.0);
     }
     hole
 }
