@@ -1,13 +1,13 @@
 newmtl benatar_0
-Kd 0.55 0.25 0.1
+Kd 0.46 0.26 0.17
 d 1.0
 illum 2
 newmtl benatar_1
-Kd 0.72 0.36 0.14
+Kd 0.54 0.33 0.22
 d 1.0
 illum 2
 newmtl benatar_2
-Kd 0.32 0.36 0.39
+Kd 0.29 0.31 0.33
 d 1.0
 illum 2
 newmtl benatar_3
@@ -23,7 +23,7 @@ Kd 0.36 0.76 0.88
 d 1.0
 illum 0
 newmtl benatar_6
-Kd 0.66 0.43 0.24
+Kd 0.54 0.39 0.28
 d 1.0
 illum 2
 newmtl benatar_7

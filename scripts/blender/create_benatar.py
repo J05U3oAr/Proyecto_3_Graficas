@@ -12,13 +12,13 @@ from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 
 PALETTE = [
-    ("Cobre del casco", (0.55, 0.25, 0.10), 1.0, False),
-    ("Placas naranja quemado", (0.72, 0.36, 0.14), 1.0, False),
-    ("Titanio de motores", (0.32, 0.36, 0.39), 1.0, False),
+    ("Cobre del casco", (0.46, 0.26, 0.17), 1.0, False),
+    ("Placas de cobre satinado", (0.54, 0.33, 0.22), 1.0, False),
+    ("Titanio de alas y motores", (0.29, 0.31, 0.33), 1.0, False),
     ("Juntas y estructura", (0.075, 0.095, 0.11), 1.0, False),
     ("Cristal de cabina", (0.035, 0.115, 0.17), 0.88, False),
     ("Luz de motor", (0.36, 0.76, 0.88), 1.0, True),
-    ("Bordes de bronce", (0.66, 0.43, 0.24), 1.0, False),
+    ("Bordes de bronce", (0.54, 0.39, 0.28), 1.0, False),
     ("Marcos de acero", (0.42, 0.46, 0.48), 1.0, False),
 ]
 
@@ -73,8 +73,8 @@ def main():
         shader = mat.node_tree.nodes.get("Principled BSDF")
         shader.inputs["Base Color"].default_value = (*rgb, 1)
         shader.inputs["Alpha"].default_value = alpha
-        shader.inputs["Roughness"].default_value = 0.22 if alpha < 1 else 0.48
-        shader.inputs["Metallic"].default_value = 0.0 if alpha < 1 else 0.58
+        shader.inputs["Roughness"].default_value = 0.22 if alpha < 1 else 0.30
+        shader.inputs["Metallic"].default_value = 0.0 if alpha < 1 else 0.82
         if emissive:
             shader.inputs["Emission Color"].default_value = (*rgb, 1)
             shader.inputs["Emission Strength"].default_value = 1.5
@@ -112,9 +112,66 @@ def main():
     parts = components(output/"source/Benatar_base.obj")
     hull_vertices, hull_faces = parts[0]
     hull = mesh("Benatar | casco y alas originales refinados", hull_vertices, hull_faces, 0)
+    tree = BVHTree.FromPolygons(hull_vertices, hull_faces, all_triangles=True)
+    sections = {}
+    def wing_mask(p):
+        key = round(p.x, 3)
+        if key not in sections:
+            hits = [sample*0.05 for sample in range(-110, 96)
+                    if tree.ray_cast(Vector((p.x, 10, sample*0.05)), Vector((0, -1, 0)))[0] is not None]
+            sections[key] = (min(hits), max(hits)) if hits else (p.z-1, p.z+1)
+        back, front = sections[key]
+        boundary = back+(front-back)*0.58
+        return min(abs(p.x)-1.05, 8.9-abs(p.x), p.z-boundary)
+
+    def split_paint(obj, field, material):
+        # Cut existing planar faces at the paint boundary; the hull surface does not move.
+        # Shared edge intersections make continuous panel outlines instead of triangular zigzags.
+        data = obj.data
+        vertices = [Vector((v.co.x, v.co.z, -v.co.y)) for v in data.vertices]
+        result, ids, lookup = [], [], {tuple(round(v, 8) for v in p): i for i,p in enumerate(vertices)}
+        def clip(polygon, positive):
+            out = []
+            for (a, fa), (b, fb) in zip(polygon, polygon[1:]+polygon[:1]):
+                inside_a, inside_b = (fa >= 0) == positive, (fb >= 0) == positive
+                if inside_a:
+                    out.append((a, fa))
+                if inside_a != inside_b:
+                    out.append((a+(b-a)*(fa/(fa-fb)), 0.0))
+            return out
+        for face in data.polygons:
+            if face.material_index == material:
+                result.append(tuple(face.vertices))
+                ids.append(material)
+                continue
+            polygon = [(vertices[i], field(vertices[i])) for i in face.vertices]
+            for positive in [False, True]:
+                part = clip(polygon, positive)
+                if len(part) < 3:
+                    continue
+                indices = []
+                for point, _ in part:
+                    key = tuple(round(v, 8) for v in point)
+                    if key not in lookup:
+                        lookup[key] = len(vertices)
+                        vertices.append(point)
+                    if not indices or indices[-1] != lookup[key]:
+                        indices.append(lookup[key])
+                if len(indices) > 2 and indices[0] == indices[-1]:
+                    indices.pop()
+                if len(set(indices)) >= 3:
+                    result.append(tuple(indices))
+                    ids.append(material if positive else face.material_index)
+        data.clear_geometry()
+        data.from_pydata([(p.x, -p.z, p.y) for p in vertices], [], result)
+        for face, index in zip(data.polygons, ids):
+            face.material_index = index
+        data.update()
+
     for face in hull.data.polygons:
-        runtime_z = -face.center.y
-        face.material_index = 2 if face.normal.z < -0.35 else 1 if abs(face.center.x) < 1.5 and runtime_z < 2 else 0
+        x, z = face.center.x, -face.center.y
+        face.material_index = 2 if face.normal.z < -0.35 else 1 if abs(x) < 1.5 and z < 2 else 0
+    split_paint(hull, wing_mask, 2)
     canopy_vertices = None
     for i, (vertices, faces) in enumerate(parts[1:]):
         count = len(vertices)
@@ -132,8 +189,10 @@ def main():
                 if face.normal.z < -0.2:
                     face.material_index = 3
         else:
-            mesh(f"Benatar | {'carcasa de turbina' if count == 120 else 'aleta inferior'} {i}",
-                 vertices, faces, 2 if count == 120 else 1)
+            obj = mesh(f"Benatar | {'carcasa de turbina' if count == 120 else 'aleta inferior'} {i}",
+                       vertices, faces, 2 if count == 120 else 0)
+            if count == 112:
+                split_paint(obj, lambda p: min(8.5-abs(p.x), p.z+1.1), 7)
 
     # Small geometry follows the existing surface via a BVH, rather than floating above it.
     tree = BVHTree.FromPolygons(hull_vertices, hull_faces, all_triangles=True)
