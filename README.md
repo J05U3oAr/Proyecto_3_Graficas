@@ -110,7 +110,7 @@ En vuelo espacial, la inclinación permite vueltas completas con mouse o flechas
 sin bloquearse al apuntar hacia arriba o abajo. La cámara acompaña el giro al
 pasar por la vertical.
 
-La cámara está detrás y ligeramente por encima de la nave, mirando de la cola hacia la proa. Sigue los cambios de dirección con suavidad y la nave inclina las alas al girar. Las tres naves se dibujan en perspectiva y las estrellas se desplazan según la posición y velocidad reales, con estelas al avanzar. El HUD muestra posición y velocidad. El vuelo se pausa mientras inspeccionas la nave o la ventana pierde el foco.
+La cámara sigue a la nave desde 6.2 unidades por detrás y 1.55 por encima de su eje, con una ligera inclinación para apreciar el casco. El encuadre más cercano permite distinguir sus materiales sin cubrir la mira. Sigue los cambios de dirección con suavidad y la nave inclina las alas al girar. Las tres naves se dibujan en perspectiva y las estrellas se desplazan según la posición y velocidad reales, con estelas al avanzar. El HUD muestra posición y velocidad. El vuelo se pausa mientras inspeccionas la nave o la ventana pierde el foco.
 
 ### Navegación local cerca de un planeta
 
