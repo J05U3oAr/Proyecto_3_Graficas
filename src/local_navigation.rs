@@ -5,6 +5,7 @@ pub struct Reference {
     pub name: &'static str,
     pub center: Vec3,
     pub radius: f32,
+    pub surface_radius: f32,
     pub motion: crate::orbit::Motion,
 }
 
@@ -26,25 +27,28 @@ impl Reference {
     }
 
     pub fn altitude(self, position: Vec3, seconds: f32) -> f32 {
-        (position - self.center_at(seconds)).norm() - self.radius - crate::collision::SHIP_RADIUS
+        (position - self.center_at(seconds)).norm()
+            - self.surface_radius
+            - crate::collision::SHIP_RADIUS
     }
 
     pub fn available(self, position: Vec3, seconds: f32) -> bool {
         let altitude = self.altitude(position, seconds);
-        altitude >= 0.0 && altitude <= self.activation_height()
+        (position - self.center_at(seconds)).norm() > crate::collision::SHIP_RADIUS
+            && altitude <= self.activation_height()
     }
 
     pub fn activation_height(self) -> f32 {
-        (self.radius * 0.6).max(30.0)
+        (self.radius - self.surface_radius).max(0.0) + (self.radius * 0.8).max(50.0)
     }
 
     pub fn exit_height(self) -> f32 {
-        self.activation_height() + (self.radius * 0.25).max(15.0)
+        self.activation_height() + (self.radius * 0.2).max(15.0)
     }
 
     /// Zona de salida mayor que la de entrada para evitar cambios repetidos en el borde.
     pub fn exit_radius(self) -> f32 {
-        self.radius + crate::collision::SHIP_RADIUS + self.exit_height()
+        self.surface_radius + crate::collision::SHIP_RADIUS + self.exit_height()
     }
 
     pub fn outside_local_zone(self, position: Vec3, seconds: f32) -> bool {
@@ -52,8 +56,10 @@ impl Reference {
     }
 
     pub fn speed(self, position: Vec3, seconds: f32, boost: bool) -> f32 {
-        let speed = (6.0 + self.altitude(position, seconds).max(0.0) * 0.22).clamp(6.0, 26.0);
-        speed * if boost { 1.6 } else { 1.0 }
+        let speed =
+            (16.0 + self.surface_radius * 0.06 + self.altitude(position, seconds).max(0.0) * 0.45)
+                .clamp(18.0, 48.0);
+        speed * if boost { 1.8 } else { 1.0 }
     }
 
     pub fn turn_scale(self, position: Vec3, seconds: f32) -> f32 {
@@ -145,8 +151,55 @@ mod tests {
             name: "Prueba",
             center: Vec3::zeros(),
             radius: 90.0,
+            surface_radius: 90.0,
             motion: crate::orbit::Motion::default(),
         }
+    }
+
+    #[test]
+    fn umbria_local_mode_is_available_above_the_lake_and_before_reaching_the_terrain() {
+        let mut space = crate::space::Space::load().unwrap();
+        space.configure(2);
+        let planet = space
+            .active_planets()
+            .find(|p| p.name == "Nivalis")
+            .unwrap();
+        let mut flight = space.new_flight();
+        flight.position = planet.transform.position
+            + crate::ice_planet::lake_axis()
+                * (0.965 * planet.transform.radius / planet.model.radius
+                    + crate::collision::SHIP_RADIUS
+                    + 3.0);
+        let start = flight.position;
+        assert!(
+            flight.toggle_local_navigation(),
+            "L debe funcionar sobre el lago, dentro del radio de los glaciares"
+        );
+        assert_eq!(flight.position, start);
+        assert_eq!(flight.navigation_reference().unwrap().name, "Nivalis");
+        for planet in space.active_planets().filter(|p| !p.is_sun) {
+            let mut flight = space.new_flight();
+            flight.position =
+                planet.transform.position + Vec3::z() * (planet.transform.radius + 50.0);
+            assert!(
+                flight.toggle_local_navigation(),
+                "Debe poder activarse durante el acercamiento a {}",
+                planet.name
+            );
+            assert_eq!(flight.navigation_reference().unwrap().name, planet.name);
+        }
+    }
+
+    #[test]
+    fn local_cruise_and_boost_allow_covering_the_surface_at_a_useful_speed() {
+        let reference = planet();
+        let position = Vec3::z() * (reference.radius + crate::collision::SHIP_RADIUS + 2.0);
+        let cruise = reference.speed(position, 0.0, false);
+        assert!(
+            cruise >= 20.0,
+            "La velocidad sobre el terreno no debe quedar en 6 u/s"
+        );
+        assert!(reference.speed(position, 0.0, true) >= cruise * 1.7);
     }
 
     #[test]
@@ -234,6 +287,29 @@ mod tests {
             flight
         };
         assert!((simulate(10).position - simulate(60).position).norm() < 0.5);
+    }
+
+    #[test]
+    fn boosted_local_descent_keeps_control_and_does_not_destroy_the_ship() {
+        let mut space = crate::space::Space::load().unwrap();
+        space.configure(1);
+        for fps in [10, 60] {
+            let mut flight = space.new_flight();
+            space.approach(&mut flight, "Kepler-186f").unwrap();
+            assert!(flight.toggle_local_navigation());
+            flight.set_local_climb(-1.0);
+            let mut touched = false;
+            for _ in 0..fps * 8 {
+                flight.advance(1.0 / fps as f32, (0.0, 0.0), true, false);
+                assert!(
+                    flight.crash.is_none(),
+                    "La mayor velocidad horizontal no debe causar impactos al bajar con Q"
+                );
+                touched |= flight.contact_notice > 0.0;
+            }
+            assert!(touched);
+            assert!(flight.is_local());
+        }
     }
 
     #[test]

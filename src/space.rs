@@ -66,6 +66,16 @@ impl Planet {
             _ => SurfaceEffect::None,
         }
     }
+    fn navigation_surface_radius(&self) -> f32 {
+        match self.name {
+            // These Blender meshes have unit-radius ground and separate raised terrain.
+            "Nivalis" | "Onice" | "Vespera" | "Prisma" | "Nacar" => {
+                self.transform.radius / self.model.radius
+            }
+            _ => self.transform.radius,
+        }
+    }
+
     pub fn world_transform(&self, seconds: f32) -> WorldTransform {
         let mut transform = self.transform;
         transform.position += self.motion.displacement(seconds);
@@ -493,6 +503,7 @@ impl Space {
                     name: planet.name,
                     center: planet.transform.position,
                     radius: planet.transform.radius,
+                    surface_radius: planet.navigation_surface_radius(),
                     motion: planet.motion,
                 })
                 .collect(),

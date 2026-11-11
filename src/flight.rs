@@ -177,8 +177,12 @@ impl Flight {
             .map(|local| local.reference)
             .or_else(|| {
                 self.navigation_targets.iter().copied().min_by(|a, b| {
-                    a.altitude(self.position, self.seconds)
-                        .total_cmp(&b.altitude(self.position, self.seconds))
+                    b.available(self.position, self.seconds)
+                        .cmp(&a.available(self.position, self.seconds))
+                        .then_with(|| {
+                            a.altitude(self.position, self.seconds)
+                                .total_cmp(&b.altitude(self.position, self.seconds))
+                        })
                 })
             })
     }
@@ -380,11 +384,18 @@ impl Flight {
                 || if boost { BOOST_SPEED } else { CRUISE_SPEED },
                 |body| body.speed(self.position, time, boost),
             );
-            let target_velocity = if brake {
+            let mut target_velocity = if brake {
                 Vec3::zeros()
             } else {
                 direction * speed
             };
+            if let Some(body) = reference {
+                // Faster tangential cruise must not turn Q/E into dangerous terrain impacts.
+                let up = (self.position - body.center_at(time)).normalize();
+                let climb = target_velocity.dot(&up);
+                let limit = if boost { 18.0 } else { 12.0 };
+                target_velocity += up * (climb.clamp(-limit, limit) - climb);
+            }
             let acceleration = if brake || direction.norm_squared() == 0.0 {
                 6.0
             } else {
@@ -539,12 +550,39 @@ mod tests {
             name: "Prueba",
             center: Vec3::zeros(),
             radius: 90.0,
+            surface_radius: 90.0,
             motion: crate::orbit::Motion::default(),
         }]);
         flight.position = Vec3::z() * 114.0;
         flight.heading.yaw = PI;
         assert!(flight.toggle_local_navigation());
         flight
+    }
+
+    #[test]
+    fn local_entry_prefers_a_planet_in_range_over_a_closer_unavailable_reference() {
+        use crate::local_navigation::Reference;
+        let mut flight = Flight::new();
+        let small = Reference {
+            name: "Fuera de alcance",
+            center: Vec3::zeros(),
+            radius: 10.0,
+            surface_radius: 10.0,
+            motion: crate::orbit::Motion::default(),
+        };
+        let large = Reference {
+            name: "Disponible",
+            center: -Vec3::z() * 215.0,
+            radius: 200.0,
+            surface_radius: 200.0,
+            motion: crate::orbit::Motion::default(),
+        };
+        flight.position = Vec3::z() * 66.7;
+        assert!(!small.available(flight.position, 0.0));
+        assert!(large.available(flight.position, 0.0));
+        flight.set_navigation_targets(vec![small, large]);
+        assert!(flight.toggle_local_navigation());
+        assert_eq!(flight.navigation_reference().unwrap().name, "Disponible");
     }
 
     #[test]
