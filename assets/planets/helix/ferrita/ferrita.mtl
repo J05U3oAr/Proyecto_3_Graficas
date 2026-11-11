@@ -1,0 +1,40 @@
+# Hierro oscuro
+newmtl material_0
+Kd 0.3 0.13 0.08
+illum 2
+
+# Oxido rojizo
+newmtl material_1
+Kd 0.52 0.24 0.12
+illum 2
+
+# Cobre
+newmtl material_2
+Kd 0.73 0.41 0.23
+illum 2
+
+# Cresta metalica
+newmtl material_3
+Kd 0.88 0.6 0.37
+illum 2
+
+# Patina profunda
+newmtl material_4
+Kd 0.09 0.25 0.24
+illum 2
+
+# Cardenillo
+newmtl material_5
+Kd 0.18 0.43 0.37
+illum 2
+
+# Patina clara
+newmtl material_6
+Kd 0.34 0.61 0.51
+illum 2
+
+# Niquel de impacto
+newmtl material_7
+Kd 0.22 0.24 0.27
+illum 2
+

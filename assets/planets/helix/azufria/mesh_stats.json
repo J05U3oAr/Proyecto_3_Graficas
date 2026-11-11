@@ -1,0 +1,18 @@
+{
+  "world": "azufria",
+  "seed": 821,
+  "vertices": 10592,
+  "triangles": 20816,
+  "craters": 7,
+  "objects": [
+    "azufria | cordilleras y crateres",
+    "Azufria | lago acido 01",
+    "Azufria | lago acido 02",
+    "Azufria | lago acido 03",
+    "Azufria | lago acido 04",
+    "Azufria | lago acido 05",
+    "Azufria | lago acido 06",
+    "Azufria | lago acido 07"
+  ],
+  "textures": 0
+}

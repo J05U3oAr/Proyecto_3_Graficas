@@ -1,0 +1,11 @@
+{
+  "world": "ferrita",
+  "seed": 1231,
+  "vertices": 10242,
+  "triangles": 20480,
+  "craters": 8,
+  "objects": [
+    "ferrita | cordilleras y crateres"
+  ],
+  "textures": 0
+}
