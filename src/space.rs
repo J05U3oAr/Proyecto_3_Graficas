@@ -811,6 +811,30 @@ impl Space {
 mod tests {
     use super::*;
     #[test]
+    fn planetary_gravity_uses_the_current_galaxy_and_tracks_its_moving_worlds() {
+        let mut space = Space::load().unwrap();
+        for galaxy in 0..3 {
+            space.configure(galaxy);
+            let mut flight = space.new_flight();
+            for planet in space.active_planets() {
+                for time in [0.0, 40.0, 120.0] {
+                    let transform = planet.world_transform(time);
+                    flight.seconds = time;
+                    flight.position = transform.position
+                        + Vec3::y() * (planet.navigation_surface_radius() + 15.0);
+                    let pull = flight.planetary_acceleration();
+                    assert!(
+                        pull.y < -0.05,
+                        "{} en galaxia {galaxy}, t={time}: {pull:?}",
+                        planet.name
+                    );
+                    assert!(pull.norm() <= crate::planet_gravity::MAX_ACCELERATION + 0.0001);
+                }
+            }
+        }
+    }
+
+    #[test]
     fn all_asteroid_variants_stop_slow_ships_and_destroy_fast_ships_in_every_galaxy() {
         let mut space = Space::load().unwrap();
         for galaxy in 0..3 {
@@ -881,6 +905,9 @@ mod tests {
                         if galaxy == 2 && variant == 4 && time == 45.0 && fps == 60 {
                             for _ in 0..125 {
                                 fast.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+                                if fast.respawn_notice > 0.0 {
+                                    break;
+                                }
                             }
                             assert!(fast.crash.is_none() && fast.respawn_notice > 0.0);
                             assert_eq!(fast.position, crate::flight::SPAWN_POSITION);
@@ -2046,7 +2073,8 @@ mod tests {
             let mut flight = space.new_flight();
             assert_eq!(flight.position, crate::flight::SPAWN_POSITION);
             flight.advance(1.0 / 60.0, (0.0, 0.0), false, false);
-            assert_eq!(flight.position, crate::flight::SPAWN_POSITION);
+            // El sol ya puede provocar una pequena deriva durante el primer cuadro.
+            assert!((flight.position - crate::flight::SPAWN_POSITION).norm() < 0.01);
             assert_eq!(space.debris.len(), definition.debris);
             let first_debris: Vec<_> = space.debris.iter().map(|t| t.transform.position).collect();
             space.configure(galaxy);
@@ -2178,6 +2206,9 @@ mod tests {
         assert_eq!(fast.crash.as_ref().unwrap().age, 0.0);
         for _ in 0..125 {
             fast.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+            if fast.respawn_notice > 0.0 {
+                break;
+            }
         }
         assert!(fast.crash.is_none() && fast.respawn_notice > 0.0);
         assert_eq!(fast.position, crate::flight::SPAWN_POSITION);
