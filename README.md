@@ -392,3 +392,22 @@ los huecos entre las bandas. Las bandas translúcidas siguen siendo visuales;
 los asteroides participan en las colisiones y acompañan la órbita del planeta.
 Para regenerar ambos recursos, ejecuta primero `create_asteroids.py` y luego
 `create_umbriel.py` con Blender. No se crea geometría de asteroides en Rust.
+
+## Shader de Nivalis
+
+Nivalis conserva su modelo de Blender, los glaciares, el lago y las colisiones.
+Su shader CPU combina nieve gris blanca, hielo glaciar azul grisáceo, estratos,
+escarcha y un lago de hielo más oscuro con fracturas irregulares interrumpidas.
+El borde del lago se mezcla con nieve para suavizar la transición visual.
+
+La iluminación se calcula por fragmento con las normales de la malla y la posición
+real de Asterion. El núcleo del planeta oculta la luz en el lado nocturno. La
+nieve tiene reflejos suaves; el hielo expuesto y el lago usan brillos más cerrados
+con respuesta de Fresnel. El gradiente analítico del ruido perturba las normales
+para añadir microrrelieve sin deformar los vértices. Un velo tenue de nieve suelta
+se desplaza con el tiempo; el terreno y las fracturas permanecen fijos.
+
+El microrrelieve y el velo de nieve se evalúan a partir de un radio proyectado de
+96 píxeles. A distancia se conservan las capas principales con menos trabajo.
+Este cambio corresponde únicamente a Nivalis; los otros planetas conservan sus
+shaders.
