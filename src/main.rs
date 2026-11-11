@@ -3,6 +3,7 @@ mod black_hole;
 mod camera;
 mod collision;
 mod color;
+mod debris_physics;
 mod deep_space;
 mod dust;
 mod explosion;
