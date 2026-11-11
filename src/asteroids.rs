@@ -79,10 +79,17 @@ pub fn distribute(galaxy: usize, mut clear: impl FnMut(WorldTransform) -> bool) 
         if instances.len() == definition.debris {
             break;
         }
+        // Reserve a full, evenly covered belt before placing Umbria's scattered rocks.
+        let umbria_belt = galaxy == 2 && instances.len() < 320;
         let category = next();
-        let size = if category < 0.65 {
+        let (small_limit, medium_limit) = if umbria_belt {
+            (0.50, 0.87)
+        } else {
+            (0.65, 0.92)
+        };
+        let size = if category < small_limit {
             0
-        } else if category < 0.92 {
+        } else if category < medium_limit {
             1
         } else {
             2
@@ -93,20 +100,25 @@ pub fn distribute(galaxy: usize, mut clear: impl FnMut(WorldTransform) -> bool) 
             1 => 4.0 + next() * 3.5,
             _ => 10.0 + next() * 6.0,
         };
-        let angle = next() * std::f32::consts::TAU;
+        let angle_fraction = next();
+        let angle = if umbria_belt {
+            ((instances.len() % 32) as f32 + angle_fraction) / 32.0 * std::f32::consts::TAU
+        } else {
+            angle_fraction * std::f32::consts::TAU
+        };
         let region = next();
-        let position = if galaxy != 0 && region < 0.40 {
-            let distance = if galaxy == 2 {
-                748.0 + next() * 12.0
+        let position = if umbria_belt || (galaxy == 1 && region < 0.40) {
+            let distance = if umbria_belt {
+                735.0 + next() * 40.0
             } else {
                 860.0 + next() * 40.0
             };
-            center
-                + Vec3::new(
-                    angle.cos() * distance,
-                    -42.0 + next() * 65.0,
-                    angle.sin() * distance,
-                )
+            let height = if umbria_belt {
+                -20.0 + next() * 40.0
+            } else {
+                -42.0 + next() * 65.0
+            };
+            center + Vec3::new(angle.cos() * distance, height, angle.sin() * distance)
         } else {
             let near_departure = region < 0.72;
             let origin = if near_departure {

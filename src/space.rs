@@ -644,6 +644,56 @@ impl Space {
 mod tests {
     use super::*;
     #[test]
+    fn umbria_has_a_dense_belt_of_blender_rocks_separate_from_its_scattered_field() {
+        let mut space = Space::load().unwrap();
+        space.configure(2);
+        let center = crate::galaxy::UMBRIA_CENTER;
+        let belt: Vec<_> = space
+            .debris
+            .iter()
+            .filter(|rock| {
+                let p = rock.transform.position - center;
+                let radial = (p.x * p.x + p.z * p.z).sqrt();
+                (735.0..775.0).contains(&radial) && p.y.abs() <= 45.0
+            })
+            .collect();
+        assert!(
+            belt.len() >= 320,
+            "El cinturon debe tener al menos 320 modelos, no depender del reparto disperso: {}",
+            belt.len()
+        );
+        assert!(space.debris.len() - belt.len() >= 120);
+        for variant in 0..6 {
+            assert!(belt.iter().any(|rock| rock.variant == variant));
+        }
+        let mut sectors = [0; 32];
+        for rock in belt {
+            let p = rock.transform.position - center;
+            let angle = p.z.atan2(p.x).rem_euclid(std::f32::consts::TAU);
+            sectors[(angle / std::f32::consts::TAU * 32.0) as usize % 32] += 1;
+        }
+        assert!(sectors.into_iter().all(|count| count >= 8));
+        let flight = space.new_flight();
+        let eye = center + Vec3::new(754.0, 44.0, 50.0);
+        let target = center + Vec3::new(730.0, 0.0, -250.0);
+        let view = FlightView::new(&flight, 1280, 840).looking_at(eye, target);
+        let mut frame = Framebuffer::new(1280, 840);
+        frame.pixels.fill(0);
+        crate::asteroids::draw(
+            &mut frame,
+            &view,
+            space.debris_models,
+            &space.debris,
+            space.sun_position(0.0),
+            0.0,
+        );
+        assert!(
+            frame.pixels.iter().filter(|&&p| p != 0).count() > 5000,
+            "El cinturon debe dibujar roca visible al recorrer su interior"
+        );
+    }
+
+    #[test]
     fn asteroids_populate_all_galaxies_without_blocking_spawns_or_orbital_paths() {
         let mut space = Space::load().unwrap();
         assert_eq!(space.debris.len(), crate::galaxy::GALAXIES[0].debris);

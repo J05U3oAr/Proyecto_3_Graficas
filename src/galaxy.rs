@@ -93,7 +93,7 @@ pub const GALAXIES: [Galaxy; 3] = [
         sky: 0x17142c,
         map: (30.0, 180.0),
         seed: 94013,
-        debris: 240,
+        debris: 480,
     },
 ];
 
