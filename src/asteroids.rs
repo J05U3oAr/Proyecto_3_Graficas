@@ -1,4 +1,5 @@
 use crate::{
+    collision::PlanetCollider,
     framebuffer::Framebuffer,
     model::Model,
     renderer::{self, FlightView, WorldTransform},
@@ -19,6 +20,7 @@ const NAMES: [&str; 6] = [
 pub struct Meshes {
     pub detailed: Model,
     pub distant: Model,
+    pub collision: PlanetCollider,
 }
 
 #[derive(Clone, Copy)]
@@ -27,13 +29,20 @@ pub struct Instance {
     pub variant: usize,
 }
 
+impl Instance {
+    pub fn rotation_speed(self) -> f32 {
+        0.035 / (1.0 + self.variant as f32)
+    }
+}
+
 pub fn load() -> Result<&'static [Meshes], Box<dyn Error>> {
     static CACHE: OnceLock<Result<Vec<Meshes>, String>> = OnceLock::new();
     match CACHE.get_or_init(|| {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/asteroids");
         NAMES
             .iter()
-            .map(|name| {
+            .enumerate()
+            .map(|(index, name)| {
                 let detailed =
                     Model::load(root.join(format!("{name}.obj"))).map_err(|e| e.to_string())?;
                 let mut distant =
@@ -41,7 +50,21 @@ pub fn load() -> Result<&'static [Meshes], Box<dyn Error>> {
                 // Both exports share an origin and a scale; LOD changes must not move or resize rocks.
                 distant.center = detailed.center;
                 distant.radius = detailed.radius;
-                Ok(Meshes { detailed, distant })
+                let collision = PlanetCollider::new(
+                    ["Asteroide pequeno", "Asteroide mediano", "Asteroide grande"][index / 2],
+                    &detailed,
+                    WorldTransform {
+                        position: Vec3::zeros(),
+                        radius: 1.0,
+                        yaw: 0.0,
+                    },
+                    0.0,
+                );
+                Ok(Meshes {
+                    detailed,
+                    distant,
+                    collision,
+                })
             })
             .collect()
     }) {
@@ -168,7 +191,7 @@ pub fn draw(
         if !view.sphere_visible(transform.position, transform.radius) {
             continue;
         }
-        transform.yaw += seconds * (0.035 / (1.0 + instance.variant as f32));
+        transform.yaw += seconds * instance.rotation_speed();
         let model = meshes[instance.variant].for_view(view, transform);
         renderer::draw_world_model_shaded(fb, model, view, transform, sun, SurfaceEffect::Asteroid);
     }

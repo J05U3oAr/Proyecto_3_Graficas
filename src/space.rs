@@ -446,7 +446,6 @@ impl Space {
                 .with_motion(planet.motion),
             );
         }
-        self.collisions = Arc::new(CollisionWorld::new(colliders));
         self.debris = crate::asteroids::distribute(index, |rock| {
             self.active_planets().all(|planet| {
                 let radius = if planet.name == "Umbriel" {
@@ -466,6 +465,12 @@ impl Space {
                 }
             })
         });
+        colliders.extend(self.debris.iter().map(|rock| {
+            self.debris_models[rock.variant]
+                .collision
+                .instance(rock.transform, rock.rotation_speed())
+        }));
+        self.collisions = Arc::new(CollisionWorld::new(colliders));
     }
 
     pub fn active_planets(&self) -> impl Iterator<Item = &Planet> {
@@ -647,6 +652,91 @@ impl Space {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn all_asteroid_variants_stop_slow_ships_and_destroy_fast_ships_in_every_galaxy() {
+        let mut space = Space::load().unwrap();
+        for galaxy in 0..3 {
+            space.configure(galaxy);
+            for variant in 0..6 {
+                let rock = *space
+                    .debris
+                    .iter()
+                    .find(|rock| rock.variant == variant)
+                    .unwrap();
+                for time in [0.0, 45.0] {
+                    let reach = rock.transform.radius + crate::collision::SHIP_RADIUS + 4.0;
+                    let probe = space.collisions.move_ship(
+                        rock.transform.position + Vec3::z() * reach,
+                        -Vec3::z() * reach * 2.0,
+                        time,
+                        0.0,
+                    );
+                    let contact = probe
+                        .contacts
+                        .first()
+                        .expect("Falta colision contra el asteroide");
+                    assert!(contact.planet.starts_with("Asteroide"));
+                    // A swept movement can slide beyond the initial hit on an irregular rock.
+                    // Start instead at its rendered +Z support vertex, outside the ship sphere.
+                    let model = &space.debris_models[variant].detailed;
+                    let normal = Vec3::z();
+                    let start_at = |seconds: f32| {
+                        let (sin, cos) =
+                            (rock.transform.yaw + seconds * rock.rotation_speed()).sin_cos();
+                        model
+                            .vertices
+                            .iter()
+                            .map(|vertex| {
+                                let p = (vertex - model.center)
+                                    * (rock.transform.radius / model.radius);
+                                rock.transform.position
+                                    + Vec3::new(p.x * cos + p.z * sin, p.y, p.z * cos - p.x * sin)
+                            })
+                            .max_by(|a, b| a.z.total_cmp(&b.z))
+                            .unwrap()
+                            + normal * (crate::collision::SHIP_RADIUS + 0.05)
+                    };
+                    let start = start_at(time);
+                    let mut slow = space.new_flight();
+                    slow.seconds = time;
+                    slow.position = start;
+                    slow.velocity = -normal * 10.0;
+                    slow.advance(1.0 / 30.0, (0.0, 0.0), false, false);
+                    assert!(slow.crash.is_none());
+                    assert!(slow.contact_notice > 0.0);
+                    assert!(slow.velocity.dot(&normal) > -1.0);
+                    for fps in [10, 60] {
+                        let mut fast = space.new_flight();
+                        fast.seconds = time;
+                        fast.position = start;
+                        fast.velocity = -normal * 62.0;
+                        fast.advance(1.0 / fps as f32, (0.0, 0.0), true, false);
+                        let crash = fast
+                            .crash
+                            .as_ref()
+                            .expect("El impacto rapido debe destruir la nave");
+                        assert!(crash.planet.starts_with("Asteroide"));
+                        assert_eq!(fast.velocity, Vec3::zeros());
+                        if galaxy == 2 && variant == 4 && time == 45.0 && fps == 60 {
+                            for _ in 0..125 {
+                                fast.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+                            }
+                            assert!(fast.crash.is_none() && fast.respawn_notice > 0.0);
+                            assert_eq!(fast.position, crate::flight::SPAWN_POSITION);
+                            fast.position = start_at(fast.seconds);
+                            fast.velocity = -normal * 62.0;
+                            fast.advance(1.0 / 60.0, (0.0, 0.0), true, false);
+                            assert!(
+                                fast.crash.as_ref().unwrap().planet.starts_with("Asteroide"),
+                                "La reaparicion debe conservar las colisiones de asteroides"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     #[test]
     fn umbria_has_a_dense_belt_of_blender_rocks_separate_from_its_scattered_field() {
         let mut space = Space::load().unwrap();

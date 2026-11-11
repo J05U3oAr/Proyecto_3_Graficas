@@ -1,6 +1,7 @@
 //! Swept ship spheres against the actual rotating planet meshes, including tunnels.
 use crate::{model::Model, renderer::WorldTransform};
 use nalgebra_glm::Vec3;
+use std::sync::Arc;
 
 /// The renderer normalizes every ship to the same bounding radius.
 pub const SHIP_RADIUS: f32 = 1.7;
@@ -32,7 +33,7 @@ pub struct PlanetCollider {
     transform: WorldTransform,
     rotation_speed: f32,
     motion: crate::orbit::Motion,
-    tree: Node,
+    tree: Arc<Node>,
 }
 
 #[derive(Default)]
@@ -343,7 +344,18 @@ impl PlanetCollider {
             transform,
             rotation_speed,
             motion: crate::orbit::Motion::default(),
-            tree: Node::build(&mut triangles),
+            tree: Arc::new(Node::build(&mut triangles)),
+        }
+    }
+
+    /// Reuse normalized mesh geometry across differently sized, independently rotating instances.
+    pub fn instance(&self, transform: WorldTransform, rotation_speed: f32) -> Self {
+        Self {
+            name: self.name,
+            transform,
+            rotation_speed,
+            motion: self.motion,
+            tree: Arc::clone(&self.tree),
         }
     }
 
