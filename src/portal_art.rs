@@ -231,16 +231,24 @@ mod tests {
         let mut flight = Flight::new();
         flight.camera.pitch = 0.0;
         flight.portals.set_enabled(true);
-        let entry = Portal::new(Vec3::new(0.0, 1.6, -60.0), Vec3::z()).unwrap();
+        let entry = Portal::new(
+            Vec3::new(0.0, crate::flight::CHASE_HEIGHT, -60.0),
+            Vec3::z(),
+        )
+        .unwrap();
         flight.portals.place(Kind::Yellow, entry);
         flight.portals.place(
             Kind::Green,
-            Portal::new(Vec3::new(100.0, 1.6, 0.0), Vec3::x()).unwrap(),
+            Portal::new(
+                Vec3::new(100.0, crate::flight::CHASE_HEIGHT, 0.0),
+                Vec3::x(),
+            )
+            .unwrap(),
         );
         let mut fb = Framebuffer::new(320, 240);
         let render_count = std::cell::Cell::new(0);
         art.draw_linked(&mut fb, &flight, |image, view| {
-            assert!((view.eye().x - 32.0).abs() < 1e-4);
+            assert!((view.eye().x - (40.0 - crate::flight::CHASE_DISTANCE)).abs() < 1e-4);
             assert!(image.width * image.height < 320 * 240);
             image.pixels.fill(0x1234ab);
             image.depth.fill(9999.0);

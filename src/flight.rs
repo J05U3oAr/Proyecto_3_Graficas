@@ -8,6 +8,9 @@ use std::sync::Arc;
 pub const CRASH_SPEED: f32 = 28.0;
 pub const CRUISE_SPEED: f32 = 36.0;
 pub const BOOST_SPEED: f32 = 155.0;
+pub const CHASE_DISTANCE: f32 = 6.2;
+pub const CHASE_HEIGHT: f32 = 1.55;
+const CHASE_PITCH: f32 = 0.18;
 pub const SPAWN_POSITION: Vec3 = Vec3::new(88.0, -139.0, 579.0);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -78,7 +81,7 @@ impl Flight {
             spawn_position: Vec3::zeros(),
             velocity: Vec3::zeros(),
             camera: Camera {
-                pitch: 0.14,
+                pitch: CHASE_PITCH,
                 ..heading
             },
             heading,
@@ -296,7 +299,7 @@ impl Flight {
 
     pub fn camera_position(&self) -> Vec3 {
         let (_, up, forward) = self.camera.basis();
-        self.position - forward * 8.0 + up * 1.6
+        self.position - forward * CHASE_DISTANCE + up * CHASE_HEIGHT
     }
 
     pub fn ship_basis(&self) -> (Vec3, Vec3, Vec3) {
@@ -522,8 +525,9 @@ impl Flight {
             } else {
                 let yaw_error = (self.heading.yaw - self.camera.yaw + PI).rem_euclid(TAU) - PI;
                 self.camera.yaw = (self.camera.yaw + yaw_error * follow).rem_euclid(TAU);
-                let pitch_error =
-                    (self.heading.pitch + 0.14 - self.camera.pitch + PI).rem_euclid(TAU) - PI;
+                let pitch_error = (self.heading.pitch + CHASE_PITCH - self.camera.pitch + PI)
+                    .rem_euclid(TAU)
+                    - PI;
                 self.camera.pitch =
                     (self.camera.pitch + pitch_error * follow + PI).rem_euclid(TAU) - PI;
                 if let Some(up) = self.camera.up_axis {
@@ -906,8 +910,12 @@ mod tests {
         for _ in 0..1800 {
             flight.advance(1.0 / 60.0, (1.0, 0.0), false, false);
             let camera_to_ship = flight.position - flight.camera_position();
-            assert!(camera_to_ship.dot(&flight.heading.basis().2) > 6.0);
-            assert!((camera_to_ship.norm() - (64.0f32 + 2.56).sqrt()).abs() < 0.001);
+            assert!(camera_to_ship.dot(&flight.heading.basis().2) > CHASE_DISTANCE * 0.75);
+            assert!(
+                (camera_to_ship.norm() - (CHASE_DISTANCE.powi(2) + CHASE_HEIGHT.powi(2)).sqrt())
+                    .abs()
+                    < 0.001
+            );
             assert!(flight.heading.pitch.abs() <= PI);
         }
     }

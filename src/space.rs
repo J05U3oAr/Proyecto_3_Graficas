@@ -35,7 +35,13 @@ impl Planet {
     pub fn surface_effect(&self, seconds: f32) -> crate::shaders::SurfaceEffect {
         use crate::shaders::SurfaceEffect;
         match self.name {
-            "Nivalis" => SurfaceEffect::Ice,
+            "Nivalis" => SurfaceEffect::Ice {
+                seconds,
+                light: Vec3::new(-400.0, 800.0, 1000.0),
+                eye: Vec3::z() * 3.0,
+                normal: Vec3::y(),
+                detail: true,
+            },
             "Asterion" => SurfaceEffect::Stellar { seconds },
             "Onice" => SurfaceEffect::Obsidian,
             "Vespera" => SurfaceEffect::Snow { seconds },
@@ -582,7 +588,12 @@ impl Space {
         };
         let distance =
             framing_radius * (1.0 + (renderer::FLIGHT_FOCAL / target_radius).powi(2)).sqrt();
-        flight.position = transform.position + Vec3::new(0.0, -1.6, distance - 8.0);
+        flight.position = transform.position
+            + Vec3::new(
+                0.0,
+                -crate::flight::CHASE_HEIGHT,
+                distance - crate::flight::CHASE_DISTANCE,
+            );
         fb.clear();
         fb.pixels.fill(0x03060c);
         let view = FlightView::new(&flight, fb.width, fb.height);
