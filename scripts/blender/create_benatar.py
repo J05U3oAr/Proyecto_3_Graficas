@@ -14,7 +14,7 @@ from mathutils.bvhtree import BVHTree
 PALETTE = [
     ("Cobre del casco", (0.50, 0.255, 0.14), 1.0, False),
     ("Placas de cobre satinado", (0.61, 0.34, 0.185), 1.0, False),
-    ("Titanio de alas y motores", (0.29, 0.31, 0.33), 1.0, False),
+    ("Titanio de alas y motores", (0.35, 0.37, 0.39), 1.0, False),
     ("Juntas y estructura", (0.075, 0.095, 0.11), 1.0, False),
     ("Cristal de cabina", (0.035, 0.115, 0.17), 0.88, False),
     ("Luz de motor", (0.36, 0.76, 0.88), 1.0, True),
