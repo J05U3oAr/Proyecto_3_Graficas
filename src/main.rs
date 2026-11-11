@@ -15,6 +15,7 @@ mod galaxy;
 mod galaxy_art;
 mod home;
 mod ice_planet;
+mod impulse;
 mod lighting;
 mod local_navigation;
 mod menus;
@@ -36,6 +37,7 @@ mod thrusters;
 mod travel;
 mod triangle;
 mod ui;
+mod volcarona;
 mod window_state;
 
 use camera::Camera;
@@ -114,10 +116,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut local_navigation = false;
         let mut portal_demo = false;
         let mut gate_ready = false;
+        let mut impulse_demo = false;
         let mut mouse_target = (0.0f32, 0.0f32);
         let mut args = args.iter();
         while let Some(argument) = args.next() {
             match argument.as_str() {
+                "--impulse" => impulse_demo = true,
                 "--lod-high" => ui.render_options.automatic_lod = false,
                 "--no-culling" => ui.render_options.culling = false,
                 "--benchmark-frames" => {
@@ -205,6 +209,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
                 "--help" => {
+                    println!(
+                        "TIE Silencer: CAPS LOCK + WASD activa un impulso; sin WASD, hacia adelante. Exportacion: --render-flight salida.png --ship 2 --impulse --time 0.12."
+                    );
                     println!(
                         "Vuelo: F4 alterna LOD automatico, F5 alterna descarte, F6 pausa la demostracion. Exportacion: --lod-high y --no-culling."
                     );
@@ -353,6 +360,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 return Err("No se puede activar la navegacion local en esta posicion".into());
             }
             flight.move_with_mouse(Some(mouse_target));
+            if impulse_demo && !flight.trigger_impulse(&ships[selected], (1.0, 0.0)) {
+                return Err("El impulso requiere --ship 2 y una nave activa".into());
+            }
             for frame in 0..(seconds * 60.0).ceil() as u32 {
                 let dt = (seconds - frame as f32 / 60.0).min(1.0 / 60.0);
                 // Observation keeps the camera fixed while matter and planets advance.
@@ -809,6 +819,16 @@ fn main() -> Result<(), Box<dyn Error>> {
                     i32::from(window.is_key_down(Key::W)) - i32::from(window.is_key_down(Key::S)),
                     i32::from(window.is_key_down(Key::D)) - i32::from(window.is_key_down(Key::A)),
                 );
+                if !ships[selected].impulse_capable {
+                    flight.cancel_impulse();
+                }
+                if focused_input
+                    && window.is_key_pressed(Key::CapsLock, KeyRepeat::No)
+                    && !window.is_key_down(Key::Space)
+                {
+                    flight
+                        .trigger_impulse(&ships[selected], (movement.0 as f32, movement.1 as f32));
+                }
                 flight.advance(
                     dt,
                     (movement.0 as f32, movement.1 as f32),
