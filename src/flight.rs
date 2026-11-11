@@ -54,6 +54,7 @@ pub struct Flight {
     pub seconds: f32,
     pub steering_mode: SteeringMode,
     gravity_velocity: Vec3,
+    planet_drift: Vec3,
     captured_for: Option<f32>,
     pub respawn_notice: f32,
     pub crash: Option<Crash>,
@@ -89,6 +90,7 @@ impl Flight {
             seconds: 0.0,
             steering_mode: SteeringMode::Mouse,
             gravity_velocity: Vec3::zeros(),
+            planet_drift: Vec3::zeros(),
             captured_for: None,
             respawn_notice: 0.0,
             crash: None,
@@ -169,6 +171,18 @@ impl Flight {
     pub fn set_navigation_targets(&mut self, targets: Vec<Reference>) {
         self.navigation_targets = targets.into();
         self.local_navigation = None;
+        self.planet_drift = Vec3::zeros();
+    }
+
+    pub fn planetary_acceleration(&self) -> Vec3 {
+        self.celestial_acceleration_at(self.seconds)
+    }
+
+    fn celestial_acceleration_at(&self, time: f32) -> Vec3 {
+        self.collisions.as_ref().map_or_else(
+            || crate::planet_gravity::acceleration(&self.navigation_targets, self.position, time),
+            |world| world.celestial_acceleration(self.position, time),
+        )
     }
 
     pub fn is_local(&self) -> bool {
@@ -214,8 +228,12 @@ impl Flight {
             return false;
         };
         let up = (self.position - reference.center_at(self.seconds)).normalize();
-        let relative =
-            self.velocity - reference.motion.velocity(self.seconds) - self.gravity_velocity;
+        let relative = self.velocity
+            - reference.motion.velocity(self.seconds)
+            - self.gravity_velocity
+            - self.planet_drift;
+        // La asistencia local compensa la gravedad planetaria para conservar altura y control vertical.
+        self.planet_drift = Vec3::zeros();
         self.local_navigation = Some(LocalFlight {
             reference,
             velocity: relative - up * relative.dot(&up),
@@ -405,12 +423,17 @@ impl Flight {
                 3.0
             };
             // Thrusters damp their own motion; releasing WASD does not erase gravity.
-            let mut controlled = self
-                .local_navigation
-                .map_or(self.velocity - self.gravity_velocity, |local| {
-                    local.velocity
-                });
+            let mut controlled = self.local_navigation.map_or(
+                self.velocity - self.gravity_velocity - self.planet_drift,
+                |local| local.velocity,
+            );
             controlled += (target_velocity - controlled) * (1.0 - (-acceleration * dt).exp());
+            self.planet_drift = if reference.is_some() {
+                Vec3::zeros()
+            } else {
+                let force = self.celestial_acceleration_at(time);
+                crate::planet_gravity::advance_drift(self.planet_drift, force, dt, brake)
+            };
             self.gravity_velocity += self.black_hole.acceleration(self.position) * dt;
             // Brakes can help in the outer field but cannot cancel the attraction.
             if brake {
@@ -420,7 +443,7 @@ impl Flight {
             if drift_speed > 320.0 {
                 self.gravity_velocity *= 320.0 / drift_speed;
             }
-            self.velocity = controlled + self.gravity_velocity;
+            self.velocity = controlled + self.gravity_velocity + self.planet_drift;
             let local_step =
                 reference.map(|body| body.step(self.position, self.velocity * dt, time, dt));
             let mut next = local_step
@@ -443,6 +466,7 @@ impl Flight {
                         });
                         self.velocity = Vec3::zeros();
                         self.gravity_velocity = Vec3::zeros();
+                        self.planet_drift = Vec3::zeros();
                         self.position = next;
                         self.local_navigation = None;
                         break;
@@ -454,6 +478,8 @@ impl Flight {
                     controlled -= contact.normal * inward;
                     let gravity_inward = self.gravity_velocity.dot(&contact.normal).min(0.0);
                     self.gravity_velocity -= contact.normal * gravity_inward;
+                    let planet_inward = self.planet_drift.dot(&contact.normal).min(0.0);
+                    self.planet_drift -= contact.normal * planet_inward;
                     self.contact_notice = 0.7;
                 }
                 if self.crash.is_some() {
@@ -469,6 +495,7 @@ impl Flight {
                     let rotated_right = transit.rotate(self.ship_basis().0);
                     self.velocity = transit.rotate(self.velocity);
                     self.gravity_velocity = transit.rotate(self.gravity_velocity);
+                    self.planet_drift = transit.rotate(self.planet_drift);
                     let rotate_camera = |camera: &mut Camera| {
                         let backward = -transit.rotate(camera.basis().2);
                         camera.yaw = backward.z.atan2(backward.x).rem_euclid(TAU);
@@ -493,6 +520,7 @@ impl Flight {
                 self.captured_for = Some(0.0);
                 self.velocity = Vec3::zeros();
                 self.gravity_velocity = Vec3::zeros();
+                self.planet_drift = Vec3::zeros();
                 self.local_navigation = None;
                 break;
             }
@@ -547,6 +575,86 @@ impl Flight {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn gravity_flight() -> Flight {
+        let mut flight = Flight::new();
+        flight.set_navigation_targets(vec![Reference {
+            name: "Prueba",
+            center: Vec3::zeros(),
+            radius: 60.0,
+            surface_radius: 60.0,
+            motion: Default::default(),
+        }]);
+        flight.position = Vec3::new(110.0, 0.0, 90.0);
+        flight
+    }
+
+    #[test]
+    fn planet_bends_a_flyby_without_steering_and_matches_ten_and_sixty_fps() {
+        let simulate = |fps, gravity: bool| {
+            let mut flight = gravity_flight();
+            if !gravity {
+                flight.set_navigation_targets(vec![]);
+            }
+            for _ in 0..fps * 6 {
+                flight.advance(1.0 / fps as f32, (1.0, 0.0), false, false);
+            }
+            flight
+        };
+        let baseline = simulate(60, false);
+        let pulled = simulate(60, true);
+        let slow = simulate(10, true);
+        assert!(
+            pulled.position.x < baseline.position.x - 15.0,
+            "Debe desviar el paso por el planeta"
+        );
+        assert_eq!(pulled.heading.yaw, baseline.heading.yaw);
+        assert!((pulled.position - slow.position).norm() < 0.15);
+        assert!(pulled.planet_drift.norm() <= crate::planet_gravity::MAX_DRIFT_SPEED + 0.001);
+        assert_eq!(pulled.gravity_velocity, Vec3::zeros());
+    }
+
+    #[test]
+    fn planetary_pull_affects_idle_ships_but_brakes_and_local_assistance_remain_useful() {
+        let simulate = |brake| {
+            let mut flight = gravity_flight();
+            flight.position = Vec3::z() * 90.0;
+            for _ in 0..180 {
+                flight.advance(1.0 / 60.0, (0.0, 0.0), false, brake);
+            }
+            flight
+        };
+        let drifting = simulate(false);
+        let mut braked = simulate(true);
+        assert!(drifting.position.z < braked.position.z - 1.0);
+        assert!(braked.position.z < 90.0);
+        assert!(braked.toggle_local_navigation());
+        let height = braked.position.norm();
+        for _ in 0..300 {
+            braked.advance(1.0 / 60.0, (0.0, 0.0), false, true);
+        }
+        assert!((braked.position.norm() - height).abs() < 0.01);
+        assert_eq!(braked.planet_drift, Vec3::zeros());
+        braked.respawn();
+        assert_eq!(braked.planet_drift, Vec3::zeros());
+        assert_eq!(braked.navigation_targets.len(), 1);
+    }
+
+    #[test]
+    fn normal_and_boost_thrusters_can_escape_a_planet() {
+        for boost in [false, true] {
+            let mut flight = gravity_flight();
+            flight.position = Vec3::new(85.0, 0.0, 0.0);
+            for _ in 0..480 {
+                flight.advance(1.0 / 60.0, (0.0, 1.0), boost, false);
+            }
+            assert!(
+                flight.position.x > 240.0,
+                "La atraccion no debe impedir escapar"
+            );
+            assert_eq!(flight.planetary_acceleration(), Vec3::zeros());
+        }
+    }
 
     fn local_flight() -> Flight {
         let mut flight = Flight::new();
