@@ -953,6 +953,34 @@ mod tests {
         }
     }
     #[test]
+    fn helix_frontier_worlds_keep_collisions_after_destination_changes_and_hangar_launches() {
+        let mut ui = ui::Ui::new().unwrap();
+        for name in ["Micelia", "Azufria", "Ferrita"] {
+            ui.select_galaxy(2);
+            ui.select_galaxy(0);
+            let mut flight = ui.new_flight();
+            let mut screen = Screen::Menu;
+            launch_flight(&ui, &mut flight, &mut screen);
+            assert!(screen == Screen::Flight);
+            ui.approach_planet(&mut flight, name).unwrap();
+            for _ in 0..240 {
+                flight.advance(1.0 / 60.0, (1.0, 0.0), true, false);
+                if flight.crash.is_some() {
+                    break;
+                }
+            }
+            assert_eq!(flight.crash.as_ref().map(|c| c.planet), Some(name));
+            for _ in 0..150 {
+                flight.advance(1.0 / 60.0, (0.0, 0.0), false, false);
+            }
+            assert!(flight.crash.is_none());
+            assert_eq!(flight.position, flight::SPAWN_POSITION);
+            ui.approach_planet(&mut flight, name).unwrap();
+            assert_eq!(flight.navigation_reference().unwrap().name, name);
+        }
+    }
+
+    #[test]
     fn paused_previews_preserve_their_angle_and_resume_without_jumping() {
         let mut clock = AnimationClock::default();
         clock.advance(2.0);

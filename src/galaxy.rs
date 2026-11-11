@@ -6,7 +6,7 @@ pub const SUN_RADIUS: f32 = 130.0;
 pub const ASTERION_RADIUS: f32 = 360.0;
 pub const UMBRIA_CENTER: Vec3 = Vec3::new(-440.0, 40.0, 300.0);
 
-pub const BODY_NAMES: [&str; 14] = [
+pub const BODY_NAMES: [&str; 17] = [
     "Siroco",
     "Oquedad",
     "Jovara",
@@ -21,6 +21,9 @@ pub const BODY_NAMES: [&str; 14] = [
     "Prisma",
     "Nacar",
     "Umbriel",
+    "Micelia",
+    "Azufria",
+    "Ferrita",
 ];
 
 pub fn black_hole(galaxy: usize) -> crate::black_hole::BlackHole {
@@ -52,11 +55,11 @@ pub const GALAXIES: [Galaxy; 3] = [
         artwork: 1,
         subtitle: "FRONTERA DE EXPLORACION",
         description: [
-            "Cuatro mundos, cuatro horizontes.",
-            "Tormentas de arena, tuneles de roca",
-            "y gigantes de nubes por descubrir.",
+            "Siete mundos, siete horizontes.",
+            "Hongos gigantes, calderas de azufre",
+            "y montanas de cobre entre crateres.",
         ],
-        planets: &[0, 1, 2, 3],
+        planets: &[0, 1, 2, 3, 14, 15, 16],
         accent: 0x78eed5,
         sky: 0x0d1725,
         map: (-285.0, -35.0),
@@ -98,6 +101,19 @@ pub const GALAXIES: [Galaxy; 3] = [
 ];
 
 pub fn planet_transform(galaxy: usize, planet: usize) -> WorldTransform {
+    // Frontier worlds keep their geographical origin even while inactive elsewhere.
+    if let Some((position, radius, yaw)) = match planet {
+        14 => Some(([-310.0, 25.0, -330.0], 62.0, 0.12)),
+        15 => Some(([250.0, 100.0, -285.0], 53.0, -0.1)),
+        16 => Some(([250.0, -155.0, -160.0], 49.0, 0.15)),
+        _ => None,
+    } {
+        return WorldTransform {
+            position: Vec3::from(position),
+            radius,
+            yaw,
+        };
+    }
     if planet == 8 {
         return WorldTransform {
             position: UMBRIA_CENTER,

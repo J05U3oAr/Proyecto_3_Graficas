@@ -153,8 +153,8 @@ def acid_lake(scene, index, impact, materials):
     right, forward = frame(center)
     # A level disk sits inside the actual depressed caldera. Its edge intersects
     # the bowl walls, so there is neither a floating shoreline nor a hidden sphere.
-    level = 1.0 - depth + 0.035
-    spread = radius * 0.43
+    level = 1.0 - depth * 0.58
+    spread = radius * 0.66
     vertices = [center * level]
     for i in range(49):
         a = math.tau * i / 48
@@ -224,8 +224,10 @@ def generate(name, output, overwrite):
     if not overwrite and any((output / f"{name}.{ext}").exists() for ext in ("blend", "obj", "mtl")):
         raise FileExistsError(f"{output}: use --overwrite to replace generated worlds")
     output.mkdir(parents=True, exist_ok=True)
-    scene = bpy.data.scenes.new(spec["title"])
-    bpy.context.window.scene = scene
+    # Each .blend contains only its own world, even when generating the full set.
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    scene = bpy.context.scene
+    scene.name = spec["title"]
     materials = []
     for i, (title, color) in enumerate(zip(spec["names"], spec["colors"])):
         mat = bpy.data.materials.new(title)

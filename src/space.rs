@@ -70,15 +70,23 @@ impl Planet {
                 seconds,
                 seed: 43.0,
             },
+            // Rock detail stays anchored to the sculpted surface while the body rotates.
+            "Micelia" | "Azufria" | "Ferrita" => SurfaceEffect::Rock {
+                seconds: 0.0,
+                seed: match self.name {
+                    "Micelia" => 61.0,
+                    "Azufria" => 79.0,
+                    _ => 97.0,
+                },
+            },
             _ => SurfaceEffect::None,
         }
     }
     fn navigation_surface_radius(&self) -> f32 {
         match self.name {
             // These Blender meshes have unit-radius ground and separate raised terrain.
-            "Nivalis" | "Onice" | "Vespera" | "Prisma" | "Nacar" => {
-                self.transform.radius / self.model.radius
-            }
+            "Nivalis" | "Onice" | "Vespera" | "Prisma" | "Nacar" | "Micelia" | "Azufria"
+            | "Ferrita" => self.transform.radius / self.model.radius,
             _ => self.transform.radius,
         }
     }
@@ -113,6 +121,9 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
                 "nacar/nacar.obj",
                 "umbriel/umbriel.obj",
                 "umbriel/anillos.obj",
+                "helix/micelia/micelia.obj",
+                "helix/azufria/azufria.obj",
+                "helix/ferrita/ferrita.obj",
             ];
             paths
                 .iter()
@@ -123,7 +134,7 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
                     } else {
                         Model::load(assets.join(path))?
                     };
-                    if matches!(index, 10..=15) {
+                    if index >= 10 {
                         // Asymmetric terrain must rotate around its geographical origin.
                         model.center = Vec3::zeros();
                         model.radius = model.vertices.iter().map(Vec3::norm).fold(0.0, f32::max);
@@ -392,6 +403,36 @@ impl Space {
                 is_sun: false,
                 transform: crate::galaxy::planet_transform(2, 13),
                 rotation_speed: 0.016,
+                dust: None,
+            },
+            Planet {
+                active: true,
+                name: "Micelia",
+                model: Arc::clone(&models[16]),
+                motion: crate::orbit::Motion::default(),
+                is_sun: false,
+                transform: crate::galaxy::planet_transform(0, 14),
+                rotation_speed: 0.009,
+                dust: None,
+            },
+            Planet {
+                active: true,
+                name: "Azufria",
+                model: Arc::clone(&models[17]),
+                motion: crate::orbit::Motion::default(),
+                is_sun: false,
+                transform: crate::galaxy::planet_transform(0, 15),
+                rotation_speed: 0.012,
+                dust: None,
+            },
+            Planet {
+                active: true,
+                name: "Ferrita",
+                model: Arc::clone(&models[18]),
+                motion: crate::orbit::Motion::default(),
+                is_sun: false,
+                transform: crate::galaxy::planet_transform(0, 16),
+                rotation_speed: 0.01,
                 dust: None,
             },
         ];
@@ -1812,6 +1853,71 @@ mod tests {
         space.configure(0);
         assert!(space.solar_lighting(0.0).is_none());
     }
+    #[test]
+    fn helix_frontier_terrain_has_deep_basins_raised_ranges_and_rotating_mesh_contacts() {
+        let mut space = Space::load().unwrap();
+        for (name, axis) in [
+            ("Micelia", Vec3::new(0.25, 0.28, 1.0)),
+            ("Azufria", Vec3::new(0.12, 0.15, 1.0)),
+            ("Ferrita", Vec3::new(0.16, 0.25, 1.0)),
+        ] {
+            let planet = space.active_planets().find(|p| p.name == name).unwrap();
+            assert_eq!(planet.model.center, Vec3::zeros());
+            assert!(planet.model.textures.is_empty());
+            // The first object is the continuous crust; decorations are separate objects.
+            let crust = &planet.model.vertices[..10242];
+            let peak = crust
+                .iter()
+                .max_by(|a, b| a.norm().total_cmp(&b.norm()))
+                .unwrap();
+            assert!(peak.norm() > 1.10, "{name} needs mountains in the mesh");
+            assert!(
+                crust.iter().any(|v| v.norm() < 0.90),
+                "{name} needs depressed crater floors"
+            );
+            let scale = planet.transform.radius / planet.model.radius;
+            for seconds in [0.0, 53.0] {
+                let transform = planet.world_transform(seconds);
+                let rotate = |d: Vec3| {
+                    let (s, c) = transform.yaw.sin_cos();
+                    Vec3::new(d.x * c + d.z * s, d.y, d.z * c - d.x * s).normalize()
+                };
+                let probe = |direction: Vec3| {
+                    let direction = rotate(direction);
+                    let hit = space.collisions.move_ship(
+                        transform.position + direction * (transform.radius + 12.0),
+                        -direction * (transform.radius * 0.65),
+                        seconds,
+                        0.0,
+                    );
+                    assert!(hit.contacts.iter().any(|c| c.planet == name));
+                    (hit.position - transform.position).norm()
+                };
+                let basin = probe(axis);
+                let ridge = probe(*peak);
+                assert!(
+                    ridge - basin > scale * 0.10,
+                    "{name}: collisions must follow the crater, not a bounding sphere"
+                );
+            }
+            let mut flight = space.new_flight();
+            space.approach(&mut flight, name).unwrap();
+            let reference = flight.navigation_reference().unwrap();
+            assert_eq!(reference.name, name);
+            assert!((reference.surface_radius - scale).abs() < 0.001);
+            assert!(
+                flight.toggle_local_navigation(),
+                "{name} must support local flight"
+            );
+        }
+        for index in [1, 2, 0] {
+            space.configure(index);
+            for name in ["Micelia", "Azufria", "Ferrita"] {
+                assert_eq!(space.active_planets().any(|p| p.name == name), index == 0);
+            }
+        }
+    }
+
     #[test]
     fn destinations_restore_layouts_reproduce_debris_and_keep_active_collisions() {
         let mut space = Space::load().unwrap();
