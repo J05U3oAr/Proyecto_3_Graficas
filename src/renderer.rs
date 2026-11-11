@@ -47,6 +47,7 @@ pub fn draw_model(
     fallback_color: Option<Color>,
 ) {
     framebuffer.set_clip(viewport.x, viewport.y, viewport.width, viewport.height);
+    framebuffer.triangles_processed += model.faces.len();
     let (right, up, forward) = camera.basis();
     let scale =
         0.88 * viewport.width.min(viewport.height) as f32 / (2.0 * model.radius) * camera.zoom;
@@ -349,9 +350,11 @@ fn draw_world_with_basis(
     basis: Option<[Vec3; 3]>,
     finish: Option<Color>,
 ) {
-    if !camera.sphere_visible(transform.position, transform.radius) {
+    if fb.render_options.culling && !camera.sphere_visible(transform.position, transform.radius) {
         return;
     }
+    // Se cuentan las caras que entran al pipeline, antes del descarte posterior y del recorte.
+    fb.triangles_processed += model.faces.len();
     let (sin, cos) = transform.yaw.sin_cos();
     let vertices: Vec<Vec3> = model
         .vertices
@@ -664,6 +667,7 @@ pub fn draw_flight_model_lit(
     onboard: Option<&crate::lighting::ShipLights>,
 ) {
     // All three source OBJs have their nose along +Z and their roof along +Y.
+    framebuffer.triangles_processed += model.faces.len();
     let model_forward = Vec3::new(0.0, 0.0, 1.0);
     let model_up = Vec3::new(0.0, 1.0, 0.0);
     let model_right = model_forward.cross(&model_up).normalize();
@@ -847,6 +851,34 @@ fn rasterize(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn triangle_counter_tracks_culling_without_changing_the_image_and_resets_per_frame() {
+        let model = Model::load(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/uv-checker.obj"
+        ))
+        .unwrap();
+        let flight = Flight::new();
+        let view = FlightView::new(&flight, 256, 192);
+        let transform = WorldTransform {
+            position: Vec3::new(10000.0, 0.0, -100.0),
+            radius: 1.0,
+            yaw: 0.0,
+        };
+        let mut culled = Framebuffer::new(256, 192);
+        let mut full = Framebuffer::new(256, 192);
+        full.render_options.culling = false;
+        draw_world_model(&mut culled, &model, &view, transform);
+        draw_world_model(&mut full, &model, &view, transform);
+        assert_eq!(culled.pixels, full.pixels);
+        assert_eq!(culled.depth, full.depth);
+        assert_eq!(culled.triangles_processed, 0);
+        assert_eq!(full.triangles_processed, model.faces.len());
+        full.clear();
+        assert_eq!(full.triangles_processed, 0);
+        assert!(!full.render_options.culling);
+    }
 
     #[test]
     fn portal_camera_preserves_projection_parallax_and_oblique_orientation() {
