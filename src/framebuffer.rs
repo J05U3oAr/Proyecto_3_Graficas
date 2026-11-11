@@ -12,12 +12,29 @@ pub(crate) fn emission_color(background: u32, color: u32, strength: f32, shadow:
     channel(16) << 16 | channel(8) << 8 | channel(0)
 }
 
+#[derive(Clone, Copy)]
+pub struct RenderOptions {
+    pub automatic_lod: bool,
+    pub culling: bool,
+}
+
+impl Default for RenderOptions {
+    fn default() -> Self {
+        Self {
+            automatic_lod: true,
+            culling: true,
+        }
+    }
+}
+
 pub struct Framebuffer {
     pub width: usize,
     pub height: usize,
     pub pixels: Vec<u32>,
     pub(crate) depth: Vec<f32>,
     pub(crate) clip: (usize, usize, usize, usize),
+    pub triangles_processed: usize,
+    pub render_options: RenderOptions,
 }
 
 impl Framebuffer {
@@ -65,10 +82,13 @@ impl Framebuffer {
             pixels: vec![BACKGROUND; width * height],
             depth: vec![f32::NEG_INFINITY; width * height],
             clip: (0, 0, width, height),
+            triangles_processed: 0,
+            render_options: RenderOptions::default(),
         }
     }
 
     pub fn clear(&mut self) {
+        self.triangles_processed = 0;
         self.pixels.fill(BACKGROUND);
         self.depth.fill(f32::NEG_INFINITY);
     }
