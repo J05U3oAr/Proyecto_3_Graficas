@@ -120,28 +120,36 @@ tangencialmente alrededor del planeta; **Q** baja y **E** sube. El mouse permite
 orientar la nave y observar el entorno, o puedes usar las flechas mediante **C**.
 Inclinar la proa permite mirar el terreno; **Q/E** cambia la altura en modo local.
 **Espacio** frena el movimiento relativo
-al planeta y **Shift** proporciona un impulso local moderado.
+al planeta y **Shift** aumenta el impulso local a 1.8 veces la velocidad normal.
 
-La velocidad y la sensibilidad de giro disminuyen cerca del terreno. La nave
+La velocidad tangencial normal va de 18 a 48 unidades/s según el tamaño del
+planeta y la altura, y puede alcanzar 86.4 unidades/s con **Shift**. Cerca del
+suelo se mantiene un margen de precisión. **Q/E** limita el ascenso y descenso
+a 12 unidades/s, o 18 con **Shift**, para conservar el control vertical.
+La sensibilidad de giro disminuye cerca del terreno. La nave
 acompaña la traslación orbital del planeta, mientras su superficie continúa
 rotando. Los desplazamientos tangenciales siguen arcos sobre la esfera y la
 cámara adapta suavemente su horizonte, permitiendo circunnavegar sin cambiar
 de escena. El HUD distingue la velocidad mundial de **REL**, la velocidad local.
 
-La altura se calcula respecto al radio de referencia del modelo: es aproximada
-en montañas y túneles. Las colisiones siguen usando la malla real. Un contacto
+La altura se calcula respecto al radio de referencia del suelo: en los modelos
+de Umbría se distingue de la esfera que encierra glaciares, cristales e icebergs.
+Es aproximada en montañas, cráteres y túneles. **L** también puede activarse por
+debajo del radio exterior de los obstáculos; no exige estar por encima de sus cimas. Las colisiones siguen usando la malla real. Un contacto
 suave permite deslizarse; los impactos fuertes conservan la explosión existente.
 Esta asistencia de navegación utiliza un marco móvil y no añade gravedad
 planetaria.
 
 Pulsa **L** otra vez para volver al vuelo espacial conservando posición y
-velocidad. La zona de activación permite una altura de `max(30, radio × 0.6)`.
-El radio de salida, medido desde el centro, suma el radio del planeta, el radio
-de colisión de la nave y una altura de salida de `max(30, radio × 0.6) + max(15, radio × 0.25)`.
-Ese margen evita alternar repetidamente entre modos en el borde. En Kepler-186f
-la activación llega a 54 unidades de altura y la salida ocurre al superar 76.5;
-el HUD muestra ese límite. Al salir se libera la referencia de inclinación local
-y la proa vuelve a responder en el marco espacial.
+velocidad. La entrada permite aproximarse hasta `max(50, radio exterior × 0.8)`
+unidades por encima de la esfera exterior del planeta. La salida añade un margen
+de `max(15, radio exterior × 0.2)` para evitar alternar entre modos en el borde.
+Las alturas que muestra el HUD están medidas desde el suelo de referencia;
+incluyen la diferencia entre el radio del suelo y el exterior. En Kepler-186f,
+la entrada llega a 72 unidades de altura y la salida ocurre al superar 90.
+Si dos zonas están próximas, se prioriza un planeta con la navegación local
+disponible. Al salir se libera la inclinación local y la proa vuelve a responder
+en el marco espacial.
 
 El modo se desactiva al superar ese radio, atravesar un portal,
 reaparecer o cargar otro destino. No se activa en el sol ni con una nave destruida
