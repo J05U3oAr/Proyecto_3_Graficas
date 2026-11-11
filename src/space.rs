@@ -63,6 +63,7 @@ impl Planet {
                 flow: 0.018,
             },
             "Flareon" => SurfaceEffect::Lava { seconds },
+            "Volcarona" => SurfaceEffect::CrimsonLava { seconds },
             "Metis" => SurfaceEffect::Rock {
                 seconds,
                 seed: 19.0,
@@ -87,7 +88,7 @@ impl Planet {
         match self.name {
             // These Blender meshes have unit-radius ground and separate raised terrain.
             "Nivalis" | "Onice" | "Vespera" | "Prisma" | "Nacar" | "Micelia" | "Azufria"
-            | "Ferrita" => self.transform.radius / self.model.radius,
+            | "Ferrita" | "Volcarona" => self.transform.radius / self.model.radius,
             _ => self.transform.radius,
         }
     }
@@ -126,12 +127,23 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
                 "helix/azufria/azufria.obj",
                 "helix/ferrita/ferrita.obj",
                 "aureon/aureon.obj",
+                "volcarona/volcarona.obj",
+                "volcarona/volcarona.obj",
             ];
             paths
                 .iter()
                 .enumerate()
                 .map(|(index, path)| {
-                    let mut model = if index == 8 {
+                    let mut model = if index >= 20 {
+                        crate::volcarona::load(
+                            assets.join(path),
+                            if index == 20 {
+                                crate::volcarona::SUBDIVISIONS
+                            } else {
+                                0
+                            },
+                        )?
+                    } else if index == 8 {
                         crate::ice_planet::load(assets.join(path))?
                     } else {
                         Model::load(assets.join(path))?
@@ -225,6 +237,7 @@ pub struct Space {
     umbriel_rings: Arc<Model>,
     ring_fragments: &'static [crate::ring_debris::Fragment],
     ring_motion: Option<Arc<crate::debris_physics::Field>>,
+    volcarona_distant: Arc<Model>,
     umbriel_rings_glass: Model,
 }
 
@@ -449,6 +462,16 @@ impl Space {
                 rotation_speed: 0.014,
                 dust: None,
             },
+            Planet {
+                active: false,
+                name: "Volcarona",
+                model: Arc::clone(&models[20]),
+                motion: crate::orbit::Motion::default(),
+                is_sun: false,
+                transform: crate::galaxy::planet_transform(1, 18),
+                rotation_speed: 0.025,
+                dust: None,
+            },
         ];
         let collisions = Arc::new(CollisionWorld::new(
             planets
@@ -472,6 +495,7 @@ impl Space {
             )),
             nivalis: Arc::clone(&models[8]),
             boreal: Arc::clone(&models[3]),
+            volcarona_distant: Arc::clone(&models[21]),
             prisma_opaque: opacity_layer(&models[12], false),
             prisma_glass: opacity_layer(&models[12], true),
             umbriel_rings: Arc::clone(&models[15]),
@@ -659,7 +683,14 @@ impl Space {
     pub fn draw_view(&self, fb: &mut Framebuffer, view: &FlightView, seconds: f32) {
         for planet in self.active_planets() {
             let transform = planet.world_transform(seconds);
-            let model = if planet.name == "Prisma" {
+            let model = if planet.name == "Volcarona"
+                && fb.render_options.automatic_lod
+                && transform.radius * renderer::FLIGHT_FOCAL
+                    / (view.eye() - transform.position).norm().max(0.1)
+                    < 60.0
+            {
+                &self.volcarona_distant
+            } else if planet.name == "Prisma" {
                 &self.prisma_opaque
             } else {
                 &planet.model
@@ -810,6 +841,37 @@ impl Space {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn volcarona_is_an_independent_orbital_world_in_aurora_with_real_volcanoes() {
+        let mut space = Space::load().unwrap();
+        space.configure(1);
+        let body = &space.planets[18];
+        assert_eq!(body.name, "Volcarona");
+        assert!(body.active && !body.is_sun);
+        assert!(!Arc::ptr_eq(&body.model, &space.planets[5].model));
+        assert!(body.model.faces.len() > space.planets[5].model.faces.len() * 4);
+        assert!(body.model.faces.iter().any(|f| f.unlit));
+        assert!(
+            (body.world_transform(30.0).position - body.world_transform(0.0).position).norm()
+                > 100.0
+        );
+        assert!(body.world_transform(30.0).yaw > body.world_transform(0.0).yaw);
+        for galaxy in [0, 2] {
+            space.configure(galaxy);
+            assert!(!space.planets[18].active);
+        }
+        let kepler = &space.planets[6].model;
+        let warm = (1..20)
+            .flat_map(|x| {
+                (1..20).map(move |y| nalgebra_glm::Vec2::new(x as f32 / 20.0, y as f32 / 20.0))
+            })
+            .filter(|&uv| {
+                let c = kepler.textures[0].sample(uv);
+                c.r >= c.g && c.g >= c.b
+            })
+            .count();
+        assert!(warm > 340);
+    }
     #[test]
     fn planetary_gravity_uses_the_current_galaxy_and_tracks_its_moving_worlds() {
         let mut space = Space::load().unwrap();
@@ -1878,7 +1940,7 @@ mod tests {
     fn aurora_draws_and_collides_at_the_same_orbital_positions() {
         let mut space = Space::load().unwrap();
         space.configure(1);
-        assert_eq!(space.active_planets().count(), 6);
+        assert_eq!(space.active_planets().count(), 7);
         assert_eq!(space.sun_position(600.0), Some(Vec3::zeros()));
         let hole = space.new_flight().black_hole;
         for seconds in [0.0, 120.0, 600.0] {

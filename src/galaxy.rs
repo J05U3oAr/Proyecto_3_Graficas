@@ -8,7 +8,7 @@ pub const UMBRIA_CENTER: Vec3 = Vec3::new(-440.0, 40.0, 300.0);
 pub const HELIX_CENTER: Vec3 = Vec3::new(-380.0, -110.0, -420.0);
 pub const AUREON_RADIUS: f32 = 320.0;
 
-pub const BODY_NAMES: [&str; 18] = [
+pub const BODY_NAMES: [&str; 19] = [
     "Siroco",
     "Oquedad",
     "Jovara",
@@ -27,6 +27,7 @@ pub const BODY_NAMES: [&str; 18] = [
     "Azufria",
     "Ferrita",
     "Aureon",
+    "Volcarona",
 ];
 
 pub fn black_hole(galaxy: usize) -> crate::black_hole::BlackHole {
@@ -74,11 +75,11 @@ pub const GALAXIES: [Galaxy; 3] = [
         artwork: 0,
         subtitle: "SISTEMA DE HELIOS II",
         description: [
-            "Helios II ilumina cuatro planetas.",
+            "Helios II ilumina cinco planetas.",
             "Metis acompana a Kepler-186f",
             "entre orbitas amplias y separadas.",
         ],
-        planets: &[4, 5, 0, 6, 7, 2],
+        planets: &[4, 5, 18, 0, 6, 7, 2],
         accent: 0xf1b671,
         sky: 0x26170f,
         map: (295.0, -145.0),
@@ -104,6 +105,13 @@ pub const GALAXIES: [Galaxy; 3] = [
 ];
 
 pub fn planet_transform(galaxy: usize, planet: usize) -> WorldTransform {
+    if planet == 18 {
+        return WorldTransform {
+            position: crate::orbit::VOLCARONA.offset(0.0),
+            radius: 78.0,
+            yaw: 0.0,
+        };
+    }
     if planet == 17 || (galaxy == 0 && GALAXIES[0].planets.contains(&planet)) {
         let radius = match planet {
             0 => 22.0,
