@@ -607,7 +607,11 @@ impl Space {
             view,
             ring_transform(planet, model, seconds),
             self.sun_position(seconds),
-            crate::shaders::SurfaceEffect::RingIce,
+            if glass {
+                crate::shaders::SurfaceEffect::RingIce
+            } else {
+                crate::shaders::SurfaceEffect::Asteroid
+            },
         );
     }
 

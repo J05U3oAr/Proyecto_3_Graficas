@@ -10,15 +10,14 @@ import random
 import sys
 
 import bpy
-import bmesh
-from mathutils import Vector
+from mathutils import Quaternion, Vector
 
 DIRECTORIO_SALIDA = ""
 SEMILLA = 61327
 INCLINACION = math.radians(27)
 BANDAS = [(1.27,1.36,1),(1.40,1.53,2),(1.59,1.70,3)]
 ANILLOS = [
-    ("Fragmentos de hielo",(0.70,0.83,0.94),1.0),
+    ("Asteroides de roca helada",(0.32,0.38,0.45),1.0),
     ("Velo interior azulado",(0.42,0.53,0.65),0.46),
     ("Cinturon nacarado",(0.68,0.77,0.86),0.58),
     ("Velo exterior azul grisaceo",(0.38,0.47,0.59),0.40),
@@ -159,25 +158,56 @@ def main():
         obj = make_mesh(scene,f"Umbriel | banda de hielo {index+1:02}",vertices,faces,ring_materials[material])
         obj["material_exportado"] = material
         rings.append(obj)
-    ico = bmesh.new()
-    bmesh.ops.create_icosphere(ico,subdivisions=1,radius=1)
-    ico.verts.ensure_lookup_table()
-    ico.verts.index_update()
-    template_vertices = [v.co.copy() for v in ico.verts]
-    template_faces = [tuple(v.index for v in face.verts) for face in ico.faces]
-    ico.free()
+    # Reuse the actual asteroid meshes authored in Blender, not new primitive spheres.
+    asteroid_file = (root/"assets/asteroids/asteroides.blend" if root else
+                     output.parent.parent/"asteroids/asteroides.blend")
+    if not asteroid_file.is_file():
+        raise FileNotFoundError(f"Genera primero los asteroides con create_asteroids.py: {asteroid_file}")
+    source_names = ["pequeno_fragmento", "pequeno_erosionado", "mediano_alargado",
+                    "mediano_crateres", "grande_macizo", "grande_fracturado"]
+    with bpy.data.libraries.load(str(asteroid_file), link=False) as (available, imported):
+        imported.objects = [name+"_lod" for name in source_names]
+    templates = []
+    for source in imported.objects:
+        if source is None:
+            raise ValueError("Falta una variante LOD en asteroides.blend")
+        mesh = source.data
+        mesh.calc_loop_triangles()
+        vertices = [Vector((v.co.x, v.co.z, -v.co.y)) for v in mesh.vertices]
+        center = Vector(tuple((min(v[i] for v in vertices)+max(v[i] for v in vertices))*0.5
+                              for i in range(3)))
+        radius = max((v-center).length for v in vertices)
+        templates.append(([(v-center)/radius for v in vertices],
+                          [tuple(face.vertices) for face in mesh.loop_triangles]))
     rng = random.Random(SEMILLA)
+    placed = []
     for i in range(96):
-        inner,outer,_ = rng.choice(BANDAS)
-        radius = rng.uniform(inner,outer)
-        angle = rng.random()*math.tau
-        center = Vector((radius*math.cos(angle),rng.uniform(-0.006,0.006),radius*math.sin(angle)))
-        size = rng.uniform(0.004,0.0125)
-        stretch = Vector((rng.uniform(0.6,1.0),rng.uniform(0.5,0.9),rng.uniform(0.6,1.0)))
-        vertices = [tilt(center+Vector((v.x*stretch.x,v.y*stretch.y,v.z*stretch.z))*size) for v in template_vertices]
-        obj = make_mesh(scene,f"Umbriel | fragmento helado {i+1:03}",vertices,template_faces,ring_materials[0])
+        variant = i % len(templates)
+        template_vertices, template_faces = templates[variant]
+        small, large = [(0.004,0.008),(0.009,0.016),(0.018,0.027)][variant//2]
+        size = rng.uniform(small, large)
+        for attempt in range(1000):
+            inner,outer,_ = rng.choice(BANDAS)
+            radius = rng.uniform(inner+size,outer-size)
+            angle = rng.random()*math.tau
+            center = Vector((radius*math.cos(angle),rng.uniform(-0.005,0.005),radius*math.sin(angle)))
+            if all((center-other).length > size+other_size+0.003 for other,other_size in placed):
+                break
+        else:
+            raise ValueError("No hay espacio libre para un asteroide en los anillos")
+        placed.append((center.copy(),size))
+        axis = Vector((rng.uniform(-1,1),rng.uniform(-1,1),rng.uniform(-1,1))).normalized()
+        rotation = Quaternion(axis,rng.random()*math.tau)
+        vertices = [tilt(center+(rotation @ v)*size) for v in template_vertices]
+        obj = make_mesh(scene,f"Umbriel | asteroide helado {i+1:03} | {source_names[variant]}",
+                        vertices,template_faces,ring_materials[0])
         obj["material_exportado"] = 0
+        obj["modelo_origen"] = source_names[variant]+"_lod"
+        obj["radio_en_juego"] = size*155.0
         rings.append(obj)
+    # Templates remain in the source .blend; the Umbriel scene only contains the placed copies.
+    for source in imported.objects:
+        bpy.data.objects.remove(source,do_unlink=True)
     for obj in rings:
         scene.collection.objects.unlink(obj)
         ring_collection.objects.link(obj)
@@ -197,7 +227,7 @@ def main():
                 area.spaces.active.shading.color_type = "MATERIAL"
     bpy.context.preferences.filepaths.save_version = 0
     bpy.ops.wm.save_as_mainfile(filepath=str(output/"umbriel.blend"),compress=True)
-    print(f"UMBRIEL: cuerpo {body_triangles} triangulos, anillos {ring_triangles} triangulos, 96 fragmentos; {output}",flush=True)
+    print(f"UMBRIEL: cuerpo {body_triangles} triangulos, anillos {ring_triangles} triangulos, 96 asteroides de Blender; {output}",flush=True)
 
 
 if __name__ == "__main__":
