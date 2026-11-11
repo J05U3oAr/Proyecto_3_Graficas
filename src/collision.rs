@@ -445,6 +445,28 @@ impl PlanetCollider {
 }
 
 impl CollisionWorld {
+    pub fn celestial_acceleration(&self, position: Vec3, time: f32) -> Vec3 {
+        let mut snapshots = Vec::new();
+        let mut total = Vec3::zeros();
+        for body in &self.planets {
+            let center = if let Some((field, index)) = &body.debris {
+                let key = Arc::as_ptr(field) as usize;
+                if !snapshots.iter().any(|(id, _)| *id == key) {
+                    snapshots.push((key, field.sample(time)));
+                }
+                let (_, states) = snapshots.iter().find(|(id, _)| *id == key).unwrap();
+                if states[*index].captured {
+                    continue;
+                }
+                states[*index].position
+            } else {
+                body.center(time)
+            };
+            total += crate::planet_gravity::attraction(center, body.transform.radius, position);
+        }
+        crate::planet_gravity::limit(total)
+    }
+
     pub fn new(planets: Vec<PlanetCollider>) -> Self {
         Self { planets }
     }
@@ -585,9 +607,19 @@ mod tests {
                 .with_debris(Arc::clone(&field), 0),
         ]);
         assert!(!world.sphere_clear(transform.position, 1.0, 0.0));
+        assert!(
+            world
+                .celestial_acceleration(transform.position + Vec3::z() * 12.0, 0.0)
+                .z
+                < 0.0
+        );
         let state = field.sample(2.0)[0];
         assert!(state.captured);
         assert!(world.sphere_clear(state.position, 1.0, 2.0));
+        assert_eq!(
+            world.celestial_acceleration(state.position + Vec3::z() * 12.0, 2.0),
+            Vec3::zeros()
+        );
         assert!(
             world
                 .move_ship(
