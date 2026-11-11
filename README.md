@@ -61,7 +61,7 @@ Las galaxias del mapa tienen ilustraciones procedurales diferentes: Aurora es un
 | Hélice | Siroco, Oquedad, Jovara y Boreal | Cuatro mundos y 120 asteroides dispersos |
 | Umbría | Asterion, Ónice, Nivalis, Véspera, Prisma, Nácar y Umbriel | Sol blanco azulado masivo, mundos de roca, hielo y cristal, un gigante gaseoso anillado y 480 asteroides |
 
-Los modelos de los asteroides se crean en Blender. Sus instancias se distribuyen con una semilla fija por galaxia y no tienen colisión. El agujero negro está presente en los tres destinos. Las mallas y texturas de los planetas se cargan una sola vez; al confirmar otro destino se actualizan las transformaciones y se reconstruyen sus colisiones antes del despegue. El acercamiento a un planeta conserva la misma escena de vuelo.
+Los modelos de los asteroides se crean en Blender. Sus instancias se distribuyen con una semilla fija por galaxia y tienen colisión contra sus mallas. El agujero negro está presente en los tres destinos. Las mallas y texturas de los planetas se cargan una sola vez; al confirmar otro destino se actualizan las transformaciones y se reconstruyen sus colisiones antes del despegue. El acercamiento a un planeta conserva la misma escena de vuelo.
 
 | Control | Acción |
 | --- | --- |
@@ -361,7 +361,16 @@ alturas, distancias y orientaciones. Predominan los fragmentos pequeños y los
 grandes son menos frecuentes. La distribución utiliza la semilla de cada galaxia,
 evita solapamientos entre rocas y conserva espacio libre alrededor del despegue,
 el sol, las órbitas planetarias y los anillos de Umbriel. Las rocas rotan lentamente
-según el tiempo transcurrido; por ahora conservan su función decorativa sin colisión.
+según el tiempo transcurrido. Todas tienen colisión contra su malla detallada,
+independiente del LOD visible, y su volumen de contacto acompaña su rotación.
+Las copias comparten las estructuras BVH de los seis modelos para evitar
+reconstruir geometría de colisión por cada instancia.
+
+Un contacto lento detiene el avance hacia la roca y permite alejarse o deslizarse.
+Un impacto cuya velocidad relativa hacia la superficie alcanza 28 unidades por
+segundo destruye la nave, muestra la misma explosión que los planetas y la
+hace reaparecer en el punto de partida después de dos segundos. El aviso identifica
+si el choque fue contra un asteroide pequeño, mediano o grande.
 
 
 Los anillos de **Umbriel** también utilizan las seis variantes de
