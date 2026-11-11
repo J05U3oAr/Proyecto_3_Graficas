@@ -35,6 +35,7 @@ impl Planet {
     pub fn surface_effect(&self, seconds: f32) -> crate::shaders::SurfaceEffect {
         use crate::shaders::SurfaceEffect;
         match self.name {
+            "Aureon" => SurfaceEffect::GoldenStar { seconds },
             "Nivalis" => SurfaceEffect::Ice {
                 seconds,
                 light: Vec3::new(-400.0, 800.0, 1000.0),
@@ -124,6 +125,7 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
                 "helix/micelia/micelia.obj",
                 "helix/azufria/azufria.obj",
                 "helix/ferrita/ferrita.obj",
+                "aureon/aureon.obj",
             ];
             paths
                 .iter()
@@ -435,6 +437,16 @@ impl Space {
                 rotation_speed: 0.01,
                 dust: None,
             },
+            Planet {
+                active: true,
+                name: "Aureon",
+                model: Arc::clone(&models[19]),
+                motion: crate::orbit::Motion::default(),
+                is_sun: true,
+                transform: crate::galaxy::planet_transform(0, 17),
+                rotation_speed: 0.014,
+                dust: None,
+            },
         ];
         let collisions = Arc::new(CollisionWorld::new(
             planets
@@ -483,7 +495,7 @@ impl Space {
             } else if index == 2 {
                 crate::orbit::umbria_motion(planet_index)
             } else {
-                crate::orbit::Motion::default()
+                crate::orbit::helix_motion(planet_index)
             };
         }
         let mut colliders: Vec<_> = self
@@ -1851,7 +1863,10 @@ mod tests {
             );
         }
         space.configure(0);
-        assert!(space.solar_lighting(0.0).is_none());
+        assert_eq!(
+            space.solar_lighting(0.0).unwrap().position,
+            crate::galaxy::HELIX_CENTER
+        );
     }
     #[test]
     fn helix_frontier_terrain_has_deep_basins_raised_ranges_and_rotating_mesh_contacts() {
@@ -2075,9 +2090,14 @@ mod tests {
         }
         assert!(fast.crash.is_none() && fast.respawn_notice > 0.0);
         assert_eq!(fast.position, crate::flight::SPAWN_POSITION);
-        fast.position = start;
-        fast.velocity = -normal * 62.0;
-        fast.advance(1.0 / 60.0, (0.0, 0.0), true, false);
+        // The planet has moved during the explosion and respawn delay.
+        space.approach(&mut fast, "Siroco").unwrap();
+        for _ in 0..180 {
+            fast.advance(1.0 / 60.0, (1.0, 0.0), true, false);
+            if fast.crash.is_some() {
+                break;
+            }
+        }
         assert!(
             fast.crash.is_some(),
             "Respawning must retain the collision world"
@@ -2103,7 +2123,7 @@ mod tests {
     }
 
     #[test]
-    fn boreal_has_a_lit_cloud_map_and_is_visible_below_the_launch_planets() {
+    fn boreal_preserves_its_lit_turquoise_cloud_map_in_the_new_orbit() {
         let space = Space::load().unwrap();
         let planet = space.planets.iter().find(|p| p.name == "Boreal").unwrap();
         assert_eq!(planet.model.textures.len(), 1);
@@ -2116,10 +2136,13 @@ mod tests {
         );
         let flight = Flight::new();
         let mut fb = Framebuffer::new(1280, 840);
-        let view = FlightView::new(&flight, fb.width, fb.height);
+        let view = FlightView::new(&flight, fb.width, fb.height).looking_at(
+            planet.transform.position + Vec3::z() * 140.0,
+            planet.transform.position,
+        );
         let center = view.project(planet.transform.position).unwrap();
-        assert!((180.0..350.0).contains(&center.x));
-        assert!((500.0..630.0).contains(&center.y));
+        assert!((center.x - 640.0).abs() < 1.0);
+        assert!((center.y - 420.0).abs() < 1.0);
         renderer::draw_world_model(&mut fb, &planet.model, &view, planet.transform);
         let cyan = fb
             .pixels
@@ -2149,16 +2172,19 @@ mod tests {
     }
 
     #[test]
-    fn jovara_is_visible_above_the_launch_route_with_its_blue_polar_texture() {
+    fn jovara_preserves_its_blue_polar_texture_in_the_new_orbit() {
         let space = Space::load().unwrap();
         let planet = space.planets.iter().find(|p| p.name == "Jovara").unwrap();
         assert_eq!(planet.model.textures.len(), 1);
         let flight = Flight::new();
         let mut frame = Framebuffer::new(1280, 840);
-        space.draw(&mut frame, &flight, 0.0);
-        let view = FlightView::new(&flight, frame.width, frame.height);
+        let view = FlightView::new(&flight, frame.width, frame.height).looking_at(
+            planet.transform.position + Vec3::z() * 120.0,
+            planet.transform.position,
+        );
+        renderer::draw_world_model(&mut frame, &planet.model, &view, planet.transform);
         let point = view.project(planet.transform.position).unwrap();
-        assert!((50.0..250.0).contains(&point.y));
+        assert!((point.y - 420.0).abs() < 1.0);
         let color = frame.pixels[point.y as usize * frame.width + point.x as usize];
         let (r, g, b) = ((color >> 16) & 255, (color >> 8) & 255, color & 255);
         assert!(

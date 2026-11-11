@@ -5,8 +5,10 @@ pub const KEPLER_RADIUS: f32 = 90.0;
 pub const SUN_RADIUS: f32 = 130.0;
 pub const ASTERION_RADIUS: f32 = 360.0;
 pub const UMBRIA_CENTER: Vec3 = Vec3::new(-440.0, 40.0, 300.0);
+pub const HELIX_CENTER: Vec3 = Vec3::new(-420.0, 40.0, -180.0);
+pub const AUREON_RADIUS: f32 = 320.0;
 
-pub const BODY_NAMES: [&str; 17] = [
+pub const BODY_NAMES: [&str; 18] = [
     "Siroco",
     "Oquedad",
     "Jovara",
@@ -24,6 +26,7 @@ pub const BODY_NAMES: [&str; 17] = [
     "Micelia",
     "Azufria",
     "Ferrita",
+    "Aureon",
 ];
 
 pub fn black_hole(galaxy: usize) -> crate::black_hole::BlackHole {
@@ -53,13 +56,13 @@ pub const GALAXIES: [Galaxy; 3] = [
     Galaxy {
         name: "Helice",
         artwork: 1,
-        subtitle: "FRONTERA DE EXPLORACION",
+        subtitle: "SISTEMA DE AUREON",
         description: [
-            "Siete mundos, siete horizontes.",
-            "Hongos gigantes, calderas de azufre",
-            "y montanas de cobre entre crateres.",
+            "Un gran sol y siete mundos en orbita.",
+            "Hongos, azufre y montanas de cobre",
+            "iluminados por la luz de Aureon.",
         ],
-        planets: &[0, 1, 2, 3, 14, 15, 16],
+        planets: &[17, 0, 1, 2, 3, 14, 15, 16],
         accent: 0x78eed5,
         sky: 0x0d1725,
         map: (-285.0, -35.0),
@@ -101,6 +104,23 @@ pub const GALAXIES: [Galaxy; 3] = [
 ];
 
 pub fn planet_transform(galaxy: usize, planet: usize) -> WorldTransform {
+    if planet == 17 || (galaxy == 0 && GALAXIES[0].planets.contains(&planet)) {
+        let radius = match planet {
+            0 => 22.0,
+            1 => 25.0,
+            2 => 35.0,
+            3 => 42.0,
+            14 => 62.0,
+            15 => 53.0,
+            16 => 49.0,
+            _ => AUREON_RADIUS,
+        };
+        return WorldTransform {
+            position: HELIX_CENTER + crate::orbit::helix_motion(planet).offset(0.0),
+            radius,
+            yaw: 0.0,
+        };
+    }
     // Frontier worlds keep their geographical origin even while inactive elsewhere.
     if let Some((position, radius, yaw)) = match planet {
         14 => Some(([-310.0, 25.0, -330.0], 62.0, 0.12)),

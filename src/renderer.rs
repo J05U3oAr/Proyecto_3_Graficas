@@ -406,6 +406,7 @@ fn draw_world_with_basis(
         crate::shaders::SurfaceEffect::Kepler { .. }
             | crate::shaders::SurfaceEffect::Solar { .. }
             | crate::shaders::SurfaceEffect::Stellar { .. }
+            | crate::shaders::SurfaceEffect::GoldenStar { .. }
             | crate::shaders::SurfaceEffect::Asteroid
             | crate::shaders::SurfaceEffect::Ice { .. }
             | crate::shaders::SurfaceEffect::Obsidian
@@ -523,6 +524,7 @@ fn draw_world_with_basis(
                 crate::shaders::SurfaceEffect::Rock { .. }
                     | crate::shaders::SurfaceEffect::Ice { .. }
                     | crate::shaders::SurfaceEffect::Stellar { .. }
+                    | crate::shaders::SurfaceEffect::GoldenStar { .. }
                     | crate::shaders::SurfaceEffect::Asteroid
                     | crate::shaders::SurfaceEffect::Obsidian
                     | crate::shaders::SurfaceEffect::Snow { .. }

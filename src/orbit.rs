@@ -2,6 +2,29 @@ use nalgebra_glm::Vec3;
 
 pub const ORBIT_SPEED_MULTIPLIER: f32 = 3.0;
 
+/// Non-overlapping lanes around Aureon; inclinations make the system readable in 3D.
+pub fn helix_motion(body: usize) -> Motion {
+    let (radius, speed, phase, inclination) = match body {
+        0 => (490.0, 0.016, -0.55, 0.06),
+        1 => (710.0, 0.013, 1.25, -0.08),
+        2 => (950.0, 0.0105, 3.60, 0.07),
+        3 => (1190.0, 0.0085, -2.10, -0.06),
+        14 => (1460.0, 0.0068, -0.90, 0.12),
+        15 => (1760.0, 0.0055, 2.30, -0.10),
+        16 => (2110.0, 0.0045, 0.38, 0.055),
+        _ => return Motion::default(),
+    };
+    Motion {
+        primary: Some(Orbit {
+            radius,
+            speed,
+            phase,
+            inclination,
+        }),
+        satellite: None,
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct Orbit {
     pub radius: f32,
@@ -156,6 +179,30 @@ pub fn aurora_motion(body: usize) -> Motion {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn seven_helix_planets_orbit_aureon_in_separate_lanes_with_finite_velocities() {
+        let mut previous_outer = crate::galaxy::AUREON_RADIUS;
+        for body in [0, 1, 2, 3, 14, 15, 16] {
+            let transform = crate::galaxy::planet_transform(0, body);
+            let motion = helix_motion(body);
+            let orbit = motion.primary.expect("Every Helice planet needs an orbit");
+            assert!(orbit.radius - transform.radius - previous_outer > 90.0);
+            previous_outer = orbit.radius + transform.radius;
+            for time in [0.0, 40.0, 180.0, 1800.0] {
+                let center = transform.position + motion.displacement(time);
+                assert!(
+                    ((center - crate::galaxy::HELIX_CENTER).norm() - orbit.radius).abs() < 0.002
+                );
+                assert!(motion.velocity(time).iter().all(|v| v.is_finite()));
+                assert!(motion.velocity(time).norm() > 0.0);
+            }
+        }
+        let star = crate::galaxy::planet_transform(0, 17);
+        assert_eq!(star.position, crate::galaxy::HELIX_CENTER);
+        assert!(star.radius >= 320.0);
+        assert!((star.position - crate::flight::SPAWN_POSITION).norm() > star.radius + 110.0);
+        assert_eq!(helix_motion(17).velocity(100.0), Vec3::zeros());
+    }
     #[test]
     fn umbria_is_compact_spread_around_departure_and_keeps_clear_flight_gaps() {
         // Umbriel includes the complete ring field in the clearance calculation.

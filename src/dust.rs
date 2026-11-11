@@ -334,9 +334,12 @@ mod tests {
         let flight = Flight::new();
         let render = |seconds| {
             let mut fb = Framebuffer::new(1280, 840);
-            space.draw(&mut fb, &flight, 0.0);
-            let view = FlightView::new(&flight, fb.width, fb.height);
             let planet = &space.planets[0];
+            let view = FlightView::new(&flight, fb.width, fb.height).looking_at(
+                planet.transform.position + Vec3::z() * 85.0,
+                planet.transform.position,
+            );
+            space.draw_view(&mut fb, &view, 0.0);
             planet
                 .dust
                 .as_ref()

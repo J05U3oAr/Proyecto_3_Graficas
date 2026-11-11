@@ -32,6 +32,9 @@ pub enum SurfaceEffect {
     Stellar {
         seconds: f32,
     },
+    GoldenStar {
+        seconds: f32,
+    },
     Kepler {
         seconds: f32,
     },
@@ -257,6 +260,19 @@ fn ice_surface(effect: SurfaceEffect, base: Color, p: Vec3) -> Color {
 impl SurfaceEffect {
     pub fn modulate(self, color: Color, point: Vec3) -> Color {
         match self {
+            Self::GoldenStar { seconds } => {
+                let drift = Vec3::new(seconds * 0.08, -seconds * 0.04, seconds * 0.06);
+                let cells = noise::noise(point * 28.0 + drift);
+                let filaments = noise::noise(point * 83.0 - drift * 1.4);
+                let heat = noise::smoothstep(0.18, 0.85, cells * 0.75 + filaments * 0.25);
+                let spots = noise::smoothstep(0.68, 0.83, noise::noise(point * 7.0 + drift * 0.14));
+                Color::new(
+                    255,
+                    (103.0 + heat * 141.0) as u8,
+                    (12.0 + heat * 91.0) as u8,
+                )
+                .shaded(1.0 - spots * 0.65)
+            }
             Self::Asteroid => {
                 let grain = noise::noise(point * 97.0);
                 color.shaded(0.84 + grain * 0.25)
@@ -442,6 +458,7 @@ impl SurfaceEffect {
             Self::Snow { .. } => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Obsidian => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Stellar { .. } => self.modulate(texture.sample(uv), sphere_direction(uv).0),
+            Self::GoldenStar { .. } => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Ice { .. } => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Kepler { seconds } => {
                 let (coordinates, intensity) = kepler_flow(uv, seconds);
