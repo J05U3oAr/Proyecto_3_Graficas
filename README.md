@@ -4,13 +4,101 @@ Exploración espacial en Rust con un menú principal, un hangar con selección l
 
 Los modelos se cargan desde archivos OBJ; el programa transforma y rasteriza los triángulos en un framebuffer propio con búfer de profundidad. `minifb` se usa para la ventana y la entrada, no para dibujar modelos 3D. El menú también se dibuja en la CPU, incluidos textos, tarjetas, estrellas y plataformas luminosas.
 
+## Galería de fotos
+
+Capturas generadas con el renderizador por software del proyecto. Haz clic en
+una imagen para verla a resolución completa. Las vistas individuales permiten
+comparar los materiales y la geometría de cada mundo; no representan sus escalas relativas.
+
+### Pantalla inicial
+
+[![Pantalla inicial de Beyond the Interstellar](docs/assets/galeria/inicio.png)](docs/assets/galeria/inicio.png)
+
+### Selección de naves
+
+| Benatar | TIE Silencer | Crucer espacial |
+| --- | --- | --- |
+| [![Benatar](docs/assets/galeria/hangar-benatar.png)](docs/assets/galeria/hangar-benatar.png) | [![TIE Silencer](docs/assets/galeria/hangar-tie-silencer.png)](docs/assets/galeria/hangar-tie-silencer.png) | [![Crucer espacial](docs/assets/galeria/hangar-crucer.png)](docs/assets/galeria/hangar-crucer.png) |
+
+### Galaxia Aurora
+
+| Aurora en el selector de galaxias | Sol: Helios II |
+| --- | --- |
+| [![Aurora en el selector de galaxias](docs/assets/galeria/aurora-mapa.png)](docs/assets/galeria/aurora-mapa.png) | [![Sol: Helios II](docs/assets/galeria/aurora-helios-ii.png)](docs/assets/galeria/aurora-helios-ii.png) |
+
+| Flareon | Volcarona | Siroco |
+| --- | --- | --- |
+| [![Flareon](docs/assets/galeria/aurora-flareon.png)](docs/assets/galeria/aurora-flareon.png) | [![Volcarona](docs/assets/galeria/aurora-volcarona.png)](docs/assets/galeria/aurora-volcarona.png) | [![Siroco](docs/assets/galeria/aurora-siroco.png)](docs/assets/galeria/aurora-siroco.png) |
+
+| Kepler-186f | Metis | Jovara |
+| --- | --- | --- |
+| [![Kepler-186f](docs/assets/galeria/aurora-kepler-186f.png)](docs/assets/galeria/aurora-kepler-186f.png) | [![Metis](docs/assets/galeria/aurora-metis.png)](docs/assets/galeria/aurora-metis.png) | [![Jovara](docs/assets/galeria/aurora-jovara.png)](docs/assets/galeria/aurora-jovara.png) |
+
+### Galaxia Hélice
+
+| Hélice en el selector de galaxias | Sol: Aureon |
+| --- | --- |
+| [![Hélice en el selector de galaxias](docs/assets/galeria/helice-mapa.png)](docs/assets/galeria/helice-mapa.png) | [![Sol: Aureon](docs/assets/galeria/helice-aureon.png)](docs/assets/galeria/helice-aureon.png) |
+
+| Siroco | Oquedad | Jovara |
+| --- | --- | --- |
+| [![Siroco](docs/assets/galeria/helice-siroco.png)](docs/assets/galeria/helice-siroco.png) | [![Oquedad](docs/assets/galeria/helice-oquedad.png)](docs/assets/galeria/helice-oquedad.png) | [![Jovara](docs/assets/galeria/helice-jovara.png)](docs/assets/galeria/helice-jovara.png) |
+
+| Boreal | Micelia | Azufria |
+| --- | --- | --- |
+| [![Boreal](docs/assets/galeria/helice-boreal.png)](docs/assets/galeria/helice-boreal.png) | [![Micelia](docs/assets/galeria/helice-micelia.png)](docs/assets/galeria/helice-micelia.png) | [![Azufria](docs/assets/galeria/helice-azufria.png)](docs/assets/galeria/helice-azufria.png) |
+
+| Ferrita |  |  |
+| --- | --- | --- |
+| [![Ferrita](docs/assets/galeria/helice-ferrita.png)](docs/assets/galeria/helice-ferrita.png) |  |  |
+
+### Galaxia Umbría
+
+| Umbría en el selector de galaxias | Sol: Asterion |
+| --- | --- |
+| [![Umbría en el selector de galaxias](docs/assets/galeria/umbria-mapa.png)](docs/assets/galeria/umbria-mapa.png) | [![Sol: Asterion](docs/assets/galeria/umbria-asterion.png)](docs/assets/galeria/umbria-asterion.png) |
+
+| Ónice | Nivalis | Véspera |
+| --- | --- | --- |
+| [![Ónice](docs/assets/galeria/umbria-onice.png)](docs/assets/galeria/umbria-onice.png) | [![Nivalis](docs/assets/galeria/umbria-nivalis.png)](docs/assets/galeria/umbria-nivalis.png) | [![Véspera](docs/assets/galeria/umbria-vespera.png)](docs/assets/galeria/umbria-vespera.png) |
+
+| Prisma | Nácar | Umbriel |
+| --- | --- | --- |
+| [![Prisma](docs/assets/galeria/umbria-prisma.png)](docs/assets/galeria/umbria-prisma.png) | [![Nácar](docs/assets/galeria/umbria-nacar.png)](docs/assets/galeria/umbria-nacar.png) | [![Umbriel](docs/assets/galeria/umbria-umbriel.png)](docs/assets/galeria/umbria-umbriel.png) |
+
 ## Ejecutar
 
-Instala Rust y Cargo y, desde esta carpeta, ejecuta:
+### Prerrequisitos
+
+- Rust estable y Cargo, instalados desde [rustup.rs](https://rustup.rs/). El proyecto usa la edición 2024.
+- Una sesión gráfica activa para abrir la ventana.
+- Windows: herramientas de compilación de C++ de Visual Studio para el toolchain MSVC.
+- macOS: herramientas de línea de comandos de Xcode (`xcode-select --install`).
+- Linux: compilador de C/C++ y dependencias de desarrollo de X11 o Wayland para `minifb`, según el entorno.
+
+### Instalación y ejecución
+
+Desde una terminal, clona el repositorio y entra en su carpeta:
+
+```bash
+git clone https://github.com/J05U3oAr/Proyecto_3_Graficas.git
+cd Proyecto_3_Graficas
+```
+
+Ejecuta desde la raíz del repositorio para que se encuentren los archivos de `assets/`:
 
 ```bash
 cargo run --release
 ```
+
+Para ejecutar las pruebas automatizadas:
+
+```bash
+cargo test
+```
+
+Los modelos y las texturas necesarios están incluidos. Blender y Python se usan
+para editar o regenerar recursos; no son necesarios para jugar.
 
 En macOS, `src/window_state.rs` corrige la lectura invertida del foco de ventana
 del backend de `minifb 0.26`. Así, el viaje y el vuelo avanzan cuando la ventana
@@ -19,6 +107,64 @@ lectura original de sus backends. La visibilidad del cursor se actualiza solo al
 cambiar de estado, equilibrando las llamadas de ocultar/mostrar en macOS.
 
 El primer inicio compila las dependencias declaradas en `Cargo.toml`. Rayon reparte la rasterización de planetas, la mezcla del polvo y el cálculo por píxel del agujero negro entre los núcleos disponibles. El pipeline gráfico y la física siguen implementados en el proyecto; Rayon no proporciona modelos, cámaras ni funciones de dibujo.
+
+## Integrantes y contribuciones
+
+| Integrante | Carné | Contribución principal |
+| --- | --- | --- |
+| Hugo Méndez | 241265 | Galaxia Umbría y nave Benatar: modelos, materiales, shaders e integración de su identidad visual. |
+| Pedro Caso | 241286 | Galaxia Aurora y nave TIE Silencer: desarrollo e integración de sus recursos y características. |
+| Arodi Chávez | 241112 | Galaxia Hélice y nave Crucer espacial: desarrollo e integración de sus recursos y características. |
+
+## Características solicitadas para evaluación
+
+La siguiente lista señala dónde comprobar las características implementadas.
+Los puntos indicados son los máximos de la rúbrica para cada criterio; su
+asignación depende de la demostración y de la explicación del equipo.
+
+| Característica | Puntos | Dónde y cómo comprobarla |
+| --- | ---: | --- |
+| Cinco planetas distinguibles que orbitan, rotan y permiten acercamiento continuo | 50 | En Umbría: Ónice, Véspera, Prisma, Nácar y Umbriel. Acercarse, rodear cada mundo y alejarse sin cambiar de escena; observar su movimiento respecto a Asterion. |
+| Cuatro shaders propios con resultados distintos | 24 | Ónice: roca y escarcha; Véspera: nieve y estratos; Prisma: cristal con reflexión y refracción; Nácar: hielo glaciar y canales. Implementaciones en `src/shaders.rs`, `src/crystal.rs` y `src/glacier.rs`. |
+| Shader animado | 8 | En Umbría, observar el plasma, las manchas y las protuberancias de Asterion aun con la nave detenida. Código en `src/stellar.rs`. |
+| Deformación geométrica mediante ruido | 10 | En Aurora, acercarse a Volcarona para observar el relieve de su esfera. `src/volcarona.rs` desplaza los vértices mediante ruido antes de rasterizar. |
+| Generación o subdivisión propia de geometría | 10 | Volcarona subdivide triángulos y construye volcanes en el pipeline de software. Revisar `generate` y `subdivide` en `src/volcarona.rs`; es una etapa distinta de la deformación. |
+| Navegación local | 8 | Cerca de un planeta, pulsar `L`; rodearlo con WASD y ajustar altura con `Q/E`. Mantener orientación y observación del entorno durante el vuelo. |
+| Aceleración, frenado y giro progresivos dependientes del tiempo | 8 | Mantener y soltar WASD, frenar con `Espacio` y girar con mouse o flechas (`C`). Revisar la integración temporal en `src/flight.rs`. |
+| Atracción gravitatoria planetaria | 10 | En vuelo espacial, fuera del modo local, acercarse a un planeta, soltar los controles y observar la deriva. Código en `src/planet_gravity.rs` y su integración en el vuelo. |
+| Colisiones con planetas | 4 | Rozar lentamente el terreno: la nave no lo atraviesa. Un impacto rápido provoca destrucción y reaparición. Código en `src/collision.rs`. |
+| Descarte de objetos fuera de la vista | 7 | En vuelo, alternar `F5` y comparar el contador de triángulos del HUD con el mismo encuadre. Código en `src/renderer.rs`. |
+| Niveles de detalle según distancia | 8 | Alejarse de Nácar, Volcarona o los asteroides y alternar `F4` para comparar los triángulos procesados con LOD automático y detalle alto. Código en `src/space.rs`. |
+| Coherencia visual y composición | Hasta 5 | Comparar las identidades cálida de Aurora, azul y dorada de Hélice, y fría de Umbría, junto con sus naves y materiales. |
+| Claridad de controles y recorrido | Hasta 5 | Consultar Controles e Instrucciones desde el menú; usar el HUD para reconocer dirección activa, velocidad y disponibilidad del modo local. |
+
+La lista técnica suma hasta **147 puntos**, más hasta **10 de presentación**;
+la nota máxima es **100**. No se incluyen aquí puntos adicionales por modelos
+de superficie, distribución procedural o mapeo de normales.
+
+
+## Recursos externos y asistencia de IA
+
+Se utilizó principalmente **OpenAI Codex** como asistencia para programación,
+depuración, pruebas, documentación y scripts de creación de modelos. También se
+utilizó **ImageGen** para recursos de textura: Boreal y la variante cálida de
+Kepler-186f tienen su procedencia registrada en
+[créditos de texturas](assets/planets/textures/README.md) y
+[registro de Kepler-186f](assets/planets/textures/kepler-warm.provenance.json).
+
+| Recurso o referencia | Uso y atribución |
+| --- | --- |
+| Proyectos anteriores del equipo | Bases reutilizadas y adaptadas del renderizador y las naves. Repositorios y alcance detallados en [Integración y procedencia](#integración-y-procedencia). |
+| Benatar de Guardianes de la Galaxia | El [modelo de Naruret Limst en Sketchfab](https://sketchfab.com/3d-models/guardians-of-the-galaxy-benatar-ship-model-90feb21135734062ac03557cbf2dc328) se utilizó como referencia visual para el modelo propio; su malla no se incorporó al juego. |
+| Fotografía de Júpiter para Jovara | Imagen PIA21641, con crédito NASA/JPL-Caltech/SwRI/MSSS/Betsy Asher Hall/Gervasio Robles. Fuente y adaptación en [créditos de texturas](assets/planets/textures/README.md#jovara). |
+| Imágenes de portales aportadas al proyecto | Recursos externos adaptados a PNG y atlas animado; no se atribuye su creación al equipo. Archivos y tratamiento en [procedencia de los portales](assets/portals/README.md#imágenes-proporcionadas-por-el-usuario). |
+| Referencias visuales compartidas durante el desarrollo | Imágenes de galaxias, asteroides, glaciares y naves para orientar el modelado y los materiales. Los diseños de Benatar, TIE Silencer y Crucer espacial se basan en sus respectivas obras de ficción. |
+| Referencias técnicas | Material del curso para el pipeline; [NASA](https://science.nasa.gov/sun/facts/) como referencia de actividad solar y [PBRT](https://www.pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission) para la óptica de Prisma. |
+
+Las dependencias de ejecución están declaradas en `Cargo.toml`: `minifb`
+(ventana y entrada), `nalgebra-glm` (matemáticas), `image` (PNG) y `rayon`
+(paralelismo en CPU). Las transformaciones, el clipping, la rasterización,
+la profundidad, los shaders y las colisiones se implementan en el proyecto.
 
 ## Menú principal
 
@@ -40,7 +186,7 @@ Los menús usan el fondo procedural adaptado de `referencia.rs`: una nebulosa co
 
 | Tecla | Acción |
 | --- | --- |
-| `1`, `2`, `3` | Seleccionar Benatar, Galactwar o Crucer espacial |
+| `1`, `2`, `3` | Seleccionar Benatar, TIE Silencer o Crucer espacial |
 | `Tab` / `Shift+Tab` o flechas | Cambiar de selección |
 | `Enter` | Continuar al selector de galaxias |
 | `Espacio` o botón de pausa | Pausar / reanudar el giro de la nave principal |
@@ -121,6 +267,9 @@ La organización del mapa toma como referencia la navegación y la información 
 | `Shift` | Aumentar el impulso y la velocidad máxima |
 | `Espacio` | Frenar |
 | `L` | Activar o desactivar navegación local cerca del planeta más próximo |
+| `Caps Lock` | Con TIE Silencer: impulso en la dirección de WASD; sin WASD, hacia adelante |
+| `F4` / `F5` | Alternar LOD automático / descarte de objetos y comparar los contadores del HUD |
+| `F6` | Pausar o reanudar la demostración para comparar el mismo encuadre |
 | `Q` / `E` | En navegación local: bajar / subir respecto a la superficie |
 | `1`, `2`, `3` | Cambiar de nave |
 | `I` | Inspeccionar la nave actual |
@@ -281,7 +430,7 @@ en distintos tiempos sin mover la cámara ni añadir teletransportes al juego.
 
 | Tecla | Acción |
 | --- | --- |
-| `1`, `2`, `3` | Elegir Benatar, Galactwar o Crucer espacial |
+| `1`, `2`, `3` | Elegir Benatar, TIE Silencer o Crucer espacial |
 | Flechas o `W`, `A`, `S`, `D` | Orbitar la cámara |
 | `Q`, `E` | Alejar o acercar |
 | `M` | Cambiar entre sólido, malla y holograma |
@@ -385,7 +534,7 @@ sin bloqueo ni inversión de la inclinación al atravesar la vertical.
 La integración, el port a Rust y el menú se realizaron con asistencia de Codex.
 
 - **Benatar**: refinamiento en Blender de la base del proyecto [hmndzzl/Graficas_Lab4](https://github.com/hmndzzl/Graficas_Lab4), conservada en `assets/ships/source/Benatar_base.obj`. Usa como referencia visual el [modelo de Naruret Limst en Sketchfab](https://sketchfab.com/3d-models/guardians-of-the-galaxy-benatar-ship-model-90feb21135734062ac03557cbf2dc328); su malla no se descarga ni se incorpora al juego. La versión propia tiene 4,036 triángulos frente a los 2,340 de la base. Incorpora cabina azul con marcos, juntas de paneles sobre las alas, cobre desaturado y bandas amplias de titanio gris en las alas, álabes de turbina, carcasas y rejillas mecánicas en las raíces de las alas, toberas y cola doble refinada. `scripts/blender/create_benatar.py` genera `Benatar.blend`, `Benatar.obj` y `Benatar.mtl`, sin texturas de imagen. El acabado uniforme anterior se sustituye por materiales independientes. Los límites de los paneles se dividen sobre las caras existentes para evitar bordes dentados sin cambiar la silueta.
-- **Galactwar**: modelo `nave-lab3-PC.obj`, del proyecto [Pxdro-410/lab4-Graficas-PC](https://github.com/Pxdro-410/lab4-Graficas-PC). El ZIP no incluía el MTL referenciado, así que `Galactwar.mtl` completa los cuatro materiales que aparecen en el OBJ.
+- **TIE Silencer (base Galactwar)**: modelo `nave-lab3-PC.obj`, del proyecto [Pxdro-410/lab4-Graficas-PC](https://github.com/Pxdro-410/lab4-Graficas-PC). El ZIP no incluía el MTL referenciado, así que `Galactwar.mtl` completa los cuatro materiales que aparecen en el OBJ.
 - **Crucer espacial**: modelo original `Crucer_espacial.obj` y materiales `Crucer_espacial.mtl`, construidos a partir de la imagen de referencia de la nave de Rick Sánchez de *Rick y Morty* aportada por el usuario. Reemplaza la tercera nave de la flota. Incluye casco gris de platillo, franjas amarillas, dos motores acanalados, faros, asientos marrones y cúpula transparente. [Detalles y regeneración](assets/ships/README.md).
 
 El renderizador C++ de [J05U3oAr/Lab4-graficas](https://github.com/J05U3oAr/Lab4-graficas) se portó a módulos Rust: carga de OBJ/MTL, validación y triangulación de caras, rasterizado baricéntrico con profundidad, iluminación difusa y exportación PNG. La ventana y los controles usan `minifb`. No se conservaron archivos `.cpp`, `.h` ni dependencias de SDL.
@@ -454,149 +603,3 @@ se desplacen juntas, y desaparezcan juntas si es absorbida.
 Para regenerar ambos recursos, ejecuta primero `create_asteroids.py` y luego
 `create_umbriel.py` con Blender. No se crea geometría de asteroides en Rust.
 
-## Shader de Nivalis
-
-Nivalis conserva su modelo de Blender, los glaciares, el lago y las colisiones.
-Su shader CPU combina nieve gris blanca, hielo glaciar azul grisáceo,
-escarcha y un lago de hielo más oscuro con fracturas irregulares interrumpidas.
-El borde del lago se mezcla con nieve para suavizar la transición visual.
-
-La iluminación se calcula por fragmento con normales suaves sobre la nieve,
-una normal plana sobre el lago y las normales de la malla en los glaciares, usando
-la posición real de Asterion. El núcleo del planeta oculta la luz en el lado nocturno. La
-nieve tiene reflejos suaves; el hielo expuesto y el lago usan brillos más cerrados
-con respuesta de Fresnel. El gradiente analítico del ruido perturba las normales
-con variaciones suaves de baja frecuencia que simulan acumulaciones y ondulaciones
-de nieve mediante la iluminación, sin grano fino ni deformación de vértices.
-El lago mantiene su acabado liso y los glaciares conservan su relieve modelado. Un velo tenue de nieve suelta
-se desplaza con el tiempo; el terreno y las fracturas permanecen fijos.
-
-El microrrelieve y el velo de nieve se evalúan a partir de un radio proyectado de
-96 píxeles. A distancia se conservan las capas principales con menos trabajo.
-Este cambio corresponde únicamente a Nivalis; los otros planetas conservan sus
-shaders.
-
-
-## Capas de material de Ónice
-
-Ónice conserva los colores y el relieve de su modelo Blender. Para reducir las
-facetas visibles, el renderizador interpola las normales y los colores de los
-materiales con corrección de perspectiva, incluyendo los vértices que introduce
-el clipping. Los cráteres, arcos y colisiones mantienen su geometría.
-
-El shader combina variación mineral de varias escalas (fBm), vetas con dominio
-deformado, detalle de roca de bajo contraste y depósitos sutiles de escarcha.
-Estas capas procedurales, como en LAB5, permanecen ancladas al modelo al rotar;
-no requieren imágenes ni generan geometría adicional. Esta interpolación se
-activa únicamente para Ónice.
-
-
-## Actividad estelar de Asterion
-
-Asterion conserva su esfera de Blender y su identidad blanco azulada. El shader
-emite su propio color a partir del atlas de plasma de 2048 × 1024 ya existente
-(`assets/planets/textures/aurora-helios-ii-surface.png`), con una interpretación
-térmica blanco azulada. Las UV se exportan en Blender con la costura de longitud
-separada; se mantienen los mismos 4514 vértices y 9024 triángulos. El muestreo
-bilineal y el flujo continuo de las UV dan detalle a los filamentos y remolinos,
-sin crear otro PNG. Las manchas con núcleo y penumbra, las regiones brillantes
-y el oscurecimiento del limbo se calculan por fragmento.
-
-El atlas se anima con una deformación de UV de baja frecuencia; no se superpone
-el antiguo grano de alta frecuencia. El detalle fino procede de la imagen base,
-como en los materiales de Aurora. La ruta procedural sin atlas usa ruido de
-gradientes y filtrado por tamaño proyectado. Para regenerar las UV, ejecuta
-`scripts/blender/create_asterion.py` con Blender.
-
-`src/stellar.rs` añade una corona tenue y filamentos de protuberancias que crecen,
-se deforman y se disipan de forma localizada. El shader de emisión se calcula
-fuera del disco, respeta la profundidad de los objetos que pasan por delante y
-no modifica el z-buffer. Las animaciones dependen de segundos transcurridos,
-con tiempos acelerados para apreciarlas durante el recorrido. No se generan
-modelos en Rust, ni se alteran las colisiones o los otros soles.
-
-Los fenómenos toman como referencia la [descripción del Sol de NASA](https://science.nasa.gov/sun/facts/).
-Son una representación visual inspirada en actividad solar, con la paleta de
-Asterion; no una simulación física de plasma o de una estrella azul.
-
-
-## Material de Véspera: tundra barrida por el viento
-
-Véspera conserva sus mesetas, dunas y cañones de Blender. Su material propio
-combina nieve compactada, crestas de viento localizadas, costra de bajo contraste,
-depósitos minerales y estratos de pizarra en las paredes. Las capas usan el espacio
-local del modelo, por lo que acompañan su rotación; no reutilizan texturas ni
-paletas de Aurora y no crean PNG adicionales.
-
-El renderizador interpola normales y colores de material para reducir las facetas.
-Un relieve de iluminación orientado por el viento se evalúa en los vértices de
-nieve y se interpola por fragmento; no desplaza la geometría ni cambia colisiones.
-La nieve usa iluminación rugosa con reflejos débiles para conservar su aspecto
-mate. Un velo tenue de nieve suelta cambia con el tiempo, mientras el suelo
-permanece fijo. La ventisca de partículas existente se conserva para el vuelo
-cercano. La identidad de Véspera son la erosión y los cañones nevados; Nivalis
-mantiene el lago congelado y sus grandes glaciares.
-
-
-## Óptica de Prisma
-
-Prisma mantiene su malla de Blender y la mezcla continua de azul, azul marino y
-amatista. El renderizador identifica por material la corteza, los núcleos y las
-cubiertas de cristal; no los distingue por un umbral de radio. El suelo usa una
-normal de pulido con variaciones pequeñas y los macizos conservan sus facetas.
-
-`src/crystal.rs` implementa una respuesta dieléctrica con índice de refracción
-configurado en 1.54: Fresnel aproximado por Schlick, dirección transmitida por
-Snell, reflexión interna total y absorción por canal según Beer–Lambert con
-espesor estimado. Los reflejos responden a la cámara, a un entorno frío aproximado
-y al tamaño angular de Asterion. Los reflejos intensos se comprimen antes de
-escribir el framebuffer para evitar manchas blancas saturadas.
-
-Las cubiertas desplazan el fondo mediante refracción en pantalla, con una
-separación cromática leve. Se toma una copia del color y la profundidad después
-del dibujo opaco; el muestreo bilineal rechaza objetos que estén delante del
-cristal. Así la nave no se arrastra hacia las caras transparentes y los hilos del
-renderizador leen una fuente estable. El vidrio conserva el z-buffer opaco.
-
-La refracción es una aproximación en pantalla, con desplazamiento limitado a
-12 píxeles, no trazado de rayos a través de todo el volumen. El entorno reflejado se aproxima con un campo procedural frío, mientras la
-refracción usa únicamente la información del fondo visible en pantalla. Las colisiones
-y los modelos no cambian, y no se añaden imágenes ni texturas de Aurora.
-Referencia técnica: [PBRT: reflexión y transmisión dieléctricas](https://www.pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission)
-y [transmitancia](https://www.pbr-book.org/4ed/Volume_Scattering/Transmittance).
-
-
-## Glaciares y banquisa de Nácar
-
-La referencia visual de Nácar es el hielo glaciar con crestas blancas, paredes
-blanco azuladas erosionadas y azul más profundo en grietas y cavidades. Su modelo
-editable de Blender conserva la banquisa fracturada y añade 16 masas glaciares
-anchas, con crestas irregulares y paredes acanaladas, más una formación con arco
-y cueva. Blender exporta dos niveles de detalle: la malla cercana tiene 24.443
-vértices y 48.814 triángulos; `nacar_lod.obj` mantiene 12.114 vértices y 24.156
-triángulos para la vista lejana. La versión cercana refina los bordes de las grietas,
-subdivide glaciares y arco y añade erosión pequeña en la geometría.
-
-El arco tiene una abertura geométrica real que permite pasar con la nave; su
-techo y sus paredes mantienen colisión. El eje local de esta formación es
-`normalize(0.62, 0.06, 0.78)`. La prueba de navegación atraviesa la cueva y verifica
-por separado la colisión contra su techo. El generador reproducible está en
-`scripts/blender/create_nacar.py`, con la semilla `88421`.
-
-`src/glacier.rs` diferencia la nieve mate, el hielo compacto y los canales oscuros
-antes de aplicar iluminación. La respuesta de las paredes aproxima dispersión
-suave dentro del hielo; las crestas evitan reflejos de plástico y los canales
-conservan destellos y una ondulación tenue animada. El hielo sólido y sus detalles
-permanecen anclados al modelo. Las normales y colores se interpolan para reducir
-las facetas sin alterar las colisiones. Este material es opaco y propio de Nácar;
-no reutiliza la óptica de vidrio de Prisma ni las texturas de Aurora. No se crean
-PNG ni archivos README adicionales.
-
-
-Nácar cambia al LOD lejano cuando su radio proyectado baja de 120 píxeles.
-Ambas mallas comparten el mismo radio de normalización para conservar la escala.
-Las colisiones usan la versión detallada y el hueco del arco sigue siendo
-navegable. Con **F4** se puede desactivar el LOD y comparar el contador de
-triángulos. Las bandas finas de escarcha se atenúan entre radios proyectados de
-80 y 240 píxeles para evitar ruido no resoluble a distancia. Los modelos de ambos
-niveles están en `nacar.blend` y se regeneran con el mismo script.
