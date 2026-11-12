@@ -31,6 +31,8 @@ pub enum SurfaceEffect {
     },
     Stellar {
         seconds: f32,
+        eye: Vec3,
+        pixel_radius: f32,
     },
     GoldenStar {
         seconds: f32,
@@ -61,7 +63,7 @@ pub enum SurfaceEffect {
     },
 }
 
-fn sphere_direction(uv: Vec2) -> (Vec3, f32) {
+pub(crate) fn sphere_direction(uv: Vec2) -> (Vec3, f32) {
     let longitude = uv.x * TAU;
     let latitude = uv.y * PI;
     let (sin_latitude, cos_latitude) = latitude.sin_cos();
@@ -431,17 +433,11 @@ impl SurfaceEffect {
                 let mix = |v: u8, ice: f32| (v as f32 * (1.0 - frost) + ice * frost) as u8;
                 Color::new(mix(base.r, 62.0), mix(base.g, 94.0), mix(base.b, 111.0))
             }
-            Self::Stellar { seconds } => {
-                let drift = Vec3::new(seconds * 0.18, -seconds * 0.11, seconds * 0.08);
-                let granules = noise::noise(point * 43.0 + drift);
-                let cells = noise::noise(point * 9.0 - drift * 0.7);
-                let heat = noise::smoothstep(0.23, 0.78, granules * 0.65 + cells * 0.35);
-                Color::new(
-                    (145.0 + 110.0 * heat) as u8,
-                    (188.0 + 67.0 * heat) as u8,
-                    255,
-                )
-            }
+            Self::Stellar {
+                seconds,
+                eye,
+                pixel_radius,
+            } => crate::stellar::photosphere(point, seconds, eye, pixel_radius, None),
             Self::Ice { .. } => ice_surface(self, color, point),
             Self::Lava { seconds } | Self::CrimsonLava { seconds } => {
                 let grain = noise::noise(point * 21.0 + Vec3::new(7.0, 3.0, 11.0));
@@ -494,7 +490,11 @@ impl SurfaceEffect {
             Self::Crystal => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Snow { .. } => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Obsidian => self.modulate(texture.sample(uv), sphere_direction(uv).0),
-            Self::Stellar { .. } => self.modulate(texture.sample(uv), sphere_direction(uv).0),
+            Self::Stellar {
+                seconds,
+                eye,
+                pixel_radius,
+            } => crate::stellar::sample(texture, uv, seconds, eye, pixel_radius),
             Self::GoldenStar { .. } => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Ice { .. } => self.modulate(texture.sample(uv), sphere_direction(uv).0),
             Self::Kepler { seconds } => {

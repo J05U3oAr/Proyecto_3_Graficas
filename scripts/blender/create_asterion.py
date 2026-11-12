@@ -4,6 +4,7 @@ Run with Blender --background --factory-startup --python scripts/blender/create_
 or open this script in Blender's Text Editor and Run Script.
 """
 import argparse
+import math
 from pathlib import Path
 import sys
 
@@ -37,16 +38,18 @@ def main():
     nodes, links = material.node_tree.nodes, material.node_tree.links
     nodes.clear()
     coordinates = nodes.new("ShaderNodeTexCoord")
-    turbulence = nodes.new("ShaderNodeTexNoise")
-    turbulence.inputs["Scale"].default_value = 38
-    turbulence.inputs["Detail"].default_value = 2
-    links.new(coordinates.outputs["Generated"], turbulence.inputs["Vector"])
+    plasma = nodes.new("ShaderNodeTexImage")
+    plasma.image = bpy.data.images.load(str(output.parent / "textures/aurora-helios-ii-surface.png"), check_existing=True)
+    plasma.image.filepath = "//../textures/aurora-helios-ii-surface.png"
+    links.new(coordinates.outputs["UV"], plasma.inputs["Vector"])
+    luminance = nodes.new("ShaderNodeRGBToBW")
+    links.new(plasma.outputs["Color"], luminance.inputs["Color"])
     ramp = nodes.new("ShaderNodeValToRGB")
     ramp.color_ramp.elements[0].position = 0.25
-    ramp.color_ramp.elements[0].color = (0.22, 0.48, 1, 1)
-    ramp.color_ramp.elements[1].position = 0.75
-    ramp.color_ramp.elements[1].color = (0.95, 0.98, 1, 1)
-    links.new(turbulence.outputs["Fac"], ramp.inputs["Fac"])
+    ramp.color_ramp.elements[0].color = (0.42, 0.60, 0.78, 1)
+    ramp.color_ramp.elements[1].position = 0.90
+    ramp.color_ramp.elements[1].color = (1.0, 1.0, 1.0, 1)
+    links.new(luminance.outputs[0], ramp.inputs["Fac"])
     emission = nodes.new("ShaderNodeEmission")
     emission.inputs["Strength"].default_value = 2
     links.new(ramp.outputs["Color"], emission.inputs["Color"])
@@ -64,11 +67,38 @@ def main():
         for vertex in mesh.vertices:
             p = vertex.co
             file.write(f"v {p.x:.8f} {p.z:.8f} {-p.y:.8f}\n")
-        file.write("usemtl Photosphere\n")
+        # Export spherical UVs per corner so the longitude seam is never
+        # interpolated across the whole atlas. Geometry and triangle counts stay fixed.
+        faces = []
+        uv_index = 0
         for triangle in mesh.loop_triangles:
-            file.write("f " + " ".join(str(i + 1) for i in triangle.vertices) + "\n")
+            corners = []
+            for index in triangle.vertices:
+                p = mesh.vertices[index].co
+                x, y, z = p.x, p.z, -p.y
+                corners.append([math.atan2(z, x) / math.tau % 1.0,
+                                math.acos(max(-1.0, min(1.0, y / p.length))) / math.pi])
+            longitudes = [uv[0] for uv, index in zip(corners, triangle.vertices)
+                          if abs(mesh.vertices[index].co.z) < 0.9999]
+            if max(longitudes) - min(longitudes) > 0.5:
+                for uv in corners:
+                    if uv[0] < 0.5:
+                        uv[0] += 1.0
+            for corner, index in enumerate(triangle.vertices):
+                p = mesh.vertices[index].co
+                if abs(p.z) > 0.9999:
+                    corners[corner][0] = sum(corners[j][0] for j in range(3) if j != corner) / 2.0
+            for loop, uv in zip(triangle.loops, corners):
+                mesh.uv_layers.active.data[loop].uv = uv
+                file.write(f"vt {uv[0]:.8f} {uv[1]:.8f}\n")
+            faces.append("f " + " ".join(f"{index + 1}/{uv_index + corner + 1}"
+                         for corner, index in enumerate(triangle.vertices)) + "\n")
+            uv_index += 3
+        file.write("usemtl Photosphere\n")
+        file.writelines(faces)
     (output / "asterion.mtl").write_text(
-        "newmtl Photosphere\nKd 0.65 0.82 1.0\nillum 0\n", encoding="utf-8")
+        "newmtl Photosphere\nKd 1.0 1.0 1.0\nillum 0\n"
+        "map_Kd ../textures/aurora-helios-ii-surface.png\n", encoding="utf-8")
     for screen in bpy.data.screens:
         for area in screen.areas:
             if area.type == "VIEW_3D":

@@ -384,6 +384,14 @@ fn draw_world_with_basis(
                 eye: local_vector((camera.eye - transform.position).normalize()),
             }
         }
+        crate::shaders::SurfaceEffect::Stellar { seconds, .. } => {
+            crate::shaders::SurfaceEffect::Stellar {
+                seconds,
+                eye: local_vector((camera.eye - transform.position) / transform.radius),
+                pixel_radius: transform.radius * FLIGHT_FOCAL
+                    / (camera.eye - transform.position).norm().max(0.1),
+            }
+        }
         crate::shaders::SurfaceEffect::Ice {
             seconds,
             core_radius,

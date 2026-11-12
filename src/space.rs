@@ -44,7 +44,11 @@ impl Planet {
                 detail: true,
                 core_radius: 0.96 / self.model.radius,
             },
-            "Asterion" => SurfaceEffect::Stellar { seconds },
+            "Asterion" => SurfaceEffect::Stellar {
+                seconds,
+                eye: Vec3::z() * 3.0,
+                pixel_radius: 256.0,
+            },
             "Onice" => SurfaceEffect::Obsidian,
             "Vespera" => SurfaceEffect::Snow { seconds },
             "Prisma" => SurfaceEffect::Crystal,
@@ -708,7 +712,11 @@ impl Space {
             }
         }
         for sun in self.active_planets().filter(|planet| planet.is_sun) {
-            draw_solar_halo(fb, &view, sun.world_transform(seconds), sun.halo_color());
+            if sun.name == "Asterion" {
+                crate::stellar::draw_corona(fb, view, sun.world_transform(seconds), seconds);
+            } else {
+                draw_solar_halo(fb, &view, sun.world_transform(seconds), sun.halo_color());
+            }
         }
         crate::asteroids::draw(
             fb,
@@ -759,7 +767,9 @@ impl Space {
             self.sun_position(seconds),
             planet.surface_effect(seconds),
         );
-        if planet.is_sun {
+        if planet.name == "Asterion" {
+            crate::stellar::draw_corona(fb, &view, transform, seconds);
+        } else if planet.is_sun {
             draw_solar_halo(fb, &view, transform, planet.halo_color());
         }
         if planet.name == "Umbriel" {
@@ -1753,6 +1763,16 @@ mod tests {
         let mut space = Space::load().unwrap();
         space.configure(2);
         let star = space.active_planets().find(|p| p.is_sun).unwrap();
+        assert_eq!(star.model.textures.len(), 1);
+        for face in &star.model.faces {
+            assert!(face.unlit && face.texture == Some(0));
+            let uv = face
+                .uv
+                .expect("Asterion requiere las UV exportadas en Blender");
+            let min = uv.iter().map(|p| p.x).fold(f32::INFINITY, f32::min);
+            let max = uv.iter().map(|p| p.x).fold(f32::NEG_INFINITY, f32::max);
+            assert!(max - min <= 0.5, "La costura no debe cruzar todo el atlas");
+        }
         let mut flight = Flight::new();
         flight.camera.pitch = 0.0;
         let view = FlightView::new(&flight, 256, 192);

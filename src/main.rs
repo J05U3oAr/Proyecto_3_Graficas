@@ -32,6 +32,7 @@ mod ring_debris;
 mod shaders;
 mod skybox;
 mod space;
+mod stellar;
 mod texture;
 mod thrusters;
 mod travel;
