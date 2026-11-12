@@ -403,6 +403,34 @@ fn draw_world_with_basis(
         },
         _ => effect,
     };
+    // Onice keeps its modeled craters and palette; interpolate normals and material colors.
+    let smooth_surface = if matches!(effect, crate::shaders::SurfaceEffect::Obsidian) {
+        let mut normals = vec![Vec3::zeros(); vertices.len()];
+        let mut colors = vec![Vec3::zeros(); vertices.len()];
+        let mut areas = vec![0.0; vertices.len()];
+        for face in &model.faces {
+            let [i, j, k] = face.indices;
+            let normal = (vertices[j] - vertices[i]).cross(&(vertices[k] - vertices[i]));
+            let area = normal.norm();
+            let color = Vec3::new(
+                face.color.r as f32,
+                face.color.g as f32,
+                face.color.b as f32,
+            );
+            for index in face.indices {
+                normals[index] += normal;
+                colors[index] += color * area;
+                areas[index] += area;
+            }
+        }
+        for index in 0..normals.len() {
+            normals[index] = normals[index].try_normalize(1e-10).unwrap_or(Vec3::z());
+            colors[index] /= areas[index].max(1e-10);
+        }
+        Some((normals, colors))
+    } else {
+        None
+    };
     let mut primitives = Vec::with_capacity(model.faces.len());
     let cull_closed = matches!(
         effect,
@@ -491,7 +519,11 @@ fn draw_world_with_basis(
             }
             continue;
         }
-        let color = if face.unlit || matches!(effect, crate::shaders::SurfaceEffect::Ice { .. }) {
+        let color = if face.unlit
+            || matches!(
+                effect,
+                crate::shaders::SurfaceEffect::Ice { .. } | crate::shaders::SurfaceEffect::Obsidian
+            ) {
             Some(finish.unwrap_or(face.color))
         } else if matches!(effect, crate::shaders::SurfaceEffect::Asteroid) {
             let diffuse = normal.normalize().dot(&light).max(0.0);
@@ -545,11 +577,34 @@ fn draw_world_with_basis(
                     let p = (world - transform.position) / transform.radius;
                     Vec3::new(p.x * cos - p.z * sin, p.y, p.x * sin + p.z * cos)
                 });
+                let lighting = smooth_surface.as_ref().map(|(normals, colors)| {
+                    let u = b - a;
+                    let v = c - a;
+                    let determinant = u.norm_squared() * v.norm_squared() - u.dot(&v).powi(2);
+                    let at = |point: Vec3, values: &[Vec3]| {
+                        if determinant <= 1e-12 {
+                            return values[i];
+                        }
+                        let delta = point - a;
+                        let w1 = (delta.dot(&u) * v.norm_squared() - delta.dot(&v) * u.dot(&v))
+                            / determinant;
+                        let w2 = (delta.dot(&v) * u.norm_squared() - delta.dot(&u) * u.dot(&v))
+                            / determinant;
+                        values[i] * (1.0 - w1 - w2) + values[j] * w1 + values[k] * w2
+                    };
+                    raster_batch::SmoothLighting {
+                        normals: points.map(|point| at(point, normals)),
+                        colors: points.map(|point| at(point, colors)),
+                        light,
+                        half,
+                    }
+                });
                 Surface::ProceduralColor {
                     local,
                     reciprocal: projected.map(|p| p.z),
                     color,
                     effect,
+                    lighting,
                 }
             } else {
                 Surface::Solid(color)
@@ -621,7 +676,7 @@ fn texture_intensity(normal: Vec3, unlit: bool) -> f32 {
     0.4 + 0.85 * normal.dot(&Vec3::new(-0.4, 0.8, 1.0).normalize()).max(0.0)
 }
 
-fn lit_color(normal: Vec3, base: Color, light: &Vec3, half: &Vec3) -> Option<Color> {
+pub(crate) fn lit_color(normal: Vec3, base: Color, light: &Vec3, half: &Vec3) -> Option<Color> {
     if normal.norm_squared() < f32::EPSILON {
         return None;
     }

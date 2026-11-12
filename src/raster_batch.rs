@@ -4,6 +4,13 @@ use rayon::prelude::*;
 
 const BAND_HEIGHT: usize = 32;
 
+pub struct SmoothLighting {
+    pub normals: [Vec3; 3],
+    pub colors: [Vec3; 3],
+    pub light: Vec3,
+    pub half: Vec3,
+}
+
 pub enum Surface<'a> {
     Solid(Color),
     ProceduralColor {
@@ -11,6 +18,7 @@ pub enum Surface<'a> {
         reciprocal: [f32; 3],
         color: Color,
         effect: crate::shaders::SurfaceEffect,
+        lighting: Option<SmoothLighting>,
     },
     Textured {
         vertices: [TextureVertex; 3],
@@ -40,6 +48,7 @@ impl Primitive<'_> {
                 reciprocal,
                 color,
                 effect,
+                lighting,
             } => {
                 let depth = reciprocal[0] * weights[0]
                     + reciprocal[1] * weights[1]
@@ -48,7 +57,26 @@ impl Primitive<'_> {
                     + local[1] * (weights[1] * reciprocal[1])
                     + local[2] * (weights[2] * reciprocal[2]))
                     / depth;
-                effect.modulate(*color, point).to_hex()
+                let color = if let Some(lighting) = lighting {
+                    let normal = (lighting.normals[0] * (weights[0] * reciprocal[0])
+                        + lighting.normals[1] * (weights[1] * reciprocal[1])
+                        + lighting.normals[2] * (weights[2] * reciprocal[2]))
+                        / depth;
+                    let rgb = (lighting.colors[0] * (weights[0] * reciprocal[0])
+                        + lighting.colors[1] * (weights[1] * reciprocal[1])
+                        + lighting.colors[2] * (weights[2] * reciprocal[2]))
+                        / depth;
+                    let base = Color::new(
+                        rgb.x.clamp(0.0, 255.0) as u8,
+                        rgb.y.clamp(0.0, 255.0) as u8,
+                        rgb.z.clamp(0.0, 255.0) as u8,
+                    );
+                    crate::renderer::lit_color(normal, base, &lighting.light, &lighting.half)
+                        .unwrap_or(base)
+                } else {
+                    *color
+                };
+                effect.modulate(color, point).to_hex()
             }
             Surface::Textured {
                 vertices: [a, b, c],
@@ -207,6 +235,64 @@ pub fn draw(fb: &mut Framebuffer, primitives: &[Primitive<'_>]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn smooth_material_and_lighting_do_not_reveal_the_quad_diagonal() {
+        let points = [
+            Vec3::new(1.0, 1.0, 1.0),
+            Vec3::new(7.0, 1.0, 1.0),
+            Vec3::new(7.0, 7.0, 1.0),
+            Vec3::new(1.0, 7.0, 1.0),
+        ];
+        let colors = [
+            Vec3::new(40.0, 60.0, 80.0),
+            Vec3::new(100.0, 90.0, 80.0),
+            Vec3::new(100.0, 150.0, 140.0),
+            Vec3::new(40.0, 120.0, 140.0),
+        ];
+        let normals = [
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.4, 0.0, 1.0),
+            Vec3::new(0.4, 0.4, 1.0),
+            Vec3::new(0.0, 0.4, 1.0),
+        ];
+        let render = |triangles: [[usize; 3]; 2]| {
+            let primitives = triangles.map(|indices| Primitive {
+                vertices: indices.map(|i| points[i]),
+                opacity: 1.0,
+                surface: Surface::ProceduralColor {
+                    local: [Vec3::zeros(); 3],
+                    reciprocal: [1.0; 3],
+                    color: Color::new(0, 0, 0),
+                    effect: crate::shaders::SurfaceEffect::None,
+                    lighting: Some(SmoothLighting {
+                        normals: indices.map(|i| normals[i]),
+                        colors: indices.map(|i| colors[i]),
+                        light: Vec3::z(),
+                        half: Vec3::z(),
+                    }),
+                },
+            });
+            let mut frame = Framebuffer::new(8, 8);
+            frame.point(4, 4, 2.0, 0xff00ff, true);
+            draw(&mut frame, &primitives);
+            frame
+        };
+        let a = render([[0, 1, 2], [0, 2, 3]]);
+        let b = render([[0, 1, 3], [1, 2, 3]]);
+        for (a, b) in a.depth.iter().zip(&b.depth) {
+            assert!(a == b || (a - b).abs() < 0.000001);
+        }
+        assert_eq!(a.pixels[4 * 8 + 4], 0xff00ff);
+        for (a, b) in a.pixels.iter().zip(&b.pixels) {
+            for shift in [0, 8, 16] {
+                assert!(
+                    (((a >> shift) & 255) as i32 - ((b >> shift) & 255) as i32).abs() <= 2,
+                    "La iluminacion y el material deben continuar a traves de la diagonal: {a:06x} / {b:06x}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn glass_sorts_layers_keeps_opaque_depth_and_blends_shared_edges_once() {

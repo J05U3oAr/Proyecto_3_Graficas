@@ -419,15 +419,17 @@ impl SurfaceEffect {
                 color.shaded(0.76 + grain * 0.30 + crust * 0.13 + (wind - 0.5) * 0.025)
             }
             Self::Obsidian => {
-                let grain = noise::noise(point * 63.0);
-                let frost = noise::smoothstep(
-                    0.64,
-                    0.82,
-                    noise::noise(point * 17.0 + Vec3::new(13.0, 5.0, 29.0)),
-                ) * 0.35;
-                let base = color.shaded(0.9 + grain * 0.18);
+                // LAB5-style layers: broad mineral variation, warped veins,
+                // restrained rock detail, then frost. All stay fixed to the mesh.
+                let mineral = noise::fbm(point * 4.0 + Vec3::new(13.0, 5.0, 29.0));
+                let detail = noise::noise(point * 31.0 + Vec3::new(7.0, 19.0, 3.0));
+                let veins = noise::noise(point * 18.0 + Vec3::repeat(mineral * 3.0));
+                let fissures = 1.0 - noise::smoothstep(0.015, 0.055, (veins - 0.5).abs());
+                let base =
+                    color.shaded((0.83 + mineral * 0.24 + detail * 0.08) * (1.0 - fissures * 0.09));
+                let frost = noise::smoothstep(0.58, 0.73, mineral + (detail - 0.5) * 0.045) * 0.20;
                 let mix = |v: u8, ice: f32| (v as f32 * (1.0 - frost) + ice * frost) as u8;
-                Color::new(mix(base.r, 62.0), mix(base.g, 102.0), mix(base.b, 123.0))
+                Color::new(mix(base.r, 62.0), mix(base.g, 94.0), mix(base.b, 111.0))
             }
             Self::Stellar { seconds } => {
                 let drift = Vec3::new(seconds * 0.18, -seconds * 0.11, seconds * 0.08);
