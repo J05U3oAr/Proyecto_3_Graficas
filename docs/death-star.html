@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080e17">
+  <meta name="description" content="La nueva habilidad de TIE Silencer: llama a la Estrella de la Muerte con R y destruye el planeta frente a la proa. Capturas reales del juego en Rust.">
+  <title>Estrella de la Muerte — Beyond the Interstellar</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="death-star.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#secuencia">Saltar a la secuencia</a>
+  <header class="site-header wrap">
+    <a class="brand" href="index.html">BEYOND THE INTERSTELLAR</a>
+    <a class="repo-link" href="index.html">Volver al atlas ↗</a>
+  </header>
+  <main class="wrap">
+    <section class="intro" aria-labelledby="title">
+      <p class="eyebrow">TIE SILENCER / NUEVA HABILIDAD</p>
+      <h1 id="title">Un planeta en la mira.</h1>
+      <p class="lead">Apunta la proa a un planeta y pulsa <kbd>R</kbd>. La Estrella de la Muerte llega, carga su superláser y dispara contra el objetivo.</p>
+      <p class="caption">Malla 3D original con trinchera ecuatorial, paneles de blindaje y antena cóncava. Ocho haces convergen antes del disparo.</p>
+    </section>
+    <section id="secuencia" aria-labelledby="sequence-title">
+      <div class="section-top"><h2 id="sequence-title">De la llamada al impacto</h2><span class="small-label">CAPTURAS REALES / MOTOR RUST</span></div>
+      <div class="flight-image"><img id="strike-image" src="assets/death-star-2.png" width="1280" height="840" alt="Estrella de la Muerte cargando ocho haces verdes frente al planeta Micelia"></div>
+      <div class="time-control">
+        <label for="strike-time">Momento de la secuencia <output id="strike-output" for="strike-time" aria-live="polite">4.5 s · Carga</output></label>
+        <input id="strike-time" type="range" min="0" max="7" step="1" value="2" disabled aria-describedby="strike-caption" aria-valuetext="4.5 segundos, carga">
+        <div class="time-ticks" aria-hidden="true"><span>Llegada</span><span>Carga</span><span>Disparo</span><span>Impacto</span><span>Retirada</span></div>
+      </div>
+      <p id="strike-caption" class="caption">Mueve el control o usa las flechas del teclado para recorrer la secuencia. Son capturas de la misma simulación que ejecuta el juego; puedes observarlas a tu ritmo.</p>
+      <noscript><p class="caption">Ver capturas: <a href="assets/death-star-0.png">llegada</a>, <a href="assets/death-star-3.png">disparo</a>, <a href="assets/death-star-5.png">explosión</a>, <a href="assets/death-star-7.png">retirada</a>.</p></noscript>
+    </section>
+    <section class="flight-section" aria-labelledby="controls-title">
+      <div class="section-top"><h2 id="controls-title">Cómo llamar a la estación</h2><span class="small-label">EXCLUSIVO DE TIE SILENCER</span></div>
+      <ol>
+        <li>Selecciona TIE Silencer en el hangar o pulsa <kbd>2</kbd> durante el vuelo.</li>
+        <li>Orienta la nave hasta que el HUD muestre el nombre del planeta como objetivo.</li>
+        <li>Pulsa <kbd>R</kbd>. La secuencia dura 11 segundos; la recarga dura 22 segundos desde la llamada.</li>
+      </ol>
+      <p class="caption">Solo admite planetas con la línea de tiro despejada. Los soles y los objetivos ocultos quedan excluidos. Durante la secuencia el vuelo queda en espera; <kbd>I</kbd> permite inspeccionar y pausar, y <kbd>Esc</kbd> abandona la secuencia.</p>
+      <p class="caption">Tras el impacto desaparecen el planeta, su atmósfera, su gravedad y sus colisiones. En Umbriel también desaparecen los anillos. La destrucción se conserva al reaparecer y cambiar de nave, hasta cargar otra galaxia.</p>
+    </section>
+    <section class="play" aria-labelledby="play-title"><div><p class="eyebrow">JUGAR EN ESCRITORIO</p><h2 id="play-title">Toma los controles.</h2><p>Ejecuta el proyecto y elige TIE Silencer.</p><code>cargo run --release</code><p class="small-label">ESTA PÁGINA ES UNA VISTA PREVIA DEL JUEGO PARA ESCRITORIO.</p></div><a class="primary-link" href="https://github.com/J05U3oAr/Proyecto_3_Graficas#ejecutar">Abrir instrucciones ↗</a></section>
+  </main>
+  <footer class="wrap"><span>Beyond the Interstellar · TIE Silencer</span><span>Referencia: <a href="https://www.starwars.com/databank/death-star">Star Wars Databank</a> · Star Wars © Lucasfilm</span></footer>
+</body>
+</html>
