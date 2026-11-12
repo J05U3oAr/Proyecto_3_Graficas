@@ -536,3 +536,31 @@ mate. Un velo tenue de nieve suelta cambia con el tiempo, mientras el suelo
 permanece fijo. La ventisca de partículas existente se conserva para el vuelo
 cercano. La identidad de Véspera son la erosión y los cañones nevados; Nivalis
 mantiene el lago congelado y sus grandes glaciares.
+
+
+## Óptica de Prisma
+
+Prisma mantiene su malla de Blender y la mezcla continua de azul, azul marino y
+amatista. El renderizador identifica por material la corteza, los núcleos y las
+cubiertas de cristal; no los distingue por un umbral de radio. El suelo usa una
+normal de pulido con variaciones pequeñas y los macizos conservan sus facetas.
+
+`src/crystal.rs` implementa una respuesta dieléctrica con índice de refracción
+configurado en 1.54: Fresnel aproximado por Schlick, dirección transmitida por
+Snell, reflexión interna total y absorción por canal según Beer–Lambert con
+espesor estimado. Los reflejos responden a la cámara, a un entorno frío aproximado
+y al tamaño angular de Asterion. Los reflejos intensos se comprimen antes de
+escribir el framebuffer para evitar manchas blancas saturadas.
+
+Las cubiertas desplazan el fondo mediante refracción en pantalla, con una
+separación cromática leve. Se toma una copia del color y la profundidad después
+del dibujo opaco; el muestreo bilineal rechaza objetos que estén delante del
+cristal. Así la nave no se arrastra hacia las caras transparentes y los hilos del
+renderizador leen una fuente estable. El vidrio conserva el z-buffer opaco.
+
+La refracción es una aproximación en pantalla, con desplazamiento limitado a
+12 píxeles, no trazado de rayos a través de todo el volumen. El entorno reflejado se aproxima con un campo procedural frío, mientras la
+refracción usa únicamente la información del fondo visible en pantalla. Las colisiones
+y los modelos no cambian, y no se añaden imágenes ni texturas de Aurora.
+Referencia técnica: [PBRT: reflexión y transmisión dieléctricas](https://www.pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission)
+y [transmitancia](https://www.pbr-book.org/4ed/Volume_Scattering/Transmittance).
