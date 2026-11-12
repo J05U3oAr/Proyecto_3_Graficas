@@ -4,68 +4,6 @@ Exploración espacial en Rust con un menú principal, un hangar con selección l
 
 Los modelos se cargan desde archivos OBJ; el programa transforma y rasteriza los triángulos en un framebuffer propio con búfer de profundidad. `minifb` se usa para la ventana y la entrada, no para dibujar modelos 3D. El menú también se dibuja en la CPU, incluidos textos, tarjetas, estrellas y plataformas luminosas.
 
-## Galería de fotos
-
-Capturas generadas con el renderizador por software del proyecto. Haz clic en
-una imagen para verla a resolución completa. Las vistas individuales permiten
-comparar los materiales y la geometría de cada mundo; no representan sus escalas relativas.
-
-### Pantalla inicial
-
-[![Pantalla inicial de Beyond the Interstellar](docs/assets/galeria/inicio.png)](docs/assets/galeria/inicio.png)
-
-### Selección de naves
-
-| Benatar | TIE Silencer | Crucer espacial |
-| --- | --- | --- |
-| [![Benatar](docs/assets/galeria/hangar-benatar.png)](docs/assets/galeria/hangar-benatar.png) | [![TIE Silencer](docs/assets/galeria/hangar-tie-silencer.png)](docs/assets/galeria/hangar-tie-silencer.png) | [![Crucer espacial](docs/assets/galeria/hangar-crucer.png)](docs/assets/galeria/hangar-crucer.png) |
-
-### Galaxia Aurora
-
-| Aurora en el selector de galaxias | Sol: Helios II |
-| --- | --- |
-| [![Aurora en el selector de galaxias](docs/assets/galeria/aurora-mapa.png)](docs/assets/galeria/aurora-mapa.png) | [![Sol: Helios II](docs/assets/galeria/aurora-helios-ii.png)](docs/assets/galeria/aurora-helios-ii.png) |
-
-| Flareon | Volcarona | Siroco |
-| --- | --- | --- |
-| [![Flareon](docs/assets/galeria/aurora-flareon.png)](docs/assets/galeria/aurora-flareon.png) | [![Volcarona](docs/assets/galeria/aurora-volcarona.png)](docs/assets/galeria/aurora-volcarona.png) | [![Siroco](docs/assets/galeria/aurora-siroco.png)](docs/assets/galeria/aurora-siroco.png) |
-
-| Kepler-186f | Metis | Jovara |
-| --- | --- | --- |
-| [![Kepler-186f](docs/assets/galeria/aurora-kepler-186f.png)](docs/assets/galeria/aurora-kepler-186f.png) | [![Metis](docs/assets/galeria/aurora-metis.png)](docs/assets/galeria/aurora-metis.png) | [![Jovara](docs/assets/galeria/aurora-jovara.png)](docs/assets/galeria/aurora-jovara.png) |
-
-### Galaxia Hélice
-
-| Hélice en el selector de galaxias | Sol: Aureon |
-| --- | --- |
-| [![Hélice en el selector de galaxias](docs/assets/galeria/helice-mapa.png)](docs/assets/galeria/helice-mapa.png) | [![Sol: Aureon](docs/assets/galeria/helice-aureon.png)](docs/assets/galeria/helice-aureon.png) |
-
-| Siroco | Oquedad | Jovara |
-| --- | --- | --- |
-| [![Siroco](docs/assets/galeria/helice-siroco.png)](docs/assets/galeria/helice-siroco.png) | [![Oquedad](docs/assets/galeria/helice-oquedad.png)](docs/assets/galeria/helice-oquedad.png) | [![Jovara](docs/assets/galeria/helice-jovara.png)](docs/assets/galeria/helice-jovara.png) |
-
-| Boreal | Micelia | Azufria |
-| --- | --- | --- |
-| [![Boreal](docs/assets/galeria/helice-boreal.png)](docs/assets/galeria/helice-boreal.png) | [![Micelia](docs/assets/galeria/helice-micelia.png)](docs/assets/galeria/helice-micelia.png) | [![Azufria](docs/assets/galeria/helice-azufria.png)](docs/assets/galeria/helice-azufria.png) |
-
-| Ferrita |  |  |
-| --- | --- | --- |
-| [![Ferrita](docs/assets/galeria/helice-ferrita.png)](docs/assets/galeria/helice-ferrita.png) |  |  |
-
-### Galaxia Umbría
-
-| Umbría en el selector de galaxias | Sol: Asterion |
-| --- | --- |
-| [![Umbría en el selector de galaxias](docs/assets/galeria/umbria-mapa.png)](docs/assets/galeria/umbria-mapa.png) | [![Sol: Asterion](docs/assets/galeria/umbria-asterion.png)](docs/assets/galeria/umbria-asterion.png) |
-
-| Ónice | Nivalis | Véspera |
-| --- | --- | --- |
-| [![Ónice](docs/assets/galeria/umbria-onice.png)](docs/assets/galeria/umbria-onice.png) | [![Nivalis](docs/assets/galeria/umbria-nivalis.png)](docs/assets/galeria/umbria-nivalis.png) | [![Véspera](docs/assets/galeria/umbria-vespera.png)](docs/assets/galeria/umbria-vespera.png) |
-
-| Prisma | Nácar | Umbriel |
-| --- | --- | --- |
-| [![Prisma](docs/assets/galeria/umbria-prisma.png)](docs/assets/galeria/umbria-prisma.png) | [![Nácar](docs/assets/galeria/umbria-nacar.png)](docs/assets/galeria/umbria-nacar.png) | [![Umbriel](docs/assets/galeria/umbria-umbriel.png)](docs/assets/galeria/umbria-umbriel.png) |
-
 ## Ejecutar
 
 ### Prerrequisitos
@@ -108,64 +46,6 @@ cambiar de estado, equilibrando las llamadas de ocultar/mostrar en macOS.
 
 El primer inicio compila las dependencias declaradas en `Cargo.toml`. Rayon reparte la rasterización de planetas, la mezcla del polvo y el cálculo por píxel del agujero negro entre los núcleos disponibles. El pipeline gráfico y la física siguen implementados en el proyecto; Rayon no proporciona modelos, cámaras ni funciones de dibujo.
 
-## Integrantes y contribuciones
-
-| Integrante | Carné | Contribución principal |
-| --- | --- | --- |
-| Hugo Méndez | 241265 | Galaxia Umbría y nave Benatar: modelos, materiales, shaders e integración de su identidad visual. |
-| Pedro Caso | 241286 | Galaxia Aurora y nave TIE Silencer: desarrollo e integración de sus recursos y características. |
-| Arodi Chávez | 241112 | Galaxia Hélice y nave Crucer espacial: desarrollo e integración de sus recursos y características. |
-
-## Características solicitadas para evaluación
-
-La siguiente lista señala dónde comprobar las características implementadas.
-Los puntos indicados son los máximos de la rúbrica para cada criterio; su
-asignación depende de la demostración y de la explicación del equipo.
-
-| Característica | Puntos | Dónde y cómo comprobarla |
-| --- | ---: | --- |
-| Cinco planetas distinguibles que orbitan, rotan y permiten acercamiento continuo | 50 | En Umbría: Ónice, Véspera, Prisma, Nácar y Umbriel. Acercarse, rodear cada mundo y alejarse sin cambiar de escena; observar su movimiento respecto a Asterion. |
-| Cuatro shaders propios con resultados distintos | 24 | Ónice: roca y escarcha; Véspera: nieve y estratos; Prisma: cristal con reflexión y refracción; Nácar: hielo glaciar y canales. Implementaciones en `src/shaders.rs`, `src/crystal.rs` y `src/glacier.rs`. |
-| Shader animado | 8 | En Umbría, observar el plasma, las manchas y las protuberancias de Asterion aun con la nave detenida. Código en `src/stellar.rs`. |
-| Deformación geométrica mediante ruido | 10 | En Aurora, acercarse a Volcarona para observar el relieve de su esfera. `src/volcarona.rs` desplaza los vértices mediante ruido antes de rasterizar. |
-| Generación o subdivisión propia de geometría | 10 | Volcarona subdivide triángulos y construye volcanes en el pipeline de software. Revisar `generate` y `subdivide` en `src/volcarona.rs`; es una etapa distinta de la deformación. |
-| Navegación local | 8 | Cerca de un planeta, pulsar `L`; rodearlo con WASD y ajustar altura con `Q/E`. Mantener orientación y observación del entorno durante el vuelo. |
-| Aceleración, frenado y giro progresivos dependientes del tiempo | 8 | Mantener y soltar WASD, frenar con `Espacio` y girar con mouse o flechas (`C`). Revisar la integración temporal en `src/flight.rs`. |
-| Atracción gravitatoria planetaria | 10 | En vuelo espacial, fuera del modo local, acercarse a un planeta, soltar los controles y observar la deriva. Código en `src/planet_gravity.rs` y su integración en el vuelo. |
-| Colisiones con planetas | 4 | Rozar lentamente el terreno: la nave no lo atraviesa. Un impacto rápido provoca destrucción y reaparición. Código en `src/collision.rs`. |
-| Descarte de objetos fuera de la vista | 7 | En vuelo, alternar `F5` y comparar el contador de triángulos del HUD con el mismo encuadre. Código en `src/renderer.rs`. |
-| Niveles de detalle según distancia | 8 | Alejarse de Nácar, Volcarona o los asteroides y alternar `F4` para comparar los triángulos procesados con LOD automático y detalle alto. Código en `src/space.rs`. |
-| Coherencia visual y composición | Hasta 5 | Comparar las identidades cálida de Aurora, azul y dorada de Hélice, y fría de Umbría, junto con sus naves y materiales. |
-| Claridad de controles y recorrido | Hasta 5 | Consultar Controles e Instrucciones desde el menú; usar el HUD para reconocer dirección activa, velocidad y disponibilidad del modo local. |
-
-La lista técnica suma hasta **147 puntos**, más hasta **10 de presentación**;
-la nota máxima es **100**. No se incluyen aquí puntos adicionales por modelos
-de superficie, distribución procedural o mapeo de normales.
-
-
-## Recursos externos y asistencia de IA
-
-Se utilizó principalmente **OpenAI Codex** como asistencia para programación,
-depuración, pruebas, documentación y scripts de creación de modelos. También se
-utilizó **ImageGen** para recursos de textura: Boreal y la variante cálida de
-Kepler-186f tienen su procedencia registrada en
-[créditos de texturas](assets/planets/textures/README.md) y
-[registro de Kepler-186f](assets/planets/textures/kepler-warm.provenance.json).
-
-| Recurso o referencia | Uso y atribución |
-| --- | --- |
-| Proyectos anteriores del equipo | Bases reutilizadas y adaptadas del renderizador y las naves. Repositorios y alcance detallados en [Integración y procedencia](#integración-y-procedencia). |
-| Benatar de Guardianes de la Galaxia | El [modelo de Naruret Limst en Sketchfab](https://sketchfab.com/3d-models/guardians-of-the-galaxy-benatar-ship-model-90feb21135734062ac03557cbf2dc328) se utilizó como referencia visual para el modelo propio; su malla no se incorporó al juego. |
-| Fotografía de Júpiter para Jovara | Imagen PIA21641, con crédito NASA/JPL-Caltech/SwRI/MSSS/Betsy Asher Hall/Gervasio Robles. Fuente y adaptación en [créditos de texturas](assets/planets/textures/README.md#jovara). |
-| Imágenes de portales aportadas al proyecto | Recursos externos adaptados a PNG y atlas animado; no se atribuye su creación al equipo. Archivos y tratamiento en [procedencia de los portales](assets/portals/README.md#imágenes-proporcionadas-por-el-usuario). |
-| Referencias visuales compartidas durante el desarrollo | Imágenes de galaxias, asteroides, glaciares y naves para orientar el modelado y los materiales. Los diseños de Benatar, TIE Silencer y Crucer espacial se basan en sus respectivas obras de ficción. |
-| Referencias técnicas | Material del curso para el pipeline; [NASA](https://science.nasa.gov/sun/facts/) como referencia de actividad solar y [PBRT](https://www.pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission) para la óptica de Prisma. |
-
-Las dependencias de ejecución están declaradas en `Cargo.toml`: `minifb`
-(ventana y entrada), `nalgebra-glm` (matemáticas), `image` (PNG) y `rayon`
-(paralelismo en CPU). Las transformaciones, el clipping, la rasterización,
-la profundidad, los shaders y las colisiones se implementan en el proyecto.
-
 ## Menú principal
 
 La aplicación inicia en **Beyond the Interstellar**, con el título grande sobre la nebulosa y una flecha junto a la opción seleccionada:
@@ -177,82 +57,6 @@ La aplicación inicia en **Beyond the Interstellar**, con el título grande sobr
 - **Salir:** cierra el juego.
 
 Usa flechas arriba/abajo, `W/S`, `Tab` o `Shift+Tab` para cambiar de opción y `Enter` para activarla. El ratón también permite seleccionar y hacer clic. En las pantallas de ayuda, `Esc`, `Enter` o el botón de volver regresan al inicio. En la portada, `Esc` selecciona **Salir** y `Enter` confirma.
-
-## Controles del hangar
-
-Selecciona una nave en la columna izquierda. Su nombre aparece como título principal y la vista central muestra el modelo girando; la ficha derecha contiene datos reales de su geometría y los parámetros compartidos de vuelo. Pulsa **Elegir destino** para continuar al mapa.
-
-Los menús usan el fondo procedural adaptado de `referencia.rs`: una nebulosa con ruido fractal, franjas de polvo oscuro y estrellas de semilla fija. Se genera una sola vez y se conserva en memoria; el mapa utiliza una variación violeta de la misma nebulosa. No necesita imágenes externas.
-
-| Tecla | Acción |
-| --- | --- |
-| `1`, `2`, `3` | Seleccionar Benatar, TIE Silencer o Crucer espacial |
-| `Tab` / `Shift+Tab` o flechas | Cambiar de selección |
-| `Enter` | Continuar al selector de galaxias |
-| `Espacio` o botón de pausa | Pausar / reanudar el giro de la nave principal |
-| `P` | Guardar una captura del menú en `render.png` |
-| `Esc` o **Menú principal** | Volver al inicio |
-
-La animación usa tiempo transcurrido y se pausa cuando la ventana pierde el foco. Se puede redimensionar la ventana: la interfaz conserva sus proporciones y la selección con ratón se ajusta a su tamaño.
-
-## Selector de galaxias
-
-La pantalla **Destinos** permite elegir tres regiones explorables. El mapa ocupa toda la ventana y gira lentamente de forma automática. La descripción aparece únicamente al seleccionar un destino mediante clic o teclado; se puede cerrar con la cruz o haciendo clic en el espacio vacío. Cada región combina mundos propios con algunos planetas compartidos.
-
-Las galaxias del mapa tienen ilustraciones procedurales diferentes: Aurora es una espiral violeta inclinada; Hélice tiene dos brazos azules y un núcleo dorado con barra; Umbría se observa de canto, con un disco azulado y una franja oscura de polvo. Se tomaron como referencias visuales `galaxia1.png` y `galaxia2.png`; las imágenes no se cargan en el juego. El color se calcula por píxel una sola vez, se almacena en memoria y se dibuja con filtrado bilineal y mezcla de luz. Su movimiento lento continúa durante la selección.
-
-| Destino | Planetas | Decoración |
-| --- | --- | --- |
-| Aurora | Helios II, Flareon, Siroco, Kepler-186f, Metis y Jovara | Sistema orbital y 180 asteroides |
-| Hélice | Aureon, Siroco, Oquedad, Jovara, Boreal, Micelia, Azufria y Ferrita | Gran sol dorado, siete órbitas y 120 asteroides |
-| Umbría | Asterion, Ónice, Nivalis, Véspera, Prisma, Nácar y Umbriel | Sol blanco azulado masivo, mundos de roca, hielo y cristal, un gigante gaseoso anillado y 480 asteroides |
-
-Los modelos de los asteroides se crean en Blender. Sus instancias se distribuyen con una semilla fija por galaxia y tienen colisión contra sus mallas. El agujero negro está presente en los tres destinos. Las mallas y texturas de los planetas se cargan una sola vez; al confirmar otro destino se actualizan las transformaciones y se reconstruyen sus colisiones antes del despegue. El acercamiento a un planeta conserva la misma escena de vuelo.
-
-En Hélice, **Aureon** es un gran sol dorado de radio 320. Los siete planetas
-recorren órbitas inclinadas con radios de 490 a 2110 unidades y velocidades
-distintas. La luz, las colisiones y la navegación local siguen el mismo reloj.
-[Modelo del sol y parámetros orbitales](assets/planets/aureon/README.md).
-
-### Nuevos mundos de Hélice
-
-Los tres mundos nuevos tienen montañas y cuencas hundidas modeladas en Blender,
-rotación lenta, navegación local con `L` y colisión contra el relieve real.
-Su diseño utiliza un acabado facetado y materiales de color, sin texturas descargadas.
-
-- **Micelia**: cordilleras violetas, cinco cráteres de micelio esmeralda y
-  58 hongos gigantes con láminas luminosas. [Captura](docs/assets/micelia.png).
-- **Azufria**: cordilleras de azufre amarillo, siete calderas de paredes elevadas
-  y lagos de ácido jade. [Captura](docs/assets/azufria.png).
-- **Ferrita**: estratos de cobre y óxido, pátina verde y ocho cráteres con
-  bordes concéntricos y picos centrales. [Captura](docs/assets/ferrita.png).
-
-[Galería en GitHub Pages](https://J05U3oAr.github.io/Proyecto_3_Graficas/).
-La galería muestra capturas reales; el juego se ejecuta como aplicación de escritorio.
-El workflow `.github/workflows/pages.yml` publica únicamente `docs/` cuando cambia
-esa carpeta en `master`. [Modelos editables y regeneración](assets/planets/helix/README.md).
-
-```bash
-cargo run --release -- --render-flight output/helice.png --galaxy 1
-cargo run --release -- --render-planet output/micelia.png --galaxy 1 --target micelia
-cargo run --release -- --render-flight output/ferrita-local.png --galaxy 1 --near-planet ferrita --local-navigation
-```
-
-### Controles del selector
-
-| Control | Acción |
-| --- | --- |
-| Clic sobre una galaxia, `1–3`, flechas o `Tab` / `Shift+Tab` | Elegir destino y abrir su descripción |
-| Rueda del ratón o `+` / `-` | Acercar o alejar el mapa |
-| `WASD` | Desplazar el mapa |
-| `R` | Restaurar encuadre |
-| `Enter` | Mostrar la descripción; si ya está abierta, iniciar el viaje |
-| **Viajar** | Iniciar el viaje hacia el destino seleccionado |
-| `Esc` o **Cambiar nave** | Regresar al hangar |
-
-El viaje dura 2.8 segundos y muestra aceleración con estelas radiales, acercamiento a la nebulosa y un destello. Termina mezclándose con el primer cuadro real del destino. La física del vuelo comienza al finalizar la transición. `Esc` permite cancelar el viaje; la animación se pausa si la ventana pierde el foco.
-
-La organización del mapa toma como referencia la navegación y la información contextual del [mapa galáctico descrito por Hello Games](https://www.nomanssky.com/atlas-rises-update/). Sus gráficos y distribución se dibujan mediante código propio.
 
 ## Controles de vuelo
 
@@ -425,6 +229,82 @@ cargo run --release -- --render-flight output/caida.png --galaxy 1 --observe-bla
 1200 unidades del centro, sin mantener W. Permite comparar la caída de materia
 en distintos tiempos sin mover la cámara ni añadir teletransportes al juego.
 
+## Controles del hangar
+
+Selecciona una nave en la columna izquierda. Su nombre aparece como título principal y la vista central muestra el modelo girando; la ficha derecha contiene datos reales de su geometría y los parámetros compartidos de vuelo. Pulsa **Elegir destino** para continuar al mapa.
+
+Los menús usan el fondo procedural adaptado de `referencia.rs`: una nebulosa con ruido fractal, franjas de polvo oscuro y estrellas de semilla fija. Se genera una sola vez y se conserva en memoria; el mapa utiliza una variación violeta de la misma nebulosa. No necesita imágenes externas.
+
+| Tecla | Acción |
+| --- | --- |
+| `1`, `2`, `3` | Seleccionar Benatar, TIE Silencer o Crucer espacial |
+| `Tab` / `Shift+Tab` o flechas | Cambiar de selección |
+| `Enter` | Continuar al selector de galaxias |
+| `Espacio` o botón de pausa | Pausar / reanudar el giro de la nave principal |
+| `P` | Guardar una captura del menú en `render.png` |
+| `Esc` o **Menú principal** | Volver al inicio |
+
+La animación usa tiempo transcurrido y se pausa cuando la ventana pierde el foco. Se puede redimensionar la ventana: la interfaz conserva sus proporciones y la selección con ratón se ajusta a su tamaño.
+
+## Selector de galaxias
+
+La pantalla **Destinos** permite elegir tres regiones explorables. El mapa ocupa toda la ventana y gira lentamente de forma automática. La descripción aparece únicamente al seleccionar un destino mediante clic o teclado; se puede cerrar con la cruz o haciendo clic en el espacio vacío. Cada región combina mundos propios con algunos planetas compartidos.
+
+Las galaxias del mapa tienen ilustraciones procedurales diferentes: Aurora es una espiral violeta inclinada; Hélice tiene dos brazos azules y un núcleo dorado con barra; Umbría se observa de canto, con un disco azulado y una franja oscura de polvo. Se tomaron como referencias visuales `galaxia1.png` y `galaxia2.png`; las imágenes no se cargan en el juego. El color se calcula por píxel una sola vez, se almacena en memoria y se dibuja con filtrado bilineal y mezcla de luz. Su movimiento lento continúa durante la selección.
+
+| Destino | Planetas | Decoración |
+| --- | --- | --- |
+| Aurora | Helios II, Flareon, Siroco, Kepler-186f, Metis y Jovara | Sistema orbital y 180 asteroides |
+| Hélice | Aureon, Siroco, Oquedad, Jovara, Boreal, Micelia, Azufria y Ferrita | Gran sol dorado, siete órbitas y 120 asteroides |
+| Umbría | Asterion, Ónice, Nivalis, Véspera, Prisma, Nácar y Umbriel | Sol blanco azulado masivo, mundos de roca, hielo y cristal, un gigante gaseoso anillado y 480 asteroides |
+
+Los modelos de los asteroides se crean en Blender. Sus instancias se distribuyen con una semilla fija por galaxia y tienen colisión contra sus mallas. El agujero negro está presente en los tres destinos. Las mallas y texturas de los planetas se cargan una sola vez; al confirmar otro destino se actualizan las transformaciones y se reconstruyen sus colisiones antes del despegue. El acercamiento a un planeta conserva la misma escena de vuelo.
+
+En Hélice, **Aureon** es un gran sol dorado de radio 320. Los siete planetas
+recorren órbitas inclinadas con radios de 490 a 2110 unidades y velocidades
+distintas. La luz, las colisiones y la navegación local siguen el mismo reloj.
+[Modelo del sol y parámetros orbitales](assets/planets/aureon/README.md).
+
+### Nuevos mundos de Hélice
+
+Los tres mundos nuevos tienen montañas y cuencas hundidas modeladas en Blender,
+rotación lenta, navegación local con `L` y colisión contra el relieve real.
+Su diseño utiliza un acabado facetado y materiales de color, sin texturas descargadas.
+
+- **Micelia**: cordilleras violetas, cinco cráteres de micelio esmeralda y
+  58 hongos gigantes con láminas luminosas. [Captura](docs/assets/micelia.png).
+- **Azufria**: cordilleras de azufre amarillo, siete calderas de paredes elevadas
+  y lagos de ácido jade. [Captura](docs/assets/azufria.png).
+- **Ferrita**: estratos de cobre y óxido, pátina verde y ocho cráteres con
+  bordes concéntricos y picos centrales. [Captura](docs/assets/ferrita.png).
+
+[Galería en GitHub Pages](https://J05U3oAr.github.io/Proyecto_3_Graficas/).
+La galería muestra capturas reales; el juego se ejecuta como aplicación de escritorio.
+El workflow `.github/workflows/pages.yml` publica únicamente `docs/` cuando cambia
+esa carpeta en `master`. [Modelos editables y regeneración](assets/planets/helix/README.md).
+
+```bash
+cargo run --release -- --render-flight output/helice.png --galaxy 1
+cargo run --release -- --render-planet output/micelia.png --galaxy 1 --target micelia
+cargo run --release -- --render-flight output/ferrita-local.png --galaxy 1 --near-planet ferrita --local-navigation
+```
+
+### Controles del selector
+
+| Control | Acción |
+| --- | --- |
+| Clic sobre una galaxia, `1–3`, flechas o `Tab` / `Shift+Tab` | Elegir destino y abrir su descripción |
+| Rueda del ratón o `+` / `-` | Acercar o alejar el mapa |
+| `WASD` | Desplazar el mapa |
+| `R` | Restaurar encuadre |
+| `Enter` | Mostrar la descripción; si ya está abierta, iniciar el viaje |
+| **Viajar** | Iniciar el viaje hacia el destino seleccionado |
+| `Esc` o **Cambiar nave** | Regresar al hangar |
+
+El viaje dura 2.8 segundos y muestra aceleración con estelas radiales, acercamiento a la nebulosa y un destello. Termina mezclándose con el primer cuadro real del destino. La física del vuelo comienza al finalizar la transición. `Esc` permite cancelar el viaje; la animación se pausa si la ventana pierde el foco.
+
+La organización del mapa toma como referencia la navegación y la información contextual del [mapa galáctico descrito por Hello Games](https://www.nomanssky.com/atlas-rises-update/). Sus gráficos y distribución se dibujan mediante código propio.
+
 ## Controles de inspección
 
 
@@ -438,107 +318,101 @@ en distintos tiempos sin mover la cámara ni añadir teletransportes al juego.
 | `P` | Guardar `render.png` |
 | `Esc` o botón de volver | Regresar al vuelo |
 
-## Exportar vistas sin abrir una ventana
+## Características solicitadas para evaluación
 
-```bash
-cargo run --release -- --render-home output/inicio.png
-cargo run --release -- --render-home output/controles.png --home-section controles
-cargo run --release -- --render-home output/instrucciones.png --home-section instrucciones
-cargo run --release -- --render-menu output/hangar.png --time 4 --ship 1
-cargo run --release -- --render-galaxies output/atlas.png --galaxy 2
-cargo run --release -- --render-galaxies output/detalle.png --galaxy 2 --details --time 8
-cargo run --release -- --render-travel output/viaje.png --galaxy 2 --time 1.4
-cargo run --release -- --render-inspector output/crucer-espacial.png --ship 3
-cargo run --release -- --render-flight output/vuelo.png --ship 1
-cargo run --release -- --render-flight output/portales.png --ship 3 --portal-demo --time 0.35
-cargo run --release -- --render-flight output/portal-boreal.png --ship 3 --portal-demo --target boreal --time 0.35
-cargo run --release -- --render-gate output/portal-galactico.png --ship 3 --galaxy 2 --gate-ready --time 1
-cargo run --release -- --render-gate output/entrada-galactica.png --ship 3 --galaxy 2 --time 1.6
-cargo run --release -- --render-flight output/umbria.png --galaxy 3
-cargo run --release -- --render-flight output/giro.png --ship 2 --time 2 --mouse 0.65 -0.35
-cargo run --release -- --render-planet output/boreal.png --target boreal
-cargo run --release -- --render-flight output/impacto.png --near-planet boreal --time 1.05
-```
+La siguiente lista señala dónde comprobar las características implementadas.
+Los puntos indicados son los máximos de la rúbrica para cada criterio; su
+asignación depende de la demostración y de la explicación del equipo.
 
-`--time` indica el instante de la animación en segundos; `--ship` elige una nave de 1 a 3. Para vuelo, `--time` simula hasta 600 segundos manteniendo `W` y `--mouse x y` mantiene una dirección normalizada entre -1 y 1 (centro: `0 0`; derecha y arriba: `0.65 -0.35`). Estas exportaciones usan la misma física y el mismo renderizador que la aplicación interactiva.
+| Característica | Puntos | Dónde y cómo comprobarla |
+| --- | ---: | --- |
+| Cinco planetas distinguibles que orbitan, rotan y permiten acercamiento continuo | 50 | En Umbría: Ónice, Véspera, Prisma, Nácar y Umbriel. Acercarse, rodear cada mundo y alejarse sin cambiar de escena; observar su movimiento respecto a Asterion. |
+| Cuatro shaders propios con resultados distintos | 24 | Ónice: roca y escarcha; Véspera: nieve y estratos; Prisma: cristal con reflexión y refracción; Nácar: hielo glaciar y canales. Implementaciones en `src/shaders.rs`, `src/crystal.rs` y `src/glacier.rs`. |
+| Shader animado | 8 | En Umbría, observar el plasma, las manchas y las protuberancias de Asterion aun con la nave detenida. Código en `src/stellar.rs`. |
+| Deformación geométrica mediante ruido | 10 | En Aurora, acercarse a Volcarona para observar el relieve de su esfera. `src/volcarona.rs` desplaza los vértices mediante ruido antes de rasterizar. |
+| Generación o subdivisión propia de geometría | 10 | Volcarona subdivide triángulos y construye volcanes en el pipeline de software. Revisar `generate` y `subdivide` en `src/volcarona.rs`; es una etapa distinta de la deformación. |
+| Navegación local | 8 | Cerca de un planeta, pulsar `L`; rodearlo con WASD y ajustar altura con `Q/E`. Mantener orientación y observación del entorno durante el vuelo. |
+| Aceleración, frenado y giro progresivos dependientes del tiempo | 8 | Mantener y soltar WASD, frenar con `Espacio` y girar con mouse o flechas (`C`). Revisar la integración temporal en `src/flight.rs`. |
+| Atracción gravitatoria planetaria | 10 | En vuelo espacial, fuera del modo local, acercarse a un planeta, soltar los controles y observar la deriva. Código en `src/planet_gravity.rs` y su integración en el vuelo. |
+| Colisiones con planetas | 4 | Rozar lentamente el terreno: la nave no lo atraviesa. Un impacto rápido provoca destrucción y reaparición. Código en `src/collision.rs`. |
+| Descarte de objetos fuera de la vista | 7 | En vuelo, alternar `F5` y comparar el contador de triángulos del HUD con el mismo encuadre. Código en `src/renderer.rs`. |
+| Niveles de detalle según distancia | 8 | Alejarse de Nácar, Volcarona o los asteroides y alternar `F4` para comparar los triángulos procesados con LOD automático y detalle alto. Código en `src/space.rs`. |
+| Coherencia visual y composición | Hasta 5 | Comparar las identidades cálida de Aurora, azul y dorada de Hélice, y fría de Umbría, junto con sus naves y materiales. |
+| Claridad de controles y recorrido | Hasta 5 | Consultar Controles e Instrucciones desde el menú; usar el HUD para reconocer dirección activa, velocidad y disponibilidad del modo local. |
 
-`--render-planet` exporta un planeta centrado sobre fondo oscuro, usando el mismo
-renderizador del vuelo. Admite `--target boreal`, `jovara`, `siroco` u `oquedad`;
-por defecto muestra Boreal. `--time` permite revisar su rotación sin mover la nave.
+La lista técnica suma hasta **147 puntos**, más hasta **10 de presentación**;
+la nota máxima es **100**. No se incluyen aquí puntos adicionales por modelos
+de superficie, distribución procedural o mapeo de normales.
 
-`--galaxy 1`, `2` o `3` elige Aurora, Hélice o Umbría. Aurora es el valor predeterminado. Las opciones de acercamiento y vista de planeta requieren que ese planeta exista en el destino elegido.
+## Galería de fotos
 
-## Rendimiento con Rayon
+Capturas generadas con el renderizador por software del proyecto. Haz clic en
+una imagen para verla a resolución completa. Las vistas individuales permiten
+comparar los materiales y la geometría de cada mundo; no representan sus escalas relativas.
 
-Los triángulos se agrupan en franjas de 32 filas. Cada tarea modifica exclusivamente sus píxeles y profundidades, manteniendo el orden de dibujo y sin mutex por píxel. El polvo también conserva el orden de transparencia dentro de cada franja. Los lotes pequeños usan una ruta secuencial para evitar el costo de distribuir tareas. El agujero negro calcula filas independientes en paralelo.
+### Pantalla inicial
 
-Para medir el renderizado de una escena fija después de un cuadro de calentamiento:
+[![Pantalla inicial de Beyond the Interstellar](docs/assets/galeria/inicio.png)](docs/assets/galeria/inicio.png)
 
-```powershell
-cargo run --release -- --render-flight output/medicion.png --benchmark-frames 180
-cargo run --release -- --render-flight output/agujero.png --near-black-hole --benchmark-frames 60
-```
+### Selección de naves
 
-El resultado indica milisegundos por cuadro y FPS teóricos de renderizado: excluye la carga inicial, la escritura PNG, la ventana y la actualización de la física. No equivale a una garantía de FPS durante todo el juego. Para comparar con un único hilo, ejecuta el mismo comando con `RAYON_NUM_THREADS=1`; al quitar esa variable, Rayon utiliza su configuración automática. La aplicación interactiva conserva el límite de 60 FPS.
+| Benatar | TIE Silencer | Crucer espacial |
+| --- | --- | --- |
+| [![Benatar](docs/assets/galeria/hangar-benatar.png)](docs/assets/galeria/hangar-benatar.png) | [![TIE Silencer](docs/assets/galeria/hangar-tie-silencer.png)](docs/assets/galeria/hangar-tie-silencer.png) | [![Crucer espacial](docs/assets/galeria/hangar-crucer.png)](docs/assets/galeria/hangar-crucer.png) |
 
-La integración utiliza [iteradores y fragmentos de memoria independientes de Rayon](https://docs.rs/rayon/latest/rayon/slice/trait.ParallelSliceMut.html). Las pruebas comparan la imagen y profundidad de las rutas secuencial y paralela, además de la transparencia ordenada del polvo.
+### Galaxia Aurora
 
-`--near-planet nombre` inicia la exportación frente al planeta indicado para
-revisar el acercamiento, la colisión y la explosión usando la física del juego.
-Admite los cuatro nombres de planeta y es una alternativa a `--near-black-hole`.
+| Aurora en el selector de galaxias | Sol: Helios II |
+| --- | --- |
+| [![Aurora en el selector de galaxias](docs/assets/galeria/aurora-mapa.png)](docs/assets/galeria/aurora-mapa.png) | [![Sol: Helios II](docs/assets/galeria/aurora-helios-ii.png)](docs/assets/galeria/aurora-helios-ii.png) |
 
+| Flareon | Volcarona | Siroco |
+| --- | --- | --- |
+| [![Flareon](docs/assets/galeria/aurora-flareon.png)](docs/assets/galeria/aurora-flareon.png) | [![Volcarona](docs/assets/galeria/aurora-volcarona.png)](docs/assets/galeria/aurora-volcarona.png) | [![Siroco](docs/assets/galeria/aurora-siroco.png)](docs/assets/galeria/aurora-siroco.png) |
 
-## Organización
+| Kepler-186f | Metis | Jovara |
+| --- | --- | --- |
+| [![Kepler-186f](docs/assets/galeria/aurora-kepler-186f.png)](docs/assets/galeria/aurora-kepler-186f.png) | [![Metis](docs/assets/galeria/aurora-metis.png)](docs/assets/galeria/aurora-metis.png) | [![Jovara](docs/assets/galeria/aurora-jovara.png)](docs/assets/galeria/aurora-jovara.png) |
 
-- `src/fleet.rs`: modelos, nombres y acabados de las naves.
-- `src/home.rs`: título del juego, menú principal, controles e instrucciones.
-- `src/galaxy.rs`: catálogo de destinos, distribuciones y transformación del mapa.
-- `src/galaxy_art.rs`: ilustraciones procedurales de galaxias con núcleos, brazos y polvo.
-- `src/menus.rs`: hangar lateral, vista principal y atlas de galaxias.
-- `src/nebula.rs`: fondo procedural basado en `referencia.rs` y variación de color del mapa.
-- `src/noise.rs`: ruido reproducible y funciones de interpolación de la nebulosa.
-- `src/travel.rs`: transición de viaje y mezcla con el cuadro de llegada.
-- `src/flight.rs`: posición, velocidad, impulso y controles de vuelo.
-- `src/local_navigation.rs`: referencia orbital, desplazamiento tangencial, altura y horizonte local.
-- `src/portal.rs`: colocación, enlace y cruce continuo de los dos portales.
-- `src/portal_art.rs`: discos en perspectiva y animación de las imágenes de portales.
-- `src/galactic_portal.rs`: portal galáctico gigante, selección de destino y cinemática de entrada.
-- `src/collision.rs`: colisión continua con las mallas de los planetas y sus túneles.
-- `src/explosion.rs`: fuego, fragmentos y humo del impacto en coordenadas del mundo.
-- `src/space.rs`: carga, posición y rotación de los planetas.
-- `src/debris_physics.rs`: trayectorias de rocas, integración fija, captura y caché reproducible.
-- `src/ring_debris.rs`: separación de las 96 rocas de los anillos conservando las mallas de Blender.
-- `src/ice_planet.rs`: carga del modelo Blender de Nivalis y validación del relieve.
-- `src/dust.rs`: nube animada de arena de Siroco y partículas con transparencia.
-- `src/texture.rs`: carga y muestreo bilineal de mapas de color PNG.
-- `src/renderer.rs`: rasterizado compartido, vistas del hangar y perspectiva de vuelo.
-- `src/raster_batch.rs`: rasterización de lotes por franjas con Rayon.
-- `src/ui.rs`: composición, tipografía, interacción con las tarjetas y mapeo del ratón.
-- `src/main.rs`: navegación, entradas y reloj de animación.
-- `src/window_state.rs`: normalización del foco de ventana para macOS, Windows y Linux.
-- `assets/ui/`: atlas de glifos integrado en el ejecutable; no requiere instalar fuentes.
+### Galaxia Hélice
 
-Las pruebas de `cargo test` comprueban los giros completos del hangar, pausa/reanudación, selección con ventana redimensionada y animación de cada nave en la vista principal sin modificar la columna lateral. También verifican la selección del mapa al moverlo, girarlo o ampliarlo; la restauración de destinos con sus colisiones; la decoración reproducible; y la igualdad del renderizado entre uno y varios hilos. El vuelo tiene pruebas de dirección sostenida con mouse, movimiento sin saltos, WASD sin avance automático ni ventaja diagonal, desaceleración, turbo/freno, respuesta a distintas tasas de cuadros, cámara trasera y desplazamiento del campo estelar. Los planetas tienen comprobaciones de visibilidad, profundidad independiente del orden de dibujo, recorte cerca de la cámara y movimiento de la nube sin desplazar la nave.
+| Hélice en el selector de galaxias | Sol: Aureon |
+| --- | --- |
+| [![Hélice en el selector de galaxias](docs/assets/galeria/helice-mapa.png)](docs/assets/galeria/helice-mapa.png) | [![Sol: Aureon](docs/assets/galeria/helice-aureon.png)](docs/assets/galeria/helice-aureon.png) |
 
-Las pruebas de navegación local verifican una circunnavegación completa con la
-órbita y colisiones de Kepler-186f a 10 y 60 FPS, conservación de altura,
-orientación del horizonte, ascenso, frenado, salida sin teletransporte y descenso
-contra la superficie real. También cubren contacto seguido de ascenso y nuevo
-descenso, recuperación de la inclinación al abandonar el radio local y selección
-de dirección con flechas sin interferencia del mouse. Después del contacto,
-se verifican vueltas completas en ambos sentidos en vuelo espacial a 10 y 60 FPS,
-sin bloqueo ni inversión de la inclinación al atravesar la vertical.
+| Siroco | Oquedad | Jovara |
+| --- | --- | --- |
+| [![Siroco](docs/assets/galeria/helice-siroco.png)](docs/assets/galeria/helice-siroco.png) | [![Oquedad](docs/assets/galeria/helice-oquedad.png)](docs/assets/galeria/helice-oquedad.png) | [![Jovara](docs/assets/galeria/helice-jovara.png)](docs/assets/galeria/helice-jovara.png) |
 
-## Integración y procedencia
+| Boreal | Micelia | Azufria |
+| --- | --- | --- |
+| [![Boreal](docs/assets/galeria/helice-boreal.png)](docs/assets/galeria/helice-boreal.png) | [![Micelia](docs/assets/galeria/helice-micelia.png)](docs/assets/galeria/helice-micelia.png) | [![Azufria](docs/assets/galeria/helice-azufria.png)](docs/assets/galeria/helice-azufria.png) |
 
-La integración, el port a Rust y el menú se realizaron con asistencia de Codex.
+| Ferrita |  |  |
+| --- | --- | --- |
+| [![Ferrita](docs/assets/galeria/helice-ferrita.png)](docs/assets/galeria/helice-ferrita.png) |  |  |
 
-- **Benatar**: refinamiento en Blender de la base del proyecto [hmndzzl/Graficas_Lab4](https://github.com/hmndzzl/Graficas_Lab4), conservada en `assets/ships/source/Benatar_base.obj`. Usa como referencia visual el [modelo de Naruret Limst en Sketchfab](https://sketchfab.com/3d-models/guardians-of-the-galaxy-benatar-ship-model-90feb21135734062ac03557cbf2dc328); su malla no se descarga ni se incorpora al juego. La versión propia tiene 4,036 triángulos frente a los 2,340 de la base. Incorpora cabina azul con marcos, juntas de paneles sobre las alas, cobre desaturado y bandas amplias de titanio gris en las alas, álabes de turbina, carcasas y rejillas mecánicas en las raíces de las alas, toberas y cola doble refinada. `scripts/blender/create_benatar.py` genera `Benatar.blend`, `Benatar.obj` y `Benatar.mtl`, sin texturas de imagen. El acabado uniforme anterior se sustituye por materiales independientes. Los límites de los paneles se dividen sobre las caras existentes para evitar bordes dentados sin cambiar la silueta.
-- **TIE Silencer (base Galactwar)**: modelo `nave-lab3-PC.obj`, del proyecto [Pxdro-410/lab4-Graficas-PC](https://github.com/Pxdro-410/lab4-Graficas-PC). El ZIP no incluía el MTL referenciado, así que `Galactwar.mtl` completa los cuatro materiales que aparecen en el OBJ.
-- **Crucer espacial**: modelo original `Crucer_espacial.obj` y materiales `Crucer_espacial.mtl`, construidos a partir de la imagen de referencia de la nave de Rick Sánchez de *Rick y Morty* aportada por el usuario. Reemplaza la tercera nave de la flota. Incluye casco gris de platillo, franjas amarillas, dos motores acanalados, faros, asientos marrones y cúpula transparente. [Detalles y regeneración](assets/ships/README.md).
+### Galaxia Umbría
 
-El renderizador C++ de [J05U3oAr/Lab4-graficas](https://github.com/J05U3oAr/Lab4-graficas) se portó a módulos Rust: carga de OBJ/MTL, validación y triangulación de caras, rasterizado baricéntrico con profundidad, iluminación difusa y exportación PNG. La ventana y los controles usan `minifb`. No se conservaron archivos `.cpp`, `.h` ni dependencias de SDL.
+| Umbría en el selector de galaxias | Sol: Asterion |
+| --- | --- |
+| [![Umbría en el selector de galaxias](docs/assets/galeria/umbria-mapa.png)](docs/assets/galeria/umbria-mapa.png) | [![Sol: Asterion](docs/assets/galeria/umbria-asterion.png)](docs/assets/galeria/umbria-asterion.png) |
 
+| Ónice | Nivalis | Véspera |
+| --- | --- | --- |
+| [![Ónice](docs/assets/galeria/umbria-onice.png)](docs/assets/galeria/umbria-onice.png) | [![Nivalis](docs/assets/galeria/umbria-nivalis.png)](docs/assets/galeria/umbria-nivalis.png) | [![Véspera](docs/assets/galeria/umbria-vespera.png)](docs/assets/galeria/umbria-vespera.png) |
+
+| Prisma | Nácar | Umbriel |
+| --- | --- | --- |
+| [![Prisma](docs/assets/galeria/umbria-prisma.png)](docs/assets/galeria/umbria-prisma.png) | [![Nácar](docs/assets/galeria/umbria-nacar.png)](docs/assets/galeria/umbria-nacar.png) | [![Umbriel](docs/assets/galeria/umbria-umbriel.png)](docs/assets/galeria/umbria-umbriel.png) |
+
+## Integrantes y contribuciones
+
+| Integrante | Carné | Contribución principal |
+| --- | --- | --- |
+| Hugo Méndez | 241265 | Galaxia Umbría y nave Benatar: modelos, materiales, shaders e integración de su identidad visual. |
+| Pedro Caso | 241286 | Galaxia Aurora y nave TIE Silencer: desarrollo e integración de sus recursos y características. |
+| Arodi Chávez | 241112 | Galaxia Hélice y nave Crucer espacial: desarrollo e integración de sus recursos y características. |
 
 ## Asteroides de Blender
 
@@ -603,3 +477,125 @@ se desplacen juntas, y desaparezcan juntas si es absorbida.
 Para regenerar ambos recursos, ejecuta primero `create_asteroids.py` y luego
 `create_umbriel.py` con Blender. No se crea geometría de asteroides en Rust.
 
+## Rendimiento con Rayon
+
+Los triángulos se agrupan en franjas de 32 filas. Cada tarea modifica exclusivamente sus píxeles y profundidades, manteniendo el orden de dibujo y sin mutex por píxel. El polvo también conserva el orden de transparencia dentro de cada franja. Los lotes pequeños usan una ruta secuencial para evitar el costo de distribuir tareas. El agujero negro calcula filas independientes en paralelo.
+
+Para medir el renderizado de una escena fija después de un cuadro de calentamiento:
+
+```powershell
+cargo run --release -- --render-flight output/medicion.png --benchmark-frames 180
+cargo run --release -- --render-flight output/agujero.png --near-black-hole --benchmark-frames 60
+```
+
+El resultado indica milisegundos por cuadro y FPS teóricos de renderizado: excluye la carga inicial, la escritura PNG, la ventana y la actualización de la física. No equivale a una garantía de FPS durante todo el juego. Para comparar con un único hilo, ejecuta el mismo comando con `RAYON_NUM_THREADS=1`; al quitar esa variable, Rayon utiliza su configuración automática. La aplicación interactiva conserva el límite de 60 FPS.
+
+La integración utiliza [iteradores y fragmentos de memoria independientes de Rayon](https://docs.rs/rayon/latest/rayon/slice/trait.ParallelSliceMut.html). Las pruebas comparan la imagen y profundidad de las rutas secuencial y paralela, además de la transparencia ordenada del polvo.
+
+`--near-planet nombre` inicia la exportación frente al planeta indicado para
+revisar el acercamiento, la colisión y la explosión usando la física del juego.
+Admite los cuatro nombres de planeta y es una alternativa a `--near-black-hole`.
+
+## Exportar vistas sin abrir una ventana
+
+```bash
+cargo run --release -- --render-home output/inicio.png
+cargo run --release -- --render-home output/controles.png --home-section controles
+cargo run --release -- --render-home output/instrucciones.png --home-section instrucciones
+cargo run --release -- --render-menu output/hangar.png --time 4 --ship 1
+cargo run --release -- --render-galaxies output/atlas.png --galaxy 2
+cargo run --release -- --render-galaxies output/detalle.png --galaxy 2 --details --time 8
+cargo run --release -- --render-travel output/viaje.png --galaxy 2 --time 1.4
+cargo run --release -- --render-inspector output/crucer-espacial.png --ship 3
+cargo run --release -- --render-flight output/vuelo.png --ship 1
+cargo run --release -- --render-flight output/portales.png --ship 3 --portal-demo --time 0.35
+cargo run --release -- --render-flight output/portal-boreal.png --ship 3 --portal-demo --target boreal --time 0.35
+cargo run --release -- --render-gate output/portal-galactico.png --ship 3 --galaxy 2 --gate-ready --time 1
+cargo run --release -- --render-gate output/entrada-galactica.png --ship 3 --galaxy 2 --time 1.6
+cargo run --release -- --render-flight output/umbria.png --galaxy 3
+cargo run --release -- --render-flight output/giro.png --ship 2 --time 2 --mouse 0.65 -0.35
+cargo run --release -- --render-planet output/boreal.png --target boreal
+cargo run --release -- --render-flight output/impacto.png --near-planet boreal --time 1.05
+```
+
+`--time` indica el instante de la animación en segundos; `--ship` elige una nave de 1 a 3. Para vuelo, `--time` simula hasta 600 segundos manteniendo `W` y `--mouse x y` mantiene una dirección normalizada entre -1 y 1 (centro: `0 0`; derecha y arriba: `0.65 -0.35`). Estas exportaciones usan la misma física y el mismo renderizador que la aplicación interactiva.
+
+`--render-planet` exporta un planeta centrado sobre fondo oscuro, usando el mismo
+renderizador del vuelo. Admite `--target boreal`, `jovara`, `siroco` u `oquedad`;
+por defecto muestra Boreal. `--time` permite revisar su rotación sin mover la nave.
+
+`--galaxy 1`, `2` o `3` elige Aurora, Hélice o Umbría. Aurora es el valor predeterminado. Las opciones de acercamiento y vista de planeta requieren que ese planeta exista en el destino elegido.
+
+## Organización
+
+- `src/fleet.rs`: modelos, nombres y acabados de las naves.
+- `src/home.rs`: título del juego, menú principal, controles e instrucciones.
+- `src/galaxy.rs`: catálogo de destinos, distribuciones y transformación del mapa.
+- `src/galaxy_art.rs`: ilustraciones procedurales de galaxias con núcleos, brazos y polvo.
+- `src/menus.rs`: hangar lateral, vista principal y atlas de galaxias.
+- `src/nebula.rs`: fondo procedural basado en `referencia.rs` y variación de color del mapa.
+- `src/noise.rs`: ruido reproducible y funciones de interpolación de la nebulosa.
+- `src/travel.rs`: transición de viaje y mezcla con el cuadro de llegada.
+- `src/flight.rs`: posición, velocidad, impulso y controles de vuelo.
+- `src/local_navigation.rs`: referencia orbital, desplazamiento tangencial, altura y horizonte local.
+- `src/portal.rs`: colocación, enlace y cruce continuo de los dos portales.
+- `src/portal_art.rs`: discos en perspectiva y animación de las imágenes de portales.
+- `src/galactic_portal.rs`: portal galáctico gigante, selección de destino y cinemática de entrada.
+- `src/collision.rs`: colisión continua con las mallas de los planetas y sus túneles.
+- `src/explosion.rs`: fuego, fragmentos y humo del impacto en coordenadas del mundo.
+- `src/space.rs`: carga, posición y rotación de los planetas.
+- `src/debris_physics.rs`: trayectorias de rocas, integración fija, captura y caché reproducible.
+- `src/ring_debris.rs`: separación de las 96 rocas de los anillos conservando las mallas de Blender.
+- `src/ice_planet.rs`: carga del modelo Blender de Nivalis y validación del relieve.
+- `src/dust.rs`: nube animada de arena de Siroco y partículas con transparencia.
+- `src/texture.rs`: carga y muestreo bilineal de mapas de color PNG.
+- `src/renderer.rs`: rasterizado compartido, vistas del hangar y perspectiva de vuelo.
+- `src/raster_batch.rs`: rasterización de lotes por franjas con Rayon.
+- `src/ui.rs`: composición, tipografía, interacción con las tarjetas y mapeo del ratón.
+- `src/main.rs`: navegación, entradas y reloj de animación.
+- `src/window_state.rs`: normalización del foco de ventana para macOS, Windows y Linux.
+- `assets/ui/`: atlas de glifos integrado en el ejecutable; no requiere instalar fuentes.
+
+Las pruebas de `cargo test` comprueban los giros completos del hangar, pausa/reanudación, selección con ventana redimensionada y animación de cada nave en la vista principal sin modificar la columna lateral. También verifican la selección del mapa al moverlo, girarlo o ampliarlo; la restauración de destinos con sus colisiones; la decoración reproducible; y la igualdad del renderizado entre uno y varios hilos. El vuelo tiene pruebas de dirección sostenida con mouse, movimiento sin saltos, WASD sin avance automático ni ventaja diagonal, desaceleración, turbo/freno, respuesta a distintas tasas de cuadros, cámara trasera y desplazamiento del campo estelar. Los planetas tienen comprobaciones de visibilidad, profundidad independiente del orden de dibujo, recorte cerca de la cámara y movimiento de la nube sin desplazar la nave.
+
+Las pruebas de navegación local verifican una circunnavegación completa con la
+órbita y colisiones de Kepler-186f a 10 y 60 FPS, conservación de altura,
+orientación del horizonte, ascenso, frenado, salida sin teletransporte y descenso
+contra la superficie real. También cubren contacto seguido de ascenso y nuevo
+descenso, recuperación de la inclinación al abandonar el radio local y selección
+de dirección con flechas sin interferencia del mouse. Después del contacto,
+se verifican vueltas completas en ambos sentidos en vuelo espacial a 10 y 60 FPS,
+sin bloqueo ni inversión de la inclinación al atravesar la vertical.
+
+## Integración y procedencia
+
+La integración, el port a Rust y el menú se realizaron con asistencia de Codex.
+
+- **Benatar**: refinamiento en Blender de la base del proyecto [hmndzzl/Graficas_Lab4](https://github.com/hmndzzl/Graficas_Lab4), conservada en `assets/ships/source/Benatar_base.obj`. Usa como referencia visual el [modelo de Naruret Limst en Sketchfab](https://sketchfab.com/3d-models/guardians-of-the-galaxy-benatar-ship-model-90feb21135734062ac03557cbf2dc328); su malla no se descarga ni se incorpora al juego. La versión propia tiene 4,036 triángulos frente a los 2,340 de la base. Incorpora cabina azul con marcos, juntas de paneles sobre las alas, cobre desaturado y bandas amplias de titanio gris en las alas, álabes de turbina, carcasas y rejillas mecánicas en las raíces de las alas, toberas y cola doble refinada. `scripts/blender/create_benatar.py` genera `Benatar.blend`, `Benatar.obj` y `Benatar.mtl`, sin texturas de imagen. El acabado uniforme anterior se sustituye por materiales independientes. Los límites de los paneles se dividen sobre las caras existentes para evitar bordes dentados sin cambiar la silueta.
+- **TIE Silencer (base Galactwar)**: modelo `nave-lab3-PC.obj`, del proyecto [Pxdro-410/lab4-Graficas-PC](https://github.com/Pxdro-410/lab4-Graficas-PC). El ZIP no incluía el MTL referenciado, así que `Galactwar.mtl` completa los cuatro materiales que aparecen en el OBJ.
+- **Crucer espacial**: modelo original `Crucer_espacial.obj` y materiales `Crucer_espacial.mtl`, construidos a partir de la imagen de referencia de la nave de Rick Sánchez de *Rick y Morty* aportada por el usuario. Reemplaza la tercera nave de la flota. Incluye casco gris de platillo, franjas amarillas, dos motores acanalados, faros, asientos marrones y cúpula transparente. [Detalles y regeneración](assets/ships/README.md).
+
+El renderizador C++ de [J05U3oAr/Lab4-graficas](https://github.com/J05U3oAr/Lab4-graficas) se portó a módulos Rust: carga de OBJ/MTL, validación y triangulación de caras, rasterizado baricéntrico con profundidad, iluminación difusa y exportación PNG. La ventana y los controles usan `minifb`. No se conservaron archivos `.cpp`, `.h` ni dependencias de SDL.
+
+## Recursos externos y asistencia de IA
+
+Se utilizó principalmente **OpenAI Codex** como asistencia para programación,
+depuración, pruebas, documentación y scripts de creación de modelos. También se
+utilizó **ImageGen** para recursos de textura: Boreal y la variante cálida de
+Kepler-186f tienen su procedencia registrada en
+[créditos de texturas](assets/planets/textures/README.md) y
+[registro de Kepler-186f](assets/planets/textures/kepler-warm.provenance.json).
+
+| Recurso o referencia | Uso y atribución |
+| --- | --- |
+| Proyectos anteriores del equipo | Bases reutilizadas y adaptadas del renderizador y las naves. Repositorios y alcance detallados en [Integración y procedencia](#integración-y-procedencia). |
+| Benatar de Guardianes de la Galaxia | El [modelo de Naruret Limst en Sketchfab](https://sketchfab.com/3d-models/guardians-of-the-galaxy-benatar-ship-model-90feb21135734062ac03557cbf2dc328) se utilizó como referencia visual para el modelo propio; su malla no se incorporó al juego. |
+| Fotografía de Júpiter para Jovara | Imagen PIA21641, con crédito NASA/JPL-Caltech/SwRI/MSSS/Betsy Asher Hall/Gervasio Robles. Fuente y adaptación en [créditos de texturas](assets/planets/textures/README.md#jovara). |
+| Imágenes de portales aportadas al proyecto | Recursos externos adaptados a PNG y atlas animado; no se atribuye su creación al equipo. Archivos y tratamiento en [procedencia de los portales](assets/portals/README.md#imágenes-proporcionadas-por-el-usuario). |
+| Referencias visuales compartidas durante el desarrollo | Imágenes de galaxias, asteroides, glaciares y naves para orientar el modelado y los materiales. Los diseños de Benatar, TIE Silencer y Crucer espacial se basan en sus respectivas obras de ficción. |
+| Referencias técnicas | Material del curso para el pipeline; [NASA](https://science.nasa.gov/sun/facts/) como referencia de actividad solar y [PBRT](https://www.pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission) para la óptica de Prisma. |
+
+Las dependencias de ejecución están declaradas en `Cargo.toml`: `minifb`
+(ventana y entrada), `nalgebra-glm` (matemáticas), `image` (PNG) y `rayon`
+(paralelismo en CPU). Las transformaciones, el clipping, la rasterización,
+la profundidad, los shaders y las colisiones se implementan en el proyecto.
