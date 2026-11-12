@@ -410,39 +410,9 @@ impl SurfaceEffect {
                 color.shaded(0.94 + grain * 0.07 + compression * 0.04)
             }
             Self::Crystal => {
-                let grain = noise::noise(point * 37.0);
-                if point.norm() < 1.045 {
-                    // Like nebula.rs: domain warping, layered fBm and continuous RGB mixing.
-                    // A neutral ground material carries face lighting into this palette.
-                    let p = point.normalize();
-                    let warp = noise::noise(p * 3.2 + Vec3::new(7.0, 2.0, 5.0)) - 0.5;
-                    let clouds = noise::fbm(p * 5.0 + Vec3::new(15.0 + warp, 3.0, -8.0));
-                    let wisps = noise::fbm(p * 13.0 + Vec3::new(4.0, 23.0 + warp * 2.0, 6.0));
-                    let hue = noise::smoothstep(
-                        0.27,
-                        0.72,
-                        noise::fbm(p * 2.5 + Vec3::new(19.0, 5.0, 31.0)) + (clouds - 0.5) * 0.5,
-                    );
-                    let navy = Vec3::new(14.0, 29.0, 78.0);
-                    let blue = Vec3::new(26.0, 107.0, 179.0);
-                    let purple = Vec3::new(118.0, 53.0, 174.0);
-                    let tint = blue + (purple - blue) * hue;
-                    let density = 0.35 + noise::smoothstep(0.26, 0.76, clouds) * 0.65;
-                    let palette = navy + (tint - navy) * density;
-                    let light = (color.r as f32 + color.g as f32 + color.b as f32) / (3.0 * 255.0);
-                    let result = palette * light * (0.85 + wisps * 0.30);
-                    return Color::new(
-                        result.x.clamp(0.0, 255.0) as u8,
-                        result.y.clamp(0.0, 255.0) as u8,
-                        result.z.clamp(0.0, 255.0) as u8,
-                    );
-                }
-                let striation = (point.y * 173.0 + grain * 2.0).sin().abs();
-                let glint = noise::smoothstep(0.94, 0.995, striation) * 0.10;
-                let base = color.shaded(0.92 + grain * 0.12);
-                let lift =
-                    |channel: u8, tint: f32| (channel as f32 + glint * tint).min(255.0) as u8;
-                Color::new(lift(base.r, 35.0), lift(base.g, 45.0), lift(base.b, 60.0))
+                let palette = crate::crystal::ground_palette(point);
+                let light = (color.r as f32 + color.g as f32 + color.b as f32) / (3.0 * 255.0);
+                palette.shaded(light)
             }
             Self::Snow { seconds } => {
                 // Vespera: wind-packed snow over exposed slate, not an icy ocean.

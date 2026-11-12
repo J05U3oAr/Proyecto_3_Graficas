@@ -411,6 +411,28 @@ fn draw_world_with_basis(
         },
         _ => effect,
     };
+    let crystal_optics = if matches!(effect, crate::shaders::SurfaceEffect::Crystal) {
+        let distance =
+            (sun.unwrap_or(transform.position + world_light * 10000.0) - transform.position).norm();
+        let angular = (crate::galaxy::ASTERION_RADIUS / distance.max(1.0)).clamp(0.0, 0.99);
+        Some(crate::crystal::Optics {
+            eye: local_vector((camera.eye - transform.position) / transform.radius),
+            light: local_vector(
+                (sun.unwrap_or(transform.position + world_light * 10000.0) - transform.position)
+                    / transform.radius,
+            ),
+            normal: Vec3::y(),
+            screen_right: local_vector(camera.right),
+            screen_up: local_vector(camera.up),
+            pixel_scale: transform.radius * FLIGHT_FOCAL
+                / (camera.eye - transform.position).norm().max(0.1),
+            ground_radius: 1.0 / model.radius,
+            sun_cosine: (1.0 - angular * angular).sqrt(),
+            rotation: Vec2::new(sin, cos),
+        })
+    } else {
+        None
+    };
     // Preserve modeled terrain and palette while smoothing material and lighting seams.
     let smooth_surface = if matches!(
         effect,
@@ -467,6 +489,7 @@ fn draw_world_with_basis(
             | crate::shaders::SurfaceEffect::Asteroid
             | crate::shaders::SurfaceEffect::Ice { .. }
             | crate::shaders::SurfaceEffect::Obsidian
+            | crate::shaders::SurfaceEffect::Crystal
             | crate::shaders::SurfaceEffect::Snow { .. }
             | crate::shaders::SurfaceEffect::PackIce { .. }
             | crate::shaders::SurfaceEffect::GasGiant { .. }
@@ -504,7 +527,8 @@ fn draw_world_with_basis(
             effect
         };
         // Estas superficies son cerradas; las caras posteriores no necesitan ejecutar el shader.
-        if cull_closed && normal.dot(&a) >= 0.0 {
+        if cull_closed && normal.dot(&a) >= 0.0 && !(crystal_optics.is_some() && face.opacity < 1.0)
+        {
             continue;
         }
         if let (Some(texture), Some(uv)) = (face.texture, face.uv) {
@@ -551,6 +575,7 @@ fn draw_world_with_basis(
                 crate::shaders::SurfaceEffect::Ice { .. }
                     | crate::shaders::SurfaceEffect::Obsidian
                     | crate::shaders::SurfaceEffect::Snow { .. }
+                    | crate::shaders::SurfaceEffect::Crystal
             ) {
             Some(finish.unwrap_or(face.color))
         } else if matches!(effect, crate::shaders::SurfaceEffect::Asteroid) {
@@ -605,6 +630,25 @@ fn draw_world_with_basis(
                     let p = (world - transform.position) / transform.radius;
                     Vec3::new(p.x * cos - p.z * sin, p.y, p.x * sin + p.z * cos)
                 });
+                if let Some(mut optics) = crystal_optics {
+                    if normal.norm_squared() < 1e-12 {
+                        continue;
+                    }
+                    let world_normal =
+                        camera.right * normal.x + camera.up * normal.y - camera.forward * normal.z;
+                    optics.normal = local_vector(world_normal.normalize());
+                    primitives.push(Primitive {
+                        vertices: projected,
+                        opacity: face.opacity,
+                        surface: Surface::Crystal {
+                            local,
+                            reciprocal: projected.map(|p| p.z),
+                            material: crate::crystal::Material::new(face.color, face.opacity),
+                            optics,
+                        },
+                    });
+                    continue;
+                }
                 let lighting = smooth_surface.as_ref().map(|(normals, colors)| {
                     let u = b - a;
                     let v = c - a;
