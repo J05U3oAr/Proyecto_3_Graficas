@@ -77,6 +77,35 @@ pub fn fbm(point: Vec3) -> f32 {
     sum / weight
 }
 
+// Quintic gradient noise for continuous surface detail without square patches.
+pub fn gradient_noise(p: Vec3) -> f32 {
+    let cell = p.map(|v| v.floor() as i32);
+    let f = p - p.map(f32::floor);
+    let fade = f.map(|t| t * t * t * (t * (t * 6.0 - 15.0) + 10.0));
+    let corner = |x: i32, y: i32, z: i32| {
+        let h = (hash(cell.x + x, cell.y + y, cell.z + z) * 255.0) as u32 & 15;
+        let d = f - Vec3::new(x as f32, y as f32, z as f32);
+        let u = if h < 8 { d.x } else { d.y };
+        let v = if h < 4 {
+            d.y
+        } else if h == 12 || h == 14 {
+            d.x
+        } else {
+            d.z
+        };
+        (if h & 1 == 0 { u } else { -u }) + (if h & 2 == 0 { v } else { -v })
+    };
+    let mix = |a: f32, b: f32, t: f32| a + (b - a) * t;
+    let row = |y, z| mix(corner(0, y, z), corner(1, y, z), fade.x);
+    (0.5 + 0.5
+        * mix(
+            mix(row(0, 0), row(1, 0), fade.y),
+            mix(row(0, 1), row(1, 1), fade.y),
+            fade.z,
+        ))
+    .clamp(0.0, 1.0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

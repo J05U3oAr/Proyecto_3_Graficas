@@ -95,6 +95,17 @@ impl Primitive<'_> {
                         rgb.y.clamp(0.0, 255.0) as u8,
                         rgb.z.clamp(0.0, 255.0) as u8,
                     );
+                    if matches!(effect, crate::shaders::SurfaceEffect::PackIce { .. }) {
+                        // Classify glacial albedo before lighting, so shadowed snow
+                        // is never mistaken for the dark animated channels.
+                        return crate::glacier::lighting(
+                            normal,
+                            effect.modulate(base, point),
+                            &lighting.light,
+                            &lighting.half,
+                        )
+                        .to_hex();
+                    }
                     if matches!(effect, crate::shaders::SurfaceEffect::Snow { .. }) {
                         crate::shaders::snow_lighting(normal, base, &lighting.light, &lighting.half)
                     } else {

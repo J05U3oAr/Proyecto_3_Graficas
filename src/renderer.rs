@@ -392,6 +392,13 @@ fn draw_world_with_basis(
                     / (camera.eye - transform.position).norm().max(0.1),
             }
         }
+        crate::shaders::SurfaceEffect::PackIce { seconds, .. } => {
+            crate::shaders::SurfaceEffect::PackIce {
+                seconds,
+                pixel_radius: transform.radius * FLIGHT_FOCAL
+                    / (camera.eye - transform.position).norm().max(0.1),
+            }
+        }
         crate::shaders::SurfaceEffect::Ice {
             seconds,
             core_radius,
@@ -436,7 +443,9 @@ fn draw_world_with_basis(
     // Preserve modeled terrain and palette while smoothing material and lighting seams.
     let smooth_surface = if matches!(
         effect,
-        crate::shaders::SurfaceEffect::Obsidian | crate::shaders::SurfaceEffect::Snow { .. }
+        crate::shaders::SurfaceEffect::Obsidian
+            | crate::shaders::SurfaceEffect::Snow { .. }
+            | crate::shaders::SurfaceEffect::PackIce { .. }
     ) {
         let mut normals = vec![Vec3::zeros(); vertices.len()];
         let mut colors = vec![Vec3::zeros(); vertices.len()];
@@ -576,6 +585,7 @@ fn draw_world_with_basis(
                     | crate::shaders::SurfaceEffect::Obsidian
                     | crate::shaders::SurfaceEffect::Snow { .. }
                     | crate::shaders::SurfaceEffect::Crystal
+                    | crate::shaders::SurfaceEffect::PackIce { .. }
             ) {
             Some(finish.unwrap_or(face.color))
         } else if matches!(effect, crate::shaders::SurfaceEffect::Asteroid) {

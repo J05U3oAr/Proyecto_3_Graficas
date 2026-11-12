@@ -25,6 +25,7 @@ pub enum SurfaceEffect {
     RingIce,
     PackIce {
         seconds: f32,
+        pixel_radius: f32,
     },
     Snow {
         seconds: f32,
@@ -399,16 +400,10 @@ impl SurfaceEffect {
                     result.z.clamp(0.0, 255.0) as u8,
                 )
             }
-            Self::PackIce { seconds } => {
-                let grain = noise::noise(point * 83.0);
-                if color.r < 80 && color.b as f32 > color.r as f32 * 1.65 {
-                    let drift = Vec3::new(seconds * 0.035, 11.0, -seconds * 0.025);
-                    let shimmer = noise::noise(point * 31.0 + drift);
-                    return color.shaded(0.86 + shimmer * 0.24);
-                }
-                let compression = noise::noise(point * 21.0 + Vec3::new(9.0, 17.0, 3.0));
-                color.shaded(0.94 + grain * 0.07 + compression * 0.04)
-            }
+            Self::PackIce {
+                seconds,
+                pixel_radius,
+            } => crate::glacier::albedo(color, point, seconds, pixel_radius),
             Self::Crystal => {
                 let palette = crate::crystal::ground_palette(point);
                 let light = (color.r as f32 + color.g as f32 + color.b as f32) / (3.0 * 255.0);

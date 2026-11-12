@@ -14,6 +14,7 @@ mod framebuffer;
 mod galactic_portal;
 mod galaxy;
 mod galaxy_art;
+mod glacier;
 mod home;
 mod ice_planet;
 mod impulse;
