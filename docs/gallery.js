@@ -54,8 +54,8 @@ const jumpFrames = [
   [0.06, "Onda de salida", "Benatar inicia el salto y deja una onda roja en el punto de salida"],
   [0.25, "Salto", "Benatar avanza con dos estelas rojas sobre su trayectoria real"],
   [0.45, "Estela", "La estela roja se extiende detrás de Benatar mientras las estrellas conservan su forma"],
-  [0.72, "Recarga", "El salto termina y la estela roja permanece detrás de la nave durante su recarga"],
-  [1.55, "Desvanecida", "La onda y la estela se han desvanecido y Benatar continúa el vuelo normal"],
+  [3.08, "Listo otra vez", "El salto de tres segundos termina y Benatar puede saltar otra vez inmediatamente, sin recarga"],
+  [3.95, "Desvanecida", "La estela se ha desvanecido y Benatar sigue lista para otro salto, sin recarga"],
 ];
 const jumpTime = document.getElementById("jump-time");
 const jumpImage = document.getElementById("jump-image");

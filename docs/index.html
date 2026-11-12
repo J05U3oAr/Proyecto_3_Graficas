@@ -7,7 +7,7 @@
   <meta name="description" content="Aureon y los siete mundos de Hélice. Explora sus órbitas y observa cómo el agujero negro atrae y absorbe meteoritos. Capturas reales del juego en Rust.">
   <title>Hélice — Beyond the Interstellar</title>
   <link rel="stylesheet" href="style.css">
-  <script src="gallery.js?v=benatar-salto" defer></script>
+  <script src="gallery.js?v=benatar-sin-recarga" defer></script>
 </head>
 <body>
   <a class="skip" href="#mundos">Saltar a los planetas</a>
@@ -68,10 +68,10 @@
       <a class="flight-image" href="assets/benatar-salto.png"><img src="assets/benatar-salto.png" width="1280" height="840" loading="lazy" alt="Benatar durante el salto luz, con estrellas compactas y dos estelas rojas detrás del casco"></a>
       <p class="caption">Se eliminaron las líneas adicionales del fondo y el estiramiento exagerado de las estrellas. La onda roja queda en el punto de salida y la estela sigue el recorrido real de la nave.</p>
       <div class="flight-image"><img id="jump-image" src="assets/benatar-estela-0.png" width="1280" height="840" loading="lazy" alt="Vista lateral de Benatar al iniciar el salto, con una onda roja en el punto de salida"></div>
-      <div class="time-control"><label for="jump-time">Observar la estela <output id="jump-output" for="jump-time" aria-live="polite">0.06 s · Onda de salida</output></label><input id="jump-time" type="range" min="0" max="4" step="1" value="0" disabled aria-describedby="jump-caption" aria-valuetext="0.06 segundos, onda de salida"><div class="time-ticks" aria-hidden="true"><span>Salida</span><span>Salto</span><span>Estela</span><span>Recarga</span><span>Desvanecida</span></div></div>
+      <div class="time-control"><label for="jump-time">Observar la estela <output id="jump-output" for="jump-time" aria-live="polite">0.06 s · Onda de salida</output></label><input id="jump-time" type="range" min="0" max="4" step="1" value="0" disabled aria-describedby="jump-caption" aria-valuetext="0.06 segundos, onda de salida"><div class="time-ticks" aria-hidden="true"><span>Salida</span><span>Salto</span><span>Estela</span><span>Listo</span><span>Desvanecida</span></div></div>
       <p id="jump-caption" class="caption">Recorre cinco capturas reales del motor Rust con el control o las flechas del teclado. El encuadre lateral permite observar la onda y cómo la estela queda atrás y se desvanece. En el juego se conserva la cámara de seguimiento.</p>
-      <p class="caption">El salto dura 0.65 segundos y recarga en 2.5 segundos desde la activación. Conserva las colisiones y la navegación local. Esta página muestra capturas del juego para escritorio.</p>
-      <noscript><p class="caption">Ver capturas: <a href="assets/benatar-estela-1.png">salto</a>, <a href="assets/benatar-estela-2.png">estela</a>, <a href="assets/benatar-estela-3.png">recarga</a> y <a href="assets/benatar-estela-4.png">desvanecida</a>.</p></noscript>
+      <p class="caption">El salto dura 3 segundos y no tiene recarga: al terminar puedes volver a activarlo inmediatamente. Conserva las colisiones y la navegación local. Esta página muestra capturas del juego para escritorio.</p>
+      <noscript><p class="caption">Ver capturas: <a href="assets/benatar-estela-1.png">salto</a>, <a href="assets/benatar-estela-2.png">estela</a>, <a href="assets/benatar-estela-3.png">listo otra vez</a> y <a href="assets/benatar-estela-4.png">desvanecida</a>.</p></noscript>
     </section>
 
     <section class="flight-section" aria-labelledby="gravity-title">
