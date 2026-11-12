@@ -564,3 +564,39 @@ refracción usa únicamente la información del fondo visible en pantalla. Las c
 y los modelos no cambian, y no se añaden imágenes ni texturas de Aurora.
 Referencia técnica: [PBRT: reflexión y transmisión dieléctricas](https://www.pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission)
 y [transmitancia](https://www.pbr-book.org/4ed/Volume_Scattering/Transmittance).
+
+
+## Glaciares y banquisa de Nácar
+
+La referencia visual de Nácar es el hielo glaciar con crestas blancas, paredes
+blanco azuladas erosionadas y azul más profundo en grietas y cavidades. Su modelo
+editable de Blender conserva la banquisa fracturada y añade 16 masas glaciares
+anchas, con crestas irregulares y paredes acanaladas, más una formación con arco
+y cueva. Blender exporta dos niveles de detalle: la malla cercana tiene 24.443
+vértices y 48.814 triángulos; `nacar_lod.obj` mantiene 12.114 vértices y 24.156
+triángulos para la vista lejana. La versión cercana refina los bordes de las grietas,
+subdivide glaciares y arco y añade erosión pequeña en la geometría.
+
+El arco tiene una abertura geométrica real que permite pasar con la nave; su
+techo y sus paredes mantienen colisión. El eje local de esta formación es
+`normalize(0.62, 0.06, 0.78)`. La prueba de navegación atraviesa la cueva y verifica
+por separado la colisión contra su techo. El generador reproducible está en
+`scripts/blender/create_nacar.py`, con la semilla `88421`.
+
+`src/glacier.rs` diferencia la nieve mate, el hielo compacto y los canales oscuros
+antes de aplicar iluminación. La respuesta de las paredes aproxima dispersión
+suave dentro del hielo; las crestas evitan reflejos de plástico y los canales
+conservan destellos y una ondulación tenue animada. El hielo sólido y sus detalles
+permanecen anclados al modelo. Las normales y colores se interpolan para reducir
+las facetas sin alterar las colisiones. Este material es opaco y propio de Nácar;
+no reutiliza la óptica de vidrio de Prisma ni las texturas de Aurora. No se crean
+PNG ni archivos README adicionales.
+
+
+Nácar cambia al LOD lejano cuando su radio proyectado baja de 120 píxeles.
+Ambas mallas comparten el mismo radio de normalización para conservar la escala.
+Las colisiones usan la versión detallada y el hueco del arco sigue siendo
+navegable. Con **F4** se puede desactivar el LOD y comparar el contador de
+triángulos. Las bandas finas de escarcha se atenúan entre radios proyectados de
+80 y 240 píxeles para evitar ruido no resoluble a distancia. Los modelos de ambos
+niveles están en `nacar.blend` y se regeneran con el mismo script.
