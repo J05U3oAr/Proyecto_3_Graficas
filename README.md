@@ -489,3 +489,32 @@ deformado, detalle de roca de bajo contraste y depósitos sutiles de escarcha.
 Estas capas procedurales, como en LAB5, permanecen ancladas al modelo al rotar;
 no requieren imágenes ni generan geometría adicional. Esta interpolación se
 activa únicamente para Ónice.
+
+
+## Actividad estelar de Asterion
+
+Asterion conserva su esfera de Blender y su identidad blanco azulada. El shader
+emite su propio color a partir del atlas de plasma de 2048 × 1024 ya existente
+(`assets/planets/textures/aurora-helios-ii-surface.png`), con una interpretación
+térmica blanco azulada. Las UV se exportan en Blender con la costura de longitud
+separada; se mantienen los mismos 4514 vértices y 9024 triángulos. El muestreo
+bilineal y el flujo continuo de las UV dan detalle a los filamentos y remolinos,
+sin crear otro PNG. Las manchas con núcleo y penumbra, las regiones brillantes
+y el oscurecimiento del limbo se calculan por fragmento.
+
+El atlas se anima con una deformación de UV de baja frecuencia; no se superpone
+el antiguo grano de alta frecuencia. El detalle fino procede de la imagen base,
+como en los materiales de Aurora. La ruta procedural sin atlas usa ruido de
+gradientes y filtrado por tamaño proyectado. Para regenerar las UV, ejecuta
+`scripts/blender/create_asterion.py` con Blender.
+
+`src/stellar.rs` añade una corona tenue y filamentos de protuberancias que crecen,
+se deforman y se disipan de forma localizada. El shader de emisión se calcula
+fuera del disco, respeta la profundidad de los objetos que pasan por delante y
+no modifica el z-buffer. Las animaciones dependen de segundos transcurridos,
+con tiempos acelerados para apreciarlas durante el recorrido. No se generan
+modelos en Rust, ni se alteran las colisiones o los otros soles.
+
+Los fenómenos toman como referencia la [descripción del Sol de NASA](https://science.nasa.gov/sun/facts/).
+Son una representación visual inspirada en actividad solar, con la paleta de
+Asterion; no una simulación física de plasma o de una estrella azul.
