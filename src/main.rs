@@ -1,4 +1,5 @@
 mod asteroids;
+mod audio;
 mod black_hole;
 mod camera;
 mod collision;
@@ -498,6 +499,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
     )?;
     window.set_target_fps(60);
+    // La musica permanece activa entre pantallas y se detiene al salir del programa.
+    let _music = audio::Music::start();
     let mut atlas = galaxy::GalaxyView::default();
     let mut transit = travel::Travel::new(0);
     let mut arrival = Framebuffer::new(WIDTH, HEIGHT);
