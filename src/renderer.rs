@@ -411,8 +411,11 @@ fn draw_world_with_basis(
         },
         _ => effect,
     };
-    // Onice keeps its modeled craters and palette; interpolate normals and material colors.
-    let smooth_surface = if matches!(effect, crate::shaders::SurfaceEffect::Obsidian) {
+    // Preserve modeled terrain and palette while smoothing material and lighting seams.
+    let smooth_surface = if matches!(
+        effect,
+        crate::shaders::SurfaceEffect::Obsidian | crate::shaders::SurfaceEffect::Snow { .. }
+    ) {
         let mut normals = vec![Vec3::zeros(); vertices.len()];
         let mut colors = vec![Vec3::zeros(); vertices.len()];
         let mut areas = vec![0.0; vertices.len()];
@@ -434,6 +437,21 @@ fn draw_world_with_basis(
         for index in 0..normals.len() {
             normals[index] = normals[index].try_normalize(1e-10).unwrap_or(Vec3::z());
             colors[index] /= areas[index].max(1e-10);
+            if matches!(effect, crate::shaders::SurfaceEffect::Snow { .. }) {
+                let tint = colors[index];
+                let snow =
+                    1.0 - crate::noise::smoothstep(0.11, 0.25, (tint.z - tint.x) / tint.z.max(1.0));
+                let p = (model.vertices[index] - model.center) / model.radius;
+                let offset = crate::shaders::snow_normal_offset(p) * snow;
+                let world = Vec3::new(
+                    offset.x * cos + offset.z * sin,
+                    offset.y,
+                    offset.z * cos - offset.x * sin,
+                );
+                let offset = camera.view_direction(world);
+                let n = normals[index];
+                normals[index] = (n - (offset - n * n.dot(&offset))).normalize();
+            }
         }
         Some((normals, colors))
     } else {
@@ -530,7 +548,9 @@ fn draw_world_with_basis(
         let color = if face.unlit
             || matches!(
                 effect,
-                crate::shaders::SurfaceEffect::Ice { .. } | crate::shaders::SurfaceEffect::Obsidian
+                crate::shaders::SurfaceEffect::Ice { .. }
+                    | crate::shaders::SurfaceEffect::Obsidian
+                    | crate::shaders::SurfaceEffect::Snow { .. }
             ) {
             Some(finish.unwrap_or(face.color))
         } else if matches!(effect, crate::shaders::SurfaceEffect::Asteroid) {

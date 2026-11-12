@@ -262,6 +262,36 @@ fn ice_surface(effect: SurfaceEffect, base: Color, p: Vec3) -> Color {
     )
 }
 
+const VESPERA_WIND: Vec3 = Vec3::new(0.82, 0.18, -0.54);
+
+fn snow_pattern(point: Vec3) -> (f32, f32, f32) {
+    let compaction = noise::noise(point * 5.0 + Vec3::new(7.0, 13.0, 3.0));
+    let warp = noise::noise(point * 9.0 + Vec3::new(17.0, 3.0, 23.0));
+    let phase = point.dot(&VESPERA_WIND) * 47.0 + warp * 4.5;
+    (compaction, warp, phase)
+}
+
+/// Shading relief follows the same local wind pattern as the snow's albedo.
+/// Evaluated at mesh vertices; no terrain or collision vertices are displaced.
+pub fn snow_normal_offset(point: Vec3) -> Vec3 {
+    let (compaction, _, phase) = snow_pattern(point);
+    VESPERA_WIND * phase.cos() * noise::smoothstep(0.42, 0.66, compaction) * 0.14
+}
+
+pub fn snow_lighting(normal: Vec3, base: Color, light: &Vec3, half: &Vec3) -> Color {
+    let normal = normal.normalize();
+    let diffuse = normal.dot(light).max(0.0);
+    // Powder is rough: avoid the broad plastic highlight used on hard surfaces.
+    let glint = normal.dot(half).max(0.0).powi(18) * 0.015 * diffuse;
+    let rgb = Vec3::new(base.r as f32, base.g as f32, base.b as f32) * (0.22 + diffuse * 0.78)
+        + Vec3::new(210.0, 220.0, 228.0) * glint;
+    Color::new(
+        rgb.x.clamp(0.0, 255.0) as u8,
+        rgb.y.clamp(0.0, 255.0) as u8,
+        rgb.z.clamp(0.0, 255.0) as u8,
+    )
+}
+
 impl SurfaceEffect {
     pub fn modulate(self, color: Color, point: Vec3) -> Color {
         match self {
@@ -415,10 +445,48 @@ impl SurfaceEffect {
                 Color::new(lift(base.r, 35.0), lift(base.g, 45.0), lift(base.b, 60.0))
             }
             Self::Snow { seconds } => {
-                let grain = noise::noise(point * 145.0);
-                let crust = noise::noise(point * 51.0);
-                let wind = noise::noise(point * 22.0 + Vec3::new(seconds * 0.045, 7.0, 19.0));
-                color.shaded(0.76 + grain * 0.30 + crust * 0.13 + (wind - 0.5) * 0.025)
+                // Vespera: wind-packed snow over exposed slate, not an icy ocean.
+                let (compaction, warp, phase) = snow_pattern(point);
+                let ridges =
+                    (0.5 + phase.sin() * 0.5).powi(3) * noise::smoothstep(0.42, 0.66, compaction);
+                // Hue distinguishes snow from slate even in the shadowed terrain.
+                let stone = noise::smoothstep(
+                    0.11,
+                    0.25,
+                    (color.b as f32 - color.r as f32) / (color.b as f32).max(1.0),
+                );
+                let strata = if stone > 0.0 {
+                    noise::noise(Vec3::new(
+                        point.x * 6.0,
+                        point.y * 45.0 + warp * 2.0,
+                        point.z * 6.0,
+                    ))
+                } else {
+                    0.5
+                };
+                let crust = if stone < 1.0 {
+                    noise::noise(point * 28.0 + Vec3::new(warp * 3.0, compaction * 2.0, warp))
+                } else {
+                    0.5
+                };
+                let mineral_dust = noise::smoothstep(0.60, 0.78, compaction) * 0.08;
+                let snow_shade =
+                    (0.90 + compaction * 0.08 + crust * 0.065 - ridges * 0.035 - mineral_dust)
+                        .min(1.0);
+                let rock_shade = 0.89 + strata * 0.17;
+                let base = color.shaded(snow_shade + (rock_shade - snow_shade) * stone);
+                let drifting = noise::noise(Vec3::new(
+                    point.x * 10.0 - seconds * 0.065,
+                    point.y * 26.0,
+                    point.z * 10.0 + seconds * 0.025,
+                ));
+                let powder = noise::smoothstep(0.48, 0.76, drifting) * 0.045 * (1.0 - stone);
+                // Keep loose powder tied to existing light instead of glowing at night.
+                let illumination = (base.r as f32 / 225.0).min(1.0);
+                let mix = |v: u8, snow: f32| {
+                    (v as f32 + (snow * illumination - v as f32) * powder).clamp(0.0, 255.0) as u8
+                };
+                Color::new(mix(base.r, 224.0), mix(base.g, 231.0), mix(base.b, 235.0))
             }
             Self::Obsidian => {
                 // LAB5-style layers: broad mineral variation, warped veins,
@@ -551,6 +619,66 @@ impl SurfaceEffect {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn vespera_wind_layers_animate_without_moving_the_solid_surface() {
+        use crate::{
+            flight::Flight,
+            framebuffer::Framebuffer,
+            renderer::{self, FlightView, WorldTransform},
+        };
+        let mut space = crate::space::Space::load().unwrap();
+        space.configure(2);
+        let planet = space
+            .active_planets()
+            .find(|p| p.name == "Vespera")
+            .unwrap();
+        let mut flight = Flight::new();
+        flight.camera.pitch = 0.0;
+        let view = FlightView::new(&flight, 320, 240);
+        let render = |seconds| {
+            let mut frame = Framebuffer::new(320, 240);
+            frame.pixels.fill(0);
+            frame.point(160, 120, 2.0, 0xff00ff, true);
+            renderer::draw_world_model_shaded(
+                &mut frame,
+                &planet.model,
+                &view,
+                WorldTransform {
+                    position: Vec3::new(0.0, 0.0, -260.0),
+                    radius: 45.0,
+                    yaw: 0.0,
+                },
+                Some(Vec3::new(0.0, 100.0, 300.0)),
+                planet.surface_effect(seconds),
+            );
+            frame
+        };
+        let a = render(0.0);
+        let b = render(10.0);
+        assert_eq!(
+            a.depth, b.depth,
+            "El viento no debe deformar los canones ni las colisiones"
+        );
+        assert_eq!(b.pixels[120 * 320 + 160], 0xff00ff);
+        assert!(
+            a.pixels
+                .iter()
+                .zip(&b.pixels)
+                .filter(|(a, b)| a != b)
+                .count()
+                > 100
+        );
+        let white = a
+            .pixels
+            .iter()
+            .filter(|p| (*p >> 16) & 255 > 250 && (*p >> 8) & 255 > 250 && *p & 255 > 250)
+            .count();
+        assert!(
+            white < 20,
+            "La nieve no debe quemarse con brillos de plastico: {white}"
+        );
+    }
 
     #[test]
     fn nivalis_snow_is_smooth_across_mesh_faces() {

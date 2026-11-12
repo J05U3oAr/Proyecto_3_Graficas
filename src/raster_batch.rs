@@ -71,8 +71,12 @@ impl Primitive<'_> {
                         rgb.y.clamp(0.0, 255.0) as u8,
                         rgb.z.clamp(0.0, 255.0) as u8,
                     );
-                    crate::renderer::lit_color(normal, base, &lighting.light, &lighting.half)
-                        .unwrap_or(base)
+                    if matches!(effect, crate::shaders::SurfaceEffect::Snow { .. }) {
+                        crate::shaders::snow_lighting(normal, base, &lighting.light, &lighting.half)
+                    } else {
+                        crate::renderer::lit_color(normal, base, &lighting.light, &lighting.half)
+                            .unwrap_or(base)
+                    }
                 } else {
                     *color
                 };
