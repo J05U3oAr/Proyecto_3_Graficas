@@ -19,6 +19,7 @@ mod glacier;
 mod home;
 mod ice_planet;
 mod impulse;
+mod impulse_wake;
 mod lighting;
 mod local_navigation;
 mod menus;
@@ -121,12 +122,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut portal_demo = false;
         let mut gate_ready = false;
         let mut impulse_demo = false;
+        let mut impulse_side_view = false;
         let mut death_star_demo = false;
         let mut mouse_target = (0.0f32, 0.0f32);
         let mut args = args.iter();
         while let Some(argument) = args.next() {
             match argument.as_str() {
                 "--impulse" => impulse_demo = true,
+                "--impulse-side-view" => impulse_side_view = true,
                 "--death-star" => death_star_demo = true,
                 "--lod-high" => ui.render_options.automatic_lod = false,
                 "--no-culling" => ui.render_options.culling = false,
@@ -219,7 +222,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                         "TIE Silencer: R llama a la Estrella de la Muerte contra el planeta frente a la proa. Vista previa: --render-flight salida.png --ship 2 --galaxy 2 --near-planet kepler-186f --death-star --time 5.2"
                     );
                     println!(
-                        "TIE Silencer: CAPS LOCK + WASD activa un impulso; sin WASD, hacia adelante. Exportacion: --render-flight salida.png --ship 2 --impulse --time 0.12."
+                        "Benatar: CAPS LOCK + WASD activa el salto luz con estela roja; sin WASD, hacia adelante. Exportacion: --render-flight salida.png --ship 1 --impulse --time 0.12."
+                    );
+                    println!(
+                        "Anade --impulse-side-view para observar la onda y la estela desde un lateral; el juego usa la camara de seguimiento habitual."
                     );
                     println!(
                         "Vuelo: F4 alterna LOD automatico, F5 alterna descarte, F6 pausa la demostracion. Exportacion: --lod-high y --no-culling."
@@ -254,6 +260,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             "Especifica --render-home, --render-menu, --render-galaxies, --render-travel, --render-inspector, --render-flight, --render-landmark o --render-planet",
         )?;
         ui.select_galaxy(galaxy_index);
+        if impulse_side_view && (!impulse_demo || export_screen != Screen::Flight) {
+            return Err("--impulse-side-view requiere --render-flight y --impulse".into());
+        }
         if death_star_demo
             && (export_screen != Screen::Flight
                 || selected != 1
@@ -396,7 +405,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
             flight.move_with_mouse(Some(mouse_target));
             if impulse_demo && !flight.trigger_impulse(&ships[selected], (1.0, 0.0)) {
-                return Err("El impulso requiere --ship 2 y una nave activa".into());
+                return Err("El salto luz requiere --ship 1 (Benatar) y una nave activa".into());
             }
             for frame in 0..(seconds * 60.0).ceil() as u32 {
                 let dt = (seconds - frame as f32 / 60.0).min(1.0 / 60.0);
@@ -408,7 +417,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                 };
                 ui.advance_flight(&mut flight, dt, movement, false, false);
             }
-            ui.flight(&mut framebuffer, &ships[selected], &flight, seconds);
+            if impulse_side_view {
+                ui.impulse_preview(&mut framebuffer, &ships[selected], &flight);
+            } else {
+                ui.flight(&mut framebuffer, &ships[selected], &flight, seconds);
+            }
             println!(
                 "Triangulos procesados: {} | LOD automatico: {} | Descarte: {}",
                 framebuffer.triangles_processed,

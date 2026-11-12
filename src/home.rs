@@ -221,7 +221,7 @@ pub fn draw(ui: &Ui, fb: &mut Framebuffer, home: &Home) {
                         ),
                         ("G", "Crucer: abrir portal galactico"),
                         ("Flechas / TAB / ENTER", "Portal galactico: elegir / entrar"),
-                        ("CAPS LOCK + WASD", "TIE: impulso en la direccion elegida"),
+                        ("CAPS LOCK + WASD", "Benatar: salto luz y estela roja"),
                         ("R / TIE SILENCER", "Llamar a la Estrella de la Muerte"),
                         ("F4 / F5", "Alternar LOD automatico / descarte"),
                         ("F6", "Pausar o reanudar el vuelo"),
@@ -254,7 +254,7 @@ pub fn draw(ui: &Ui, fb: &mut Framebuffer, home: &Home) {
                 (
                     "03",
                     "Controla el vuelo",
-                    "C alterna mouse y flechas. WASD mueve; SHIFT da turbo y ESPACIO frena. Con TIE, CAPS LOCK + WASD da un impulso; sin WASD, hacia adelante.",
+                    "C alterna mouse y flechas. WASD mueve; SHIFT da turbo y ESPACIO frena. Con Benatar, CAPS LOCK + WASD activa el salto luz; sin WASD, hacia adelante.",
                 ),
                 (
                     "04",

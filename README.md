@@ -75,7 +75,7 @@ Usa flechas arriba/abajo, `W/S`, `Tab` o `Shift+Tab` para cambiar de opción y `
 | `Shift` | Aumentar el impulso y la velocidad máxima |
 | `Espacio` | Frenar |
 | `L` | Activar o desactivar navegación local cerca del planeta más próximo |
-| `Caps Lock` | Con TIE Silencer: impulso en la dirección de WASD; sin WASD, hacia adelante |
+| `Caps Lock` | Con Benatar: salto luz en la dirección de WASD; sin WASD, hacia adelante; deja onda y estela rojas |
 | `R` | Con TIE Silencer: llamar a la Estrella de la Muerte para destruir el planeta frente a la proa |
 | `F4` / `F5` | Alternar LOD automático / descarte de objetos y comparar los contadores del HUD |
 | `F6` | Pausar o reanudar la demostración para comparar el mismo encuadre |
@@ -100,6 +100,34 @@ sin bloquearse al apuntar hacia arriba o abajo. La cámara acompaña el giro al
 pasar por la vertical.
 
 La cámara sigue a la nave desde 6.2 unidades por detrás y 1.55 por encima de su eje, con una ligera inclinación para apreciar el casco. El encuadre más cercano permite distinguir sus materiales sin cubrir la mira. Sigue los cambios de dirección con suavidad y la nave inclina las alas al girar. Las tres naves se dibujan en perspectiva y las estrellas se desplazan según la posición y velocidad reales, con estelas al avanzar. El HUD muestra posición y velocidad. El vuelo se pausa mientras inspeccionas la nave o la ventana pierde el foco.
+
+### Salto luz — Benatar
+
+Selecciona **Benatar** (primera nave, tecla **1**) y pulsa **Caps Lock** para
+activar el salto. Con WASD puedes elegir la dirección; sin WASD salta hacia
+adelante. La habilidad que antes tenía TIE Silencer ahora es exclusiva de
+Benatar. TIE conserva la llamada a la Estrella de la Muerte con **R**.
+
+Durante el salto las estrellas mantienen una forma compacta: se eliminaron las
+líneas adicionales y el estiramiento exagerado. Benatar deja una onda roja en
+el punto de salida y dos estelas luminosas sobre su trayectoria real. Se
+desvanecen en 0.9 segundos y quedan ocultas por el casco, planetas y obstáculos.
+La inspección y la pausa conservan el efecto; cambiar de nave o cancelar el salto
+lo limpia.
+
+El salto dura 0.65 segundos, con recarga de 2.5 segundos desde la activación.
+Mantiene la física y las colisiones existentes: 300 unidades/s adicionales en
+el espacio y 96 unidades/s en navegación local. «Salto luz» es el nombre de la
+habilidad del juego, sin representar la velocidad física de la luz.
+
+```powershell
+cargo run --release -- --render-flight output/benatar-salto.png --ship 1 --galaxy 2 --impulse --time 0.25
+cargo run --release -- --render-flight output/benatar-estela.png --ship 1 --galaxy 2 --impulse --impulse-side-view --time 0.45
+```
+
+`--impulse-side-view` exporta un encuadre lateral para observar la onda y la
+estela; el juego conserva la cámara de seguimiento habitual.
+[Vista previa en GitHub Pages](https://j05u3oar.github.io/Proyecto_3_Graficas/#benatar).
 
 ### Estrella de la Muerte — TIE Silencer
 

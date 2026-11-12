@@ -143,7 +143,14 @@ impl Flight {
                     .direction(self.position, forward, movement, 0.0, self.seconds)
             },
         );
-        self.impulse.trigger(direction, self.is_local())
+        if !self.impulse.trigger(direction, self.is_local()) {
+            return false;
+        }
+        let (right, up, forward) = self.ship_basis();
+        self.impulse
+            .wake
+            .launch(self.position - forward * 1.4, right, up);
+        true
     }
 
     pub fn cancel_impulse(&mut self) {
@@ -667,6 +674,12 @@ impl Flight {
                 self.camera.up_axis = self.camera.up_axis.map(|up| step.transport(up));
             }
 
+            if self.impulse_velocity.norm_squared() > 0.0 {
+                let (right, _, forward) = self.ship_basis();
+                self.impulse
+                    .wake
+                    .record(self.position - forward * 1.4, right);
+            }
             let follow = 1.0 - (-7.0 * dt).exp();
             if let Some(local) = self.local_navigation {
                 let up = (self.position - local.reference.center_at(time + dt)).normalize();
@@ -706,13 +719,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn silencer_impulse_works_in_four_directions_without_leaving_residual_speed() {
+    fn benatar_impulse_works_in_four_directions_without_leaving_residual_speed() {
         let ships = crate::fleet::load().unwrap();
         for movement in [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0), (1.0, 1.0)] {
             let simulate = |fps| {
                 let mut flight = Flight::new();
-                assert!(flight.trigger_impulse(&ships[1], movement));
-                assert!(!flight.trigger_impulse(&ships[1], movement));
+                assert!(flight.trigger_impulse(&ships[0], movement));
+                assert!(!flight.trigger_impulse(&ships[0], movement));
                 for _ in 0..fps {
                     flight.advance(1.0 / fps as f32, (0.0, 0.0), false, false);
                 }
@@ -727,11 +740,15 @@ mod tests {
             assert!((fast.position.norm() - distance).abs() < 0.03);
             assert!((fast.position - slow.position).norm() < 0.02);
             assert!(fast.velocity.norm() < 0.001);
+            assert!(
+                fast.impulse.wake.origin().is_some(),
+                "The wake must remain after the jump ends"
+            );
         }
         let mut flight = Flight::new();
-        assert!(!flight.trigger_impulse(&ships[0], (1.0, 0.0)));
+        assert!(!flight.trigger_impulse(&ships[1], (1.0, 0.0)));
         assert!(!flight.trigger_impulse(&ships[2], (1.0, 0.0)));
-        assert!(flight.trigger_impulse(&ships[1], (0.0, 0.0)));
+        assert!(flight.trigger_impulse(&ships[0], (0.0, 0.0)));
         flight.advance(0.1, (0.0, 0.0), false, true);
         assert!(flight.velocity.norm() < 0.001);
         assert_eq!(flight.impulse.remaining, 0.0);
@@ -744,7 +761,7 @@ mod tests {
         let ships = crate::fleet::load().unwrap();
         let mut local = local_flight();
         let radius = local.position.norm();
-        assert!(local.trigger_impulse(&ships[1], (0.0, 1.0)));
+        assert!(local.trigger_impulse(&ships[0], (0.0, 1.0)));
         for _ in 0..60 {
             local.advance(1.0 / 60.0, (0.0, 0.0), false, false);
         }
@@ -771,7 +788,7 @@ mod tests {
         ]));
         let mut flight = Flight::with_collisions(world);
         flight.position = Vec3::zeros();
-        assert!(flight.trigger_impulse(&ships[1], (1.0, 0.0)));
+        assert!(flight.trigger_impulse(&ships[0], (1.0, 0.0)));
         flight.advance(0.1, (0.0, 0.0), false, false);
         assert_eq!(flight.crash.as_ref().map(|c| c.planet), Some("Obstaculo"));
         assert!(flight.position.z > -20.0);

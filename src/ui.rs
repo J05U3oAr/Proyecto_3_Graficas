@@ -429,6 +429,36 @@ impl Ui {
         }
     }
 
+    pub fn impulse_preview(&self, fb: &mut Framebuffer, ship: &Ship, flight: &Flight) {
+        let (right, up, forward) = flight.ship_basis();
+        let origin = flight.impulse.wake.origin().unwrap_or(flight.position);
+        let travel = (flight.position - origin).norm().min(30.0);
+        let target = flight.position - flight.impulse.direction * (travel * 0.5);
+        let eye = flight.position + right * 23.0 + up * 21.0 - forward * 18.0;
+        let view = renderer::FlightView::new(flight, WIDTH, HEIGHT).looking_at(eye, target);
+        self.scene_in_view(fb, &view, ship, flight, flight.seconds, true);
+        flight.impulse.wake.draw(fb, &view);
+        rounded(fb, Rect::new(34, 25, 440, 76), 12, 0x101d2c, BORDER);
+        self.fonts
+            .text(fb, 14, 52, 38, "BENATAR / SALTO LUZ", 0xff7974);
+        self.fonts.text(
+            fb,
+            16,
+            52,
+            65,
+            "Onda y estela sobre la trayectoria real",
+            TEXT,
+        );
+        self.fonts.text(
+            fb,
+            14,
+            34,
+            HEIGHT as i32 - 35,
+            "VISTA LATERAL DE VERIFICACION / MISMA SIMULACION DEL JUEGO",
+            MUTED,
+        );
+    }
+
     fn death_star_cinematic(&self, fb: &mut Framebuffer, ship: &Ship, flight: &Flight) {
         let strike = flight.death_star.as_ref().unwrap();
         let view = strike.view(flight, fb.width, fb.height);
@@ -561,8 +591,6 @@ impl Ui {
         let focal = renderer::FLIGHT_FOCAL;
         let eye = flight.camera_position();
         let speed = flight.velocity.norm();
-        flight.impulse.draw_background(fb, &flight.camera, seconds);
-        let jump_strength = flight.impulse.visual_strength();
         for star in &self.stars {
             // Recycle a world-space volume around the camera for endless travel.
             let relative = (star.position - eye).map(|v| (v + 280.0).rem_euclid(560.0) - 280.0);
@@ -589,10 +617,15 @@ impl Ui {
                     * focal
                     / depth
                     * 0.045;
-                let stretch = 1.0 + jump_strength * 2.5;
-                let limit = 24.0 + jump_strength * 70.0;
-                let vx = (vx * stretch).clamp(-limit, limit);
-                let vy = (vy * stretch).clamp(-limit, limit);
+                // Keep stars compact during a jump; speed is conveyed by the red wake.
+                let limit = if flight.impulse.remaining > 0.0 {
+                    1.8
+                } else {
+                    12.0
+                };
+                let length = (vx * vx + vy * vy).sqrt().max(0.001);
+                let scale = (limit / length).min(1.0);
+                let (vx, vy) = (vx * scale, vy * scale);
                 rule(
                     fb,
                     (point.0, point.1),
@@ -632,6 +665,10 @@ impl Ui {
         self.deep_space.draw(fb, flight);
         crate::thrusters::draw(fb, ship, flight, seconds);
         self.space.draw_atmospheres(fb, flight, seconds);
+        flight
+            .impulse
+            .wake
+            .draw(fb, &renderer::FlightView::new(flight, WIDTH, HEIGHT));
         if let Some(crash) = &flight.crash {
             crate::explosion::draw(fb, &renderer::FlightView::new(flight, WIDTH, HEIGHT), crash);
         }
@@ -799,9 +836,9 @@ impl Ui {
         if ship.impulse_capable {
             rounded(fb, Rect::new(34, 110, 284, 76), 10, 0x101d2c, 0x304154);
             self.fonts
-                .text(fb, 14, 50, 120, "CAPS LOCK + WASD / IMPULSO", ship.accent);
+                .text(fb, 14, 50, 120, "CAPS LOCK + WASD / SALTO LUZ", 0xff7974);
             let state = if flight.impulse.remaining > 0.0 {
-                "SALTO CORTO ACTIVO".to_owned()
+                "SALTO LUZ ACTIVO".to_owned()
             } else if flight.impulse.cooldown > 0.00001 {
                 format!("RECARGA {:.1} s", flight.impulse.cooldown)
             } else {
@@ -1310,7 +1347,7 @@ mod tests {
         aim_at(&ui, &mut flight, "Kepler-186f");
         assert!(ui.call_death_star(&ships[1], &mut flight));
         assert!(!ui.call_death_star(&ships[1], &mut flight));
-        assert!(!flight.trigger_impulse(&ships[1], (1.0, 0.0)));
+        assert!(!flight.trigger_impulse(&ships[0], (1.0, 0.0)));
         assert!(!flight.toggle_local_navigation());
     }
 

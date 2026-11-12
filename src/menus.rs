@@ -73,8 +73,8 @@ pub fn ships(ui: &Ui, fb: &mut Framebuffer, ships: &[Ship], view: &MenuView) {
     ui.fonts.text(fb, 52, 40, 140, ship.name, TEXT);
     ui.fonts.text(fb, 14, 44, 220, "FLOTA DISPONIBLE", MUTED);
     let descriptions = [
-        "Casco cobrizo y silueta amplia",
-        "Impulso direccional con CAPS LOCK",
+        "Salto luz con CAPS LOCK y estela roja",
+        "Estrella de la Muerte con R",
         "Platillo gris, cupula de cristal y franjas amarillas",
     ];
     for (index, entry) in ships.iter().enumerate() {

@@ -44,7 +44,7 @@ pub fn load() -> Result<Vec<Ship>, Box<dyn Error>> {
             accent,
             finish,
             portal_capable,
-            impulse_capable: name == "TIE Silencer",
+            impulse_capable: name == "Benatar",
             death_star_capable: name == "TIE Silencer",
             model,
             shadows,
