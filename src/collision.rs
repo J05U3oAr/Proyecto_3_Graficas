@@ -36,6 +36,7 @@ struct Sweep {
     dt: f32,
 }
 
+#[derive(Clone)]
 pub struct PlanetCollider {
     name: &'static str,
     transform: WorldTransform,
@@ -445,6 +446,18 @@ impl PlanetCollider {
 }
 
 impl CollisionWorld {
+    /// Share immutable BVHs while removing the destroyed body and its ring debris.
+    pub fn without_planet(&self, name: &str) -> Self {
+        Self::new(
+            self.planets
+                .iter()
+                .filter(|p| {
+                    p.name != name && !(name == "Umbriel" && p.name == "Anillos de Umbriel")
+                })
+                .cloned()
+                .collect(),
+        )
+    }
     pub fn celestial_acceleration(&self, position: Vec3, time: f32) -> Vec3 {
         let mut snapshots = Vec::new();
         let mut total = Vec3::zeros();

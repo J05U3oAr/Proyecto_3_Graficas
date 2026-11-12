@@ -379,6 +379,99 @@ impl Ui {
         self.space.new_flight()
     }
 
+    pub fn call_death_star(&self, ship: &Ship, flight: &mut Flight) -> bool {
+        if !ship.death_star_capable {
+            return false;
+        }
+        if flight.death_star.is_some() {
+            return false;
+        }
+        if flight.death_star_cooldown > 0.0 {
+            flight.notify_death_star("El superlaser se esta recargando.");
+            return false;
+        }
+        let Some(target) = self.space.death_star_target(flight) else {
+            flight.notify_death_star("Apunta la proa a un planeta con la linea de tiro despejada.");
+            return false;
+        };
+        let mut strike = crate::death_star::Strike::new(target, flight);
+        if !self.space.prepare_death_star(&mut strike, flight) {
+            flight.notify_death_star("No hay una orbita libre para desplegar la estacion.");
+            return false;
+        }
+        flight.begin_death_star(ship, strike)
+    }
+
+    /// Both window input and deterministic exports use this same simulation path.
+    pub fn advance_flight(
+        &mut self,
+        flight: &mut Flight,
+        dt: f32,
+        movement: (f32, f32),
+        boost: bool,
+        brake: bool,
+    ) {
+        flight.advance(dt, movement, boost, brake);
+        let impact = flight
+            .death_star
+            .as_mut()
+            .and_then(|strike| strike.take_impact());
+        if let Some(name) = impact {
+            self.space.destroy_planet(name, flight);
+        }
+        if flight
+            .death_star
+            .as_ref()
+            .is_some_and(|strike| strike.age >= crate::death_star::DURATION)
+        {
+            flight.death_star = None;
+            flight.reset_steering();
+        }
+    }
+
+    fn death_star_cinematic(&self, fb: &mut Framebuffer, ship: &Ship, flight: &Flight) {
+        let strike = flight.death_star.as_ref().unwrap();
+        let view = strike.view(flight, fb.width, fb.height);
+        self.scene_in_view(fb, &view, ship, flight, flight.seconds, false);
+        strike.draw(fb, &view, flight.seconds);
+        // Letterbox and restrained telemetry leave the shot unobstructed.
+        for y in (0..82).chain(HEIGHT - 88..HEIGHT) {
+            fb.pixels[y * WIDTH..(y + 1) * WIDTH].fill(0x05090e);
+        }
+        self.fonts
+            .text(fb, 14, 40, 18, "TIE SILENCER / ENLACE IMPERIAL", 0x9eec97);
+        self.fonts.text(fb, 22, 40, 43, strike.stage(), TEXT);
+        let target = format!("OBJETIVO: {}", strike.target.name);
+        self.fonts.text(
+            fb,
+            16,
+            WIDTH as i32 - 40 - self.fonts.width(16, &target) as i32,
+            44,
+            &target,
+            TEXT,
+        );
+        self.fonts.text(
+            fb,
+            14,
+            40,
+            HEIGHT as i32 - 65,
+            "SUPERLASER / SECUENCIA ORBITAL",
+            0x9eec97,
+        );
+        self.fonts.text(
+            fb,
+            14,
+            40,
+            HEIGHT as i32 - 40,
+            "El vuelo se reanuda al terminar. I: inspeccionar y pausar",
+            MUTED,
+        );
+        let progress = (strike.age / crate::death_star::DURATION).clamp(0.0, 1.0);
+        for y in HEIGHT - 12..HEIGHT - 9 {
+            fb.pixels[y * WIDTH..y * WIDTH + (WIDTH as f32 * progress) as usize].fill(0x9eec97);
+        }
+    }
+
     pub fn approach_planet(&self, flight: &mut Flight, name: &str) -> Result<(), Box<dyn Error>> {
         self.space.approach(flight, name)
     }
@@ -448,6 +541,10 @@ impl Ui {
     }
 
     pub fn flight(&self, fb: &mut Framebuffer, ship: &Ship, flight: &Flight, seconds: f32) {
+        if flight.death_star.is_some() {
+            self.death_star_cinematic(fb, ship, flight);
+            return;
+        }
         fb.clear();
         fb.render_options = self.render_options;
         if self.galaxy == 1 {
@@ -719,6 +816,32 @@ impl Ui {
                 (50 + (250.0 * charge) as i32, 172),
                 ship.accent,
             );
+        }
+        if ship.death_star_capable {
+            let target = self.space.death_star_target(flight);
+            rounded(fb, Rect::new(34, 198, 370, 92), 10, 0x101d2c, 0x43614a);
+            self.fonts
+                .text(fb, 14, 50, 210, "R / ESTRELLA DE LA MUERTE", 0x9eec97);
+            let state = if flight.death_star_cooldown > 0.0 {
+                format!("RECARGA {:.1} s", flight.death_star_cooldown)
+            } else if let Some(target) = target {
+                format!("OBJETIVO: {}", target.name)
+            } else {
+                "Apunta a un planeta frente a la proa".to_owned()
+            };
+            self.fonts.text(fb, 14, 50, 237, &state, TEXT);
+            self.fonts.text(
+                fb,
+                14,
+                50,
+                263,
+                "Llamar, cargar y destruir el objetivo",
+                MUTED,
+            );
+            if let Some(notice) = flight.death_star_notice {
+                rounded(fb, Rect::new(345, 610, 590, 50), 10, 0x152331, 0x536940);
+                self.fonts.text(fb, 14, 361, 628, notice, TEXT);
+            }
         }
         rounded(fb, Rect::new(970, 25, 276, 92), 12, 0x101d2c, 0x304154);
         self.fonts.text(
@@ -1155,6 +1278,94 @@ pub(crate) fn ellipse(fb: &mut Framebuffer, center: (f32, f32), radius: (f32, f3
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    fn aim_at(ui: &Ui, flight: &mut Flight, name: &str) {
+        let planet = ui.space.active_planets().find(|p| p.name == name).unwrap();
+        let center = planet.world_transform(flight.seconds).position;
+        flight.position = center + Vec3::z() * planet.transform.radius * 4.0;
+        flight.heading.yaw = std::f32::consts::FRAC_PI_2;
+        flight.heading.pitch = 0.0;
+        flight.camera = flight.heading;
+    }
+
+    #[test]
+    fn death_star_requires_tie_and_a_visible_planet_ahead_and_does_not_target_stars() {
+        let ships = crate::fleet::load().unwrap();
+        let mut ui = Ui::new().unwrap();
+        ui.select_galaxy(1);
+        let mut flight = ui.new_flight();
+        aim_at(&ui, &mut flight, "Kepler-186f");
+        assert_eq!(
+            ui.space.death_star_target(&flight).unwrap().name,
+            "Kepler-186f"
+        );
+        for ship in [&ships[0], &ships[2]] {
+            assert!(!ui.call_death_star(ship, &mut flight));
+        }
+        flight.heading.yaw += std::f32::consts::PI;
+        assert!(!ui.call_death_star(&ships[1], &mut flight));
+        aim_at(&ui, &mut flight, "Helios II");
+        assert!(ui.space.death_star_target(&flight).is_none());
+        aim_at(&ui, &mut flight, "Kepler-186f");
+        assert!(ui.call_death_star(&ships[1], &mut flight));
+        assert!(!ui.call_death_star(&ships[1], &mut flight));
+        assert!(!flight.trigger_impulse(&ships[1], (1.0, 0.0)));
+        assert!(!flight.toggle_local_navigation());
+    }
+
+    #[test]
+    fn death_star_impact_removes_the_real_world_and_survives_new_flights_at_ten_and_sixty_fps() {
+        let ships = crate::fleet::load().unwrap();
+        for fps in [10, 60] {
+            let mut ui = Ui::new().unwrap();
+            ui.select_galaxy(1);
+            let mut flight = ui.new_flight();
+            aim_at(&ui, &mut flight, "Kepler-186f");
+            let count = ui.space.active_planets().count();
+            assert!(ui.call_death_star(&ships[1], &mut flight));
+            for _ in 0..(5 * fps) {
+                ui.advance_flight(&mut flight, 1.0 / fps as f32, (1.0, 1.0), true, false);
+            }
+            assert!(ui.space.active_planets().any(|p| p.name == "Kepler-186f"));
+            let strike = flight.death_star.as_ref().unwrap();
+            let mut image = Framebuffer::new(320, 210);
+            let view = strike.view(&flight, 320, 210);
+            strike.draw(&mut image, &view, flight.seconds);
+            assert!(image.triangles_processed > 1000);
+            for _ in 0..fps {
+                ui.advance_flight(&mut flight, 1.0 / fps as f32, (0.0, 0.0), false, false);
+            }
+            assert_eq!(ui.space.active_planets().count(), count - 1);
+            assert!(!ui.space.active_planets().any(|p| p.name == "Kepler-186f"));
+            assert!(
+                flight
+                    .navigation_reference()
+                    .is_none_or(|r| r.name != "Kepler-186f")
+            );
+            let mut replacement = ui.new_flight();
+            assert!(ui.approach_planet(&mut replacement, "Kepler-186f").is_err());
+            let center = flight.death_star.as_ref().unwrap().center(flight.seconds);
+            // Test the live flight collision world: fly directly through the former core.
+            replacement.position = center + Vec3::z() * 50.0;
+            replacement.heading = flight.heading;
+            replacement.camera = replacement.heading;
+            for _ in 0..(2 * fps) {
+                ui.advance_flight(&mut replacement, 1.0 / fps as f32, (1.0, 0.0), false, false);
+            }
+            assert!(replacement.crash.is_none());
+            for _ in 0..(6 * fps + 1) {
+                ui.advance_flight(&mut flight, 1.0 / fps as f32, (0.0, 0.0), false, false);
+            }
+            assert!(flight.death_star.is_none());
+            assert!(flight.death_star_cooldown > 0.0);
+            assert!(!ui.call_death_star(&ships[1], &mut flight));
+            assert_eq!(ui.space.active_planets().count(), count - 1);
+            ui.select_galaxy(0);
+            ui.select_galaxy(1);
+            assert_eq!(ui.space.active_planets().count(), count);
+        }
+    }
     #[test]
     fn performance_switches_compare_triangle_work_without_changing_the_culled_image() {
         let mut ui = super::Ui::new().unwrap();
@@ -1187,8 +1398,6 @@ mod tests {
         assert_eq!(high.depth, uncull.depth);
         assert_eq!(flight.seconds, 0.0);
     }
-
-    use super::*;
 
     #[test]
     fn portal_shows_the_destination_planet_and_its_current_animation_without_advancing_flight() {

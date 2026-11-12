@@ -628,6 +628,131 @@ impl Space {
         self.planets.iter().filter(|planet| planet.active)
     }
 
+    /// Pick the first planetary surface along the nose, including stars as blockers.
+    pub fn death_star_target(&self, flight: &Flight) -> Option<crate::local_navigation::Reference> {
+        if flight.crash.is_some() || flight.is_captured() {
+            return None;
+        }
+        let forward = flight.heading.basis().2;
+        let nearest = self
+            .active_planets()
+            .filter_map(|planet| {
+                let transform = planet.world_transform(flight.seconds);
+                let relative = transform.position - flight.position;
+                let along = relative.dot(&forward);
+                let perpendicular = relative.norm_squared() - along * along;
+                let radius = transform.radius;
+                if relative.norm() <= radius || along <= 0.0 || perpendicular > radius * radius {
+                    return None;
+                }
+                let distance = along - (radius * radius - perpendicular).max(0.0).sqrt();
+                (distance <= 12000.0).then_some((planet, distance))
+            })
+            .min_by(|a, b| a.1.total_cmp(&b.1))?;
+        let (planet, _) = nearest;
+        if planet.is_sun {
+            return None;
+        }
+        // The real mesh, asteroids and the black hole can obstruct the line of fire.
+        let center = planet.world_transform(flight.seconds).position;
+        let delta = center - flight.position;
+        if flight.black_hole.captures(flight.position, center) {
+            return None;
+        }
+        let ray = self
+            .collisions
+            .move_ship(flight.position, delta, flight.seconds, 0.0);
+        if ray
+            .contacts
+            .first()
+            .is_some_and(|hit| hit.planet != planet.name)
+        {
+            return None;
+        }
+        Some(crate::local_navigation::Reference {
+            name: planet.name,
+            center: planet.transform.position,
+            radius: planet.transform.radius,
+            surface_radius: planet.navigation_surface_radius(),
+            motion: planet.motion,
+        })
+    }
+
+    pub fn destroy_planet(&mut self, name: &str, flight: &mut Flight) -> bool {
+        let Some(planet) = self
+            .planets
+            .iter_mut()
+            .find(|p| p.active && !p.is_sun && p.name == name)
+        else {
+            return false;
+        };
+        planet.active = false;
+        self.collisions = Arc::new(self.collisions.without_planet(name));
+        if name == "Umbriel" {
+            self.ring_motion = None;
+        }
+        flight.remove_planet(name, Arc::clone(&self.collisions));
+        true
+    }
+
+    pub fn prepare_death_star(
+        &self,
+        strike: &mut crate::death_star::Strike,
+        flight: &Flight,
+    ) -> bool {
+        // Search clear orbital slots rather than spawning inside another world or firing through it.
+        let mut clear = false;
+        for _ in 0..8 {
+            let station = strike.firing_station(flight.seconds);
+            let center = strike.center(flight.seconds);
+            let delta = center - station;
+            let end = center - delta.normalize() * (strike.target.radius + 3.0);
+            if self
+                .collisions
+                .sphere_clear(station, strike.radius() + 5.0, flight.seconds)
+                && !flight.black_hole.captures(station, end)
+                && self
+                    .collisions
+                    .move_ship(station, end - station, flight.seconds, 0.0)
+                    .contacts
+                    .iter()
+                    .all(|hit| hit.planet == strike.target.name)
+            {
+                clear = true;
+                break;
+            }
+            strike.rotate_deployment(std::f32::consts::FRAC_PI_4);
+        }
+        if !clear {
+            return false;
+        }
+        // Choose the unobstructed side of the shot; stars must not cover the target.
+        let obstruction = |strike: &crate::death_star::Strike| {
+            let view = strike.view(flight, 1280, 840);
+            let center = strike.center(flight.seconds);
+            let delta = center - view.eye();
+            let length = delta.norm();
+            let direction = delta / length;
+            self.active_planets()
+                .filter(|p| p.name != strike.target.name)
+                .filter(|p| {
+                    let t = p.world_transform(flight.seconds);
+                    let relative = t.position - view.eye();
+                    let along = relative.dot(&direction);
+                    along > 0.0
+                        && along < length
+                        && (relative - direction * along).norm() < t.radius + strike.target.radius
+                })
+                .count()
+        };
+        let front = obstruction(strike);
+        strike.camera_side = -1.0;
+        if obstruction(strike) >= front {
+            strike.camera_side = 1.0;
+        }
+        true
+    }
+
     fn debris_at(&self, seconds: f32) -> Vec<crate::asteroids::Instance> {
         let states = self.debris_motion.sample(seconds);
         self.debris
@@ -871,6 +996,60 @@ impl Space {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn death_star_targets_the_nearest_front_surface_and_stars_block_the_planet_behind() {
+        let mut space = Space::load().unwrap();
+        for p in &mut space.planets {
+            p.active = false;
+        }
+        space.collisions = Arc::new(CollisionWorld::default());
+        for (index, distance) in [(0, 100.0), (1, 180.0)] {
+            let p = &mut space.planets[index];
+            p.active = true;
+            p.motion = Default::default();
+            p.transform.position = Vec3::new(0.0, 0.0, -distance);
+            p.transform.radius = 20.0;
+        }
+        let mut flight = Flight::new();
+        flight.position = Vec3::zeros();
+        flight.heading.yaw = std::f32::consts::FRAC_PI_2;
+        flight.heading.pitch = 0.0;
+        assert_eq!(space.death_star_target(&flight).unwrap().name, "Siroco");
+        space.planets[0].is_sun = true;
+        assert!(space.death_star_target(&flight).is_none());
+        space.planets[0].transform.position.z = 80.0;
+        assert_eq!(space.death_star_target(&flight).unwrap().name, "Oquedad");
+        space.planets[1].transform.position.x = 80.0;
+        assert!(space.death_star_target(&flight).is_none());
+    }
+
+    #[test]
+    fn death_star_destruction_removes_umbriel_rings_and_planetary_gravity() {
+        let mut space = Space::load().unwrap();
+        space.configure(2);
+        let body = space
+            .active_planets()
+            .find(|p| p.name == "Umbriel")
+            .unwrap();
+        let center = body.world_transform(0.0).position;
+        let nearby = center + Vec3::z() * body.transform.radius * 1.5;
+        let ring = space.ring_motion.as_ref().unwrap().sample(0.0)[0].position;
+        assert!(!space.collisions.sphere_clear(center, 1.0, 0.0));
+        assert!(!space.collisions.sphere_clear(ring, 1.0, 0.0));
+        let before = space.collisions.celestial_acceleration(nearby, 0.0);
+        let mut flight = space.new_flight();
+        assert!(space.destroy_planet("Umbriel", &mut flight));
+        assert!(space.collisions.sphere_clear(center, 1.0, 0.0));
+        assert!(space.collisions.sphere_clear(ring, 1.0, 0.0));
+        let after = space.collisions.celestial_acceleration(nearby, 0.0);
+        assert!((before - after).norm() > 0.05);
+        assert!(space.ring_motion.is_none());
+        assert!(!space.destroy_planet("Umbriel", &mut flight));
+        assert!(!space.destroy_planet("Asterion", &mut flight));
+        assert!(space.active_planets().any(|p| p.name == "Asterion"));
+    }
+
     #[test]
     fn volcarona_is_an_independent_orbital_world_in_aurora_with_real_volcanoes() {
         let mut space = Space::load().unwrap();

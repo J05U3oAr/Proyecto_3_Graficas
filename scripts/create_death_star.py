@@ -13,19 +13,19 @@ ROOT.mkdir(parents=True, exist_ok=True)
 rng = random.Random(1977)
 image = Image.new("RGB", (2048, 1024), (105, 110, 115))
 draw = ImageDraw.Draw(image)
-for band in range(128):
-    y = band * 8
-    x = -rng.randrange(12, 70)
+for band in range(64):
+    y = band * 16
+    x = -rng.randrange(30, 130)
     while x < 2048:
-        w = rng.randrange(12, 72)
-        value = rng.randrange(85, 151)
-        draw.rectangle((x, y, x + w - 2, y + 6), fill=(value, value + 3, value + 7))
-        draw.line((x, y + 7, x + w, y + 7), fill=(46, 51, 57))
+        w = rng.randrange(30, 130)
+        value = rng.randrange(107, 141)
+        draw.rectangle((x, y, x + w - 2, y + 14), fill=(value, value + 3, value + 7))
+        draw.line((x, y + 15, x + w, y + 15), fill=(73, 78, 84))
         for _ in range(w // 6):
             px = x + rng.randrange(max(1, w - 2))
-            py = y + rng.randrange(2, 6)
+            py = y + rng.randrange(2, 13)
             draw.line((px, py, px + rng.randrange(1, 6), py), fill=rng.choice([
-                (42, 48, 54), (73, 79, 86), (164, 170, 173), (196, 204, 207)]))
+                (70, 76, 82), (93, 99, 106), (148, 154, 157), (166, 174, 177)]))
         x += w
 for y in [182, 326, 448, 566, 698, 830]:
     draw.rectangle((0, y, 2047, y + 4), fill=(47, 52, 58))

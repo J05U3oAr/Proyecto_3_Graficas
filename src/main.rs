@@ -4,6 +4,7 @@ mod camera;
 mod collision;
 mod color;
 mod crystal;
+mod death_star;
 mod debris_physics;
 mod deep_space;
 mod dust;
@@ -120,11 +121,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut portal_demo = false;
         let mut gate_ready = false;
         let mut impulse_demo = false;
+        let mut death_star_demo = false;
         let mut mouse_target = (0.0f32, 0.0f32);
         let mut args = args.iter();
         while let Some(argument) = args.next() {
             match argument.as_str() {
                 "--impulse" => impulse_demo = true,
+                "--death-star" => death_star_demo = true,
                 "--lod-high" => ui.render_options.automatic_lod = false,
                 "--no-culling" => ui.render_options.culling = false,
                 "--benchmark-frames" => {
@@ -213,6 +216,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
                 "--help" => {
                     println!(
+                        "TIE Silencer: R llama a la Estrella de la Muerte contra el planeta frente a la proa. Vista previa: --render-flight salida.png --ship 2 --galaxy 2 --near-planet kepler-186f --death-star --time 5.2"
+                    );
+                    println!(
                         "TIE Silencer: CAPS LOCK + WASD activa un impulso; sin WASD, hacia adelante. Exportacion: --render-flight salida.png --ship 2 --impulse --time 0.12."
                     );
                     println!(
@@ -248,6 +254,16 @@ fn main() -> Result<(), Box<dyn Error>> {
             "Especifica --render-home, --render-menu, --render-galaxies, --render-travel, --render-inspector, --render-flight, --render-landmark o --render-planet",
         )?;
         ui.select_galaxy(galaxy_index);
+        if death_star_demo
+            && (export_screen != Screen::Flight
+                || selected != 1
+                || near_planet.is_none()
+                || local_navigation
+                || impulse_demo
+                || portal_demo)
+        {
+            return Err("--death-star requiere --render-flight --ship 2 --near-planet y no se combina con otras habilidades".into());
+        }
         if gate_ready && export_screen != Screen::GalacticGate {
             return Err("--gate-ready requiere --render-gate".into());
         }
@@ -362,6 +378,22 @@ fn main() -> Result<(), Box<dyn Error>> {
             if local_navigation && !flight.toggle_local_navigation() {
                 return Err("No se puede activar la navegacion local en esta posicion".into());
             }
+            if death_star_demo {
+                // Keep both bodies in frame before triggering the real gameplay path.
+                let reference = flight
+                    .navigation_reference()
+                    .ok_or("Falta el planeta objetivo")?;
+                flight.position = reference.center_at(flight.seconds)
+                    + nalgebra_glm::Vec3::z() * reference.radius * 4.0;
+                flight.heading.yaw = std::f32::consts::FRAC_PI_2;
+                flight.heading.pitch = 0.0;
+                flight.camera = flight.heading;
+                if !ui.call_death_star(&ships[selected], &mut flight) {
+                    return Err(
+                        "No se puede llamar a la Estrella de la Muerte contra este objetivo".into(),
+                    );
+                }
+            }
             flight.move_with_mouse(Some(mouse_target));
             if impulse_demo && !flight.trigger_impulse(&ships[selected], (1.0, 0.0)) {
                 return Err("El impulso requiere --ship 2 y una nave activa".into());
@@ -369,12 +401,12 @@ fn main() -> Result<(), Box<dyn Error>> {
             for frame in 0..(seconds * 60.0).ceil() as u32 {
                 let dt = (seconds - frame as f32 / 60.0).min(1.0 / 60.0);
                 // Observation keeps the camera fixed while matter and planets advance.
-                let movement = if observe_black_hole {
+                let movement = if observe_black_hole || death_star_demo {
                     (0.0, 0.0)
                 } else {
                     (1.0, 0.0)
                 };
-                flight.advance(dt, movement, false, false);
+                ui.advance_flight(&mut flight, dt, movement, false, false);
             }
             ui.flight(&mut framebuffer, &ships[selected], &flight, seconds);
             println!(
@@ -489,7 +521,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                     flight.reset_steering();
                     screen = Screen::Flight;
                 }
-                Screen::Flight => screen = Screen::Galaxy,
+                Screen::Flight => {
+                    flight.death_star = None;
+                    screen = Screen::Galaxy;
+                }
                 Screen::Inspector => {
                     flight.reset_steering();
                     screen = Screen::Flight;
@@ -500,7 +535,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             if window.is_key_pressed(key, KeyRepeat::No) {
                 if screen == Screen::Galaxy {
                     atlas.select(index);
-                } else if matches!(screen, Screen::Menu | Screen::Flight | Screen::Inspector) {
+                } else if matches!(screen, Screen::Menu | Screen::Flight | Screen::Inspector)
+                    && flight.death_star.is_none()
+                {
                     selected = index;
                 }
             }
@@ -544,6 +581,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         if screen == Screen::Flight
             && focused_input
             && ships[selected].portal_capable
+            && flight.death_star.is_none()
             && window.is_key_pressed(Key::G, KeyRepeat::No)
         {
             if let Some(jump) = galactic_portal::Jump::new(ui.galaxy_index(), &flight) {
@@ -790,6 +828,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 if focused_input && window.is_key_pressed(Key::L, KeyRepeat::No) {
                     flight.toggle_local_navigation();
                 }
+                if focused_input && window.is_key_pressed(Key::R, KeyRepeat::No) {
+                    ui.call_death_star(&ships[selected], &mut flight);
+                }
                 flight.set_local_climb(
                     (i32::from(window.is_key_down(Key::E)) - i32::from(window.is_key_down(Key::Q)))
                         as f32,
@@ -832,7 +873,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                     flight
                         .trigger_impulse(&ships[selected], (movement.0 as f32, movement.1 as f32));
                 }
-                flight.advance(
+                ui.advance_flight(
+                    &mut flight,
                     dt,
                     (movement.0 as f32, movement.1 as f32),
                     window.is_key_down(Key::LeftShift) || window.is_key_down(Key::RightShift),

@@ -76,6 +76,7 @@ Usa flechas arriba/abajo, `W/S`, `Tab` o `Shift+Tab` para cambiar de opción y `
 | `Espacio` | Frenar |
 | `L` | Activar o desactivar navegación local cerca del planeta más próximo |
 | `Caps Lock` | Con TIE Silencer: impulso en la dirección de WASD; sin WASD, hacia adelante |
+| `R` | Con TIE Silencer: llamar a la Estrella de la Muerte para destruir el planeta frente a la proa |
 | `F4` / `F5` | Alternar LOD automático / descarte de objetos y comparar los contadores del HUD |
 | `F6` | Pausar o reanudar la demostración para comparar el mismo encuadre |
 | `Q` / `E` | En navegación local: bajar / subir respecto a la superficie |
@@ -99,6 +100,34 @@ sin bloquearse al apuntar hacia arriba o abajo. La cámara acompaña el giro al
 pasar por la vertical.
 
 La cámara sigue a la nave desde 6.2 unidades por detrás y 1.55 por encima de su eje, con una ligera inclinación para apreciar el casco. El encuadre más cercano permite distinguir sus materiales sin cubrir la mira. Sigue los cambios de dirección con suavidad y la nave inclina las alas al girar. Las tres naves se dibujan en perspectiva y las estrellas se desplazan según la posición y velocidad reales, con estelas al avanzar. El HUD muestra posición y velocidad. El vuelo se pausa mientras inspeccionas la nave o la ventana pierde el foco.
+
+### Estrella de la Muerte — TIE Silencer
+
+Selecciona **TIE Silencer**, apunta la proa a un planeta y comprueba su nombre en
+el panel **R / ESTRELLA DE LA MUERTE**. Pulsa **R** para bloquear el objetivo y
+llamar a la estación. La cámara encuadra la llegada, los ocho haces de carga,
+el superláser y la destrucción con fragmentos y onda expansiva. El vuelo se
+reanuda al terminar los 11 segundos de secuencia; la recarga dura 22 segundos
+desde la llamada. No admite soles, objetivos ocultos ni llamadas simultáneas.
+La estación busca una órbita libre y una línea de tiro despejada.
+
+El planeta destruido desaparece de la escena, la iluminación, la navegación,
+la gravedad y las colisiones. En Umbriel también desaparecen los anillos.
+La destrucción se conserva al reaparecer y cambiar de nave durante esa visita;
+cargar otra galaxia inicia una visita nueva. Inspeccionar con **I**, pausar con
+**F6** o perder el foco pausa la secuencia. **Esc** la abandona; conserva la
+destrucción si el impacto ya ocurrió.
+
+[Vista previa en GitHub Pages](https://j05u3oar.github.io/Proyecto_3_Graficas/death-star.html)
+· [Modelo, referencia visual y regeneración](assets/death-star/README.md).
+
+```powershell
+cargo run --release -- --render-flight output/death-star.png --ship 2 --galaxy 1 --near-planet micelia --death-star --time 5.4
+```
+
+`--death-star` usa la misma activación y simulación que la tecla R. Requiere
+TIE Silencer y `--near-planet`; no se combina con otras habilidades. Puedes
+exportar carga (4.5 s), disparo (5.4 s), impacto (5.55 s) y restos (8 s).
 
 ### Navegación local cerca de un planeta
 

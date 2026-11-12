@@ -222,6 +222,7 @@ pub fn draw(ui: &Ui, fb: &mut Framebuffer, home: &Home) {
                         ("G", "Crucer: abrir portal galactico"),
                         ("Flechas / TAB / ENTER", "Portal galactico: elegir / entrar"),
                         ("CAPS LOCK + WASD", "TIE: impulso en la direccion elegida"),
+                        ("R / TIE SILENCER", "Llamar a la Estrella de la Muerte"),
                         ("F4 / F5", "Alternar LOD automatico / descarte"),
                         ("F6", "Pausar o reanudar el vuelo"),
                         ("Flechas-WASD / Q-E", "Inspeccion: orbitar / zoom"),

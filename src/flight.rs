@@ -56,6 +56,10 @@ pub struct Flight {
     gravity_velocity: Vec3,
     planet_drift: Vec3,
     pub impulse: crate::impulse::Impulse,
+    pub death_star: Option<crate::death_star::Strike>,
+    pub death_star_cooldown: f32,
+    pub death_star_notice: Option<&'static str>,
+    death_star_notice_time: f32,
     impulse_velocity: Vec3,
     captured_for: Option<f32>,
     pub respawn_notice: f32,
@@ -71,8 +75,58 @@ pub struct Flight {
 }
 
 impl Flight {
+    pub fn notify_death_star(&mut self, message: &'static str) {
+        self.death_star_notice = Some(message);
+        self.death_star_notice_time = 3.0;
+    }
+
+    pub fn begin_death_star(
+        &mut self,
+        ship: &crate::fleet::Ship,
+        strike: crate::death_star::Strike,
+    ) -> bool {
+        if !ship.death_star_capable
+            || self.death_star.is_some()
+            || self.death_star_cooldown > 0.0
+            || self.crash.is_some()
+            || self.is_captured()
+        {
+            return false;
+        }
+        self.leave_local_navigation();
+        self.reset_steering();
+        self.velocity = Vec3::zeros();
+        self.gravity_velocity = Vec3::zeros();
+        self.planet_drift = Vec3::zeros();
+        self.death_star = Some(strike);
+        self.death_star_cooldown = crate::death_star::COOLDOWN;
+        self.death_star_notice = None;
+        true
+    }
+
+    pub fn remove_planet(&mut self, name: &str, world: Arc<CollisionWorld>) {
+        if self
+            .local_navigation
+            .is_some_and(|local| local.reference.name == name)
+        {
+            self.leave_local_navigation();
+        }
+        self.navigation_targets = self
+            .navigation_targets
+            .iter()
+            .copied()
+            .filter(|body| body.name != name)
+            .collect::<Vec<_>>()
+            .into();
+        self.collisions = Some(world);
+    }
+
     pub fn trigger_impulse(&mut self, ship: &crate::fleet::Ship, movement: (f32, f32)) -> bool {
-        if !ship.impulse_capable || self.crash.is_some() || self.is_captured() {
+        if !ship.impulse_capable
+            || self.death_star.is_some()
+            || self.crash.is_some()
+            || self.is_captured()
+        {
             return false;
         }
         let movement = if movement.0.abs() + movement.1.abs() < 0.001 {
@@ -121,6 +175,10 @@ impl Flight {
             gravity_velocity: Vec3::zeros(),
             planet_drift: Vec3::zeros(),
             impulse: Default::default(),
+            death_star: None,
+            death_star_cooldown: 0.0,
+            death_star_notice: None,
+            death_star_notice_time: 0.0,
             impulse_velocity: Vec3::zeros(),
             captured_for: None,
             respawn_notice: 0.0,
@@ -153,6 +211,7 @@ impl Flight {
         let navigation_targets = Arc::clone(&self.navigation_targets);
         let steering_mode = self.steering_mode;
         let portals_enabled = self.portals.enabled();
+        let death_star_cooldown = self.death_star_cooldown;
         *self = Self::new();
         self.position = spawn_position;
         self.spawn_position = spawn_position;
@@ -162,6 +221,7 @@ impl Flight {
         self.navigation_targets = navigation_targets;
         self.steering_mode = steering_mode;
         self.portals.set_enabled(portals_enabled);
+        self.death_star_cooldown = death_star_cooldown;
         self.respawn_notice = 3.5;
     }
 
@@ -245,6 +305,9 @@ impl Flight {
     }
 
     pub fn toggle_local_navigation(&mut self) -> bool {
+        if self.death_star.is_some() {
+            return false;
+        }
         if self.is_local() {
             self.leave_local_navigation();
             return true;
@@ -366,6 +429,19 @@ impl Flight {
         }
         // Small physics steps keep steering and camera response consistent at low FPS.
         let dt = dt.min(0.1);
+        self.death_star_cooldown = (self.death_star_cooldown - dt).max(0.0);
+        self.death_star_notice_time = (self.death_star_notice_time - dt).max(0.0);
+        if self.death_star_notice_time <= 0.0 {
+            self.death_star_notice = None;
+        }
+        if let Some(strike) = self.death_star.as_mut() {
+            self.position +=
+                strike.target.center_at(self.seconds + dt) - strike.target.center_at(self.seconds);
+            self.seconds += dt;
+            strike.age += dt;
+            // Ui consumes the impact before retiring the sequence, even at a low FPS.
+            return;
+        }
         self.impulse.tick(dt);
         if brake {
             self.cancel_impulse();
