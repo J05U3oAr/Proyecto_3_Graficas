@@ -2,16 +2,16 @@ newmtl material_0
 Kd 0.03 0.11 0.23
 illum 2
 newmtl material_1
-Kd 0.72 0.86 0.9
+Kd 0.8 0.88 0.92
 illum 2
 newmtl material_2
 Kd 0.83 0.92 0.94
 illum 2
 newmtl material_3
-Kd 0.23 0.5 0.64
+Kd 0.21 0.61 0.77
 illum 2
 newmtl material_4
-Kd 0.36 0.65 0.78
+Kd 0.6 0.8 0.87
 illum 2
 newmtl material_5
 Kd 0.9 0.95 0.98

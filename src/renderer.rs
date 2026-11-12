@@ -384,6 +384,21 @@ fn draw_world_with_basis(
                 eye: local_vector((camera.eye - transform.position).normalize()),
             }
         }
+        crate::shaders::SurfaceEffect::Stellar { seconds, .. } => {
+            crate::shaders::SurfaceEffect::Stellar {
+                seconds,
+                eye: local_vector((camera.eye - transform.position) / transform.radius),
+                pixel_radius: transform.radius * FLIGHT_FOCAL
+                    / (camera.eye - transform.position).norm().max(0.1),
+            }
+        }
+        crate::shaders::SurfaceEffect::PackIce { seconds, .. } => {
+            crate::shaders::SurfaceEffect::PackIce {
+                seconds,
+                pixel_radius: transform.radius * FLIGHT_FOCAL
+                    / (camera.eye - transform.position).norm().max(0.1),
+            }
+        }
         crate::shaders::SurfaceEffect::Ice {
             seconds,
             core_radius,
@@ -403,6 +418,76 @@ fn draw_world_with_basis(
         },
         _ => effect,
     };
+    let crystal_optics = if matches!(effect, crate::shaders::SurfaceEffect::Crystal) {
+        let distance =
+            (sun.unwrap_or(transform.position + world_light * 10000.0) - transform.position).norm();
+        let angular = (crate::galaxy::ASTERION_RADIUS / distance.max(1.0)).clamp(0.0, 0.99);
+        Some(crate::crystal::Optics {
+            eye: local_vector((camera.eye - transform.position) / transform.radius),
+            light: local_vector(
+                (sun.unwrap_or(transform.position + world_light * 10000.0) - transform.position)
+                    / transform.radius,
+            ),
+            normal: Vec3::y(),
+            screen_right: local_vector(camera.right),
+            screen_up: local_vector(camera.up),
+            pixel_scale: transform.radius * FLIGHT_FOCAL
+                / (camera.eye - transform.position).norm().max(0.1),
+            ground_radius: 1.0 / model.radius,
+            sun_cosine: (1.0 - angular * angular).sqrt(),
+            rotation: Vec2::new(sin, cos),
+        })
+    } else {
+        None
+    };
+    // Preserve modeled terrain and palette while smoothing material and lighting seams.
+    let smooth_surface = if matches!(
+        effect,
+        crate::shaders::SurfaceEffect::Obsidian
+            | crate::shaders::SurfaceEffect::Snow { .. }
+            | crate::shaders::SurfaceEffect::PackIce { .. }
+    ) {
+        let mut normals = vec![Vec3::zeros(); vertices.len()];
+        let mut colors = vec![Vec3::zeros(); vertices.len()];
+        let mut areas = vec![0.0; vertices.len()];
+        for face in &model.faces {
+            let [i, j, k] = face.indices;
+            let normal = (vertices[j] - vertices[i]).cross(&(vertices[k] - vertices[i]));
+            let area = normal.norm();
+            let color = Vec3::new(
+                face.color.r as f32,
+                face.color.g as f32,
+                face.color.b as f32,
+            );
+            for index in face.indices {
+                normals[index] += normal;
+                colors[index] += color * area;
+                areas[index] += area;
+            }
+        }
+        for index in 0..normals.len() {
+            normals[index] = normals[index].try_normalize(1e-10).unwrap_or(Vec3::z());
+            colors[index] /= areas[index].max(1e-10);
+            if matches!(effect, crate::shaders::SurfaceEffect::Snow { .. }) {
+                let tint = colors[index];
+                let snow =
+                    1.0 - crate::noise::smoothstep(0.11, 0.25, (tint.z - tint.x) / tint.z.max(1.0));
+                let p = (model.vertices[index] - model.center) / model.radius;
+                let offset = crate::shaders::snow_normal_offset(p) * snow;
+                let world = Vec3::new(
+                    offset.x * cos + offset.z * sin,
+                    offset.y,
+                    offset.z * cos - offset.x * sin,
+                );
+                let offset = camera.view_direction(world);
+                let n = normals[index];
+                normals[index] = (n - (offset - n * n.dot(&offset))).normalize();
+            }
+        }
+        Some((normals, colors))
+    } else {
+        None
+    };
     let mut primitives = Vec::with_capacity(model.faces.len());
     let cull_closed = matches!(
         effect,
@@ -413,6 +498,7 @@ fn draw_world_with_basis(
             | crate::shaders::SurfaceEffect::Asteroid
             | crate::shaders::SurfaceEffect::Ice { .. }
             | crate::shaders::SurfaceEffect::Obsidian
+            | crate::shaders::SurfaceEffect::Crystal
             | crate::shaders::SurfaceEffect::Snow { .. }
             | crate::shaders::SurfaceEffect::PackIce { .. }
             | crate::shaders::SurfaceEffect::GasGiant { .. }
@@ -450,7 +536,8 @@ fn draw_world_with_basis(
             effect
         };
         // Estas superficies son cerradas; las caras posteriores no necesitan ejecutar el shader.
-        if cull_closed && normal.dot(&a) >= 0.0 {
+        if cull_closed && normal.dot(&a) >= 0.0 && !(crystal_optics.is_some() && face.opacity < 1.0)
+        {
             continue;
         }
         if let (Some(texture), Some(uv)) = (face.texture, face.uv) {
@@ -491,7 +578,15 @@ fn draw_world_with_basis(
             }
             continue;
         }
-        let color = if face.unlit || matches!(effect, crate::shaders::SurfaceEffect::Ice { .. }) {
+        let color = if face.unlit
+            || matches!(
+                effect,
+                crate::shaders::SurfaceEffect::Ice { .. }
+                    | crate::shaders::SurfaceEffect::Obsidian
+                    | crate::shaders::SurfaceEffect::Snow { .. }
+                    | crate::shaders::SurfaceEffect::Crystal
+                    | crate::shaders::SurfaceEffect::PackIce { .. }
+            ) {
             Some(finish.unwrap_or(face.color))
         } else if matches!(effect, crate::shaders::SurfaceEffect::Asteroid) {
             let diffuse = normal.normalize().dot(&light).max(0.0);
@@ -545,11 +640,53 @@ fn draw_world_with_basis(
                     let p = (world - transform.position) / transform.radius;
                     Vec3::new(p.x * cos - p.z * sin, p.y, p.x * sin + p.z * cos)
                 });
+                if let Some(mut optics) = crystal_optics {
+                    if normal.norm_squared() < 1e-12 {
+                        continue;
+                    }
+                    let world_normal =
+                        camera.right * normal.x + camera.up * normal.y - camera.forward * normal.z;
+                    optics.normal = local_vector(world_normal.normalize());
+                    primitives.push(Primitive {
+                        vertices: projected,
+                        opacity: face.opacity,
+                        surface: Surface::Crystal {
+                            local,
+                            reciprocal: projected.map(|p| p.z),
+                            material: crate::crystal::Material::new(face.color, face.opacity),
+                            optics,
+                        },
+                    });
+                    continue;
+                }
+                let lighting = smooth_surface.as_ref().map(|(normals, colors)| {
+                    let u = b - a;
+                    let v = c - a;
+                    let determinant = u.norm_squared() * v.norm_squared() - u.dot(&v).powi(2);
+                    let at = |point: Vec3, values: &[Vec3]| {
+                        if determinant <= 1e-12 {
+                            return values[i];
+                        }
+                        let delta = point - a;
+                        let w1 = (delta.dot(&u) * v.norm_squared() - delta.dot(&v) * u.dot(&v))
+                            / determinant;
+                        let w2 = (delta.dot(&v) * u.norm_squared() - delta.dot(&u) * u.dot(&v))
+                            / determinant;
+                        values[i] * (1.0 - w1 - w2) + values[j] * w1 + values[k] * w2
+                    };
+                    raster_batch::SmoothLighting {
+                        normals: points.map(|point| at(point, normals)),
+                        colors: points.map(|point| at(point, colors)),
+                        light,
+                        half,
+                    }
+                });
                 Surface::ProceduralColor {
                     local,
                     reciprocal: projected.map(|p| p.z),
                     color,
                     effect,
+                    lighting,
                 }
             } else {
                 Surface::Solid(color)
@@ -621,7 +758,7 @@ fn texture_intensity(normal: Vec3, unlit: bool) -> f32 {
     0.4 + 0.85 * normal.dot(&Vec3::new(-0.4, 0.8, 1.0).normalize()).max(0.0)
 }
 
-fn lit_color(normal: Vec3, base: Color, light: &Vec3, half: &Vec3) -> Option<Color> {
+pub(crate) fn lit_color(normal: Vec3, base: Color, light: &Vec3, half: &Vec3) -> Option<Color> {
     if normal.norm_squared() < f32::EPSILON {
         return None;
     }

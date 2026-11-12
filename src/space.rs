@@ -44,11 +44,18 @@ impl Planet {
                 detail: true,
                 core_radius: 0.96 / self.model.radius,
             },
-            "Asterion" => SurfaceEffect::Stellar { seconds },
+            "Asterion" => SurfaceEffect::Stellar {
+                seconds,
+                eye: Vec3::z() * 3.0,
+                pixel_radius: 256.0,
+            },
             "Onice" => SurfaceEffect::Obsidian,
             "Vespera" => SurfaceEffect::Snow { seconds },
             "Prisma" => SurfaceEffect::Crystal,
-            "Nacar" => SurfaceEffect::PackIce { seconds },
+            "Nacar" => SurfaceEffect::PackIce {
+                seconds,
+                pixel_radius: 256.0,
+            },
             "Umbriel" => SurfaceEffect::GasGiant {
                 seconds,
                 light: Vec3::new(-0.4, 0.8, 1.0).normalize(),
@@ -129,12 +136,13 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
                 "aureon/aureon.obj",
                 "volcarona/volcarona.obj",
                 "volcarona/volcarona.obj",
+                "nacar/nacar_lod.obj",
             ];
-            paths
+            let mut models = paths
                 .iter()
                 .enumerate()
                 .map(|(index, path)| {
-                    let mut model = if index >= 20 {
+                    let mut model = if matches!(index, 20 | 21) {
                         crate::volcarona::load(
                             assets.join(path),
                             if index == 20 {
@@ -160,7 +168,14 @@ fn load_models() -> Result<&'static [Arc<Model>], Box<dyn Error>> {
                     }
                     Ok(Arc::new(model))
                 })
-                .collect()
+                .collect::<Result<Vec<_>, Box<dyn Error>>>()?;
+            // Both Blender LODs use the same normalization: changing detail must
+            // not change planet size, placement or its navigation altitude.
+            let radius = models[13].radius.max(models[22].radius);
+            for index in [13, 22] {
+                Arc::get_mut(&mut models[index]).unwrap().radius = radius;
+            }
+            Ok(models)
         };
         load().map_err(|error| error.to_string())
     });
@@ -238,6 +253,7 @@ pub struct Space {
     ring_fragments: &'static [crate::ring_debris::Fragment],
     ring_motion: Option<Arc<crate::debris_physics::Field>>,
     volcarona_distant: Arc<Model>,
+    nacar_distant: Arc<Model>,
     umbriel_rings_glass: Model,
 }
 
@@ -496,6 +512,7 @@ impl Space {
             nivalis: Arc::clone(&models[8]),
             boreal: Arc::clone(&models[3]),
             volcarona_distant: Arc::clone(&models[21]),
+            nacar_distant: Arc::clone(&models[22]),
             prisma_opaque: opacity_layer(&models[12], false),
             prisma_glass: opacity_layer(&models[12], true),
             umbriel_rings: Arc::clone(&models[15]),
@@ -690,6 +707,13 @@ impl Space {
                     < 60.0
             {
                 &self.volcarona_distant
+            } else if planet.name == "Nacar"
+                && fb.render_options.automatic_lod
+                && transform.radius * renderer::FLIGHT_FOCAL
+                    / (view.eye() - transform.position).norm().max(0.1)
+                    < 120.0
+            {
+                &self.nacar_distant
             } else if planet.name == "Prisma" {
                 &self.prisma_opaque
             } else {
@@ -708,7 +732,11 @@ impl Space {
             }
         }
         for sun in self.active_planets().filter(|planet| planet.is_sun) {
-            draw_solar_halo(fb, &view, sun.world_transform(seconds), sun.halo_color());
+            if sun.name == "Asterion" {
+                crate::stellar::draw_corona(fb, view, sun.world_transform(seconds), seconds);
+            } else {
+                draw_solar_halo(fb, &view, sun.world_transform(seconds), sun.halo_color());
+            }
         }
         crate::asteroids::draw(
             fb,
@@ -759,7 +787,9 @@ impl Space {
             self.sun_position(seconds),
             planet.surface_effect(seconds),
         );
-        if planet.is_sun {
+        if planet.name == "Asterion" {
+            crate::stellar::draw_corona(fb, &view, transform, seconds);
+        } else if planet.is_sun {
             draw_solar_halo(fb, &view, transform, planet.halo_color());
         }
         if planet.name == "Umbriel" {
@@ -1302,7 +1332,10 @@ mod tests {
             .active_planets()
             .find(|p| p.name == "Nacar")
             .expect("Falta Nacar");
-        assert!(planet.model.faces.len() < 25000);
+        assert!(space.nacar_distant.faces.len() < 25000);
+        assert!(planet.model.faces.len() < 65000);
+        assert!(planet.model.faces.len() > space.nacar_distant.faces.len());
+        assert_eq!(planet.model.radius, space.nacar_distant.radius);
         assert!(
             planet
                 .model
@@ -1401,6 +1434,66 @@ mod tests {
         );
         space.configure(0);
         assert!(!space.active_planets().any(|p| p.name == "Nacar"));
+    }
+
+    #[test]
+    fn nacar_blender_lod_reduces_processed_triangles_without_changing_scale() {
+        let mut space = Space::load().unwrap();
+        space.configure(2);
+        for planet in &mut space.planets {
+            planet.active = planet.name == "Nacar";
+        }
+        space.debris.clear();
+        let planet = space.active_planets().next().unwrap();
+        let position = planet.world_transform(0.0).position;
+        let high_faces = planet.model.faces.len();
+        let low_faces = space.nacar_distant.faces.len();
+        let mut flight = Flight::new();
+        flight.camera.pitch = 0.0;
+        flight.position = position + Vec3::z() * 1600.0;
+        let view = FlightView::new(&flight, 320, 240);
+        let mut frame = Framebuffer::new(320, 240);
+        space.draw_view(&mut frame, &view, 0.0);
+        assert_eq!(frame.triangles_processed, low_faces);
+        frame.clear();
+        frame.render_options.automatic_lod = false;
+        space.draw_view(&mut frame, &view, 0.0);
+        assert_eq!(frame.triangles_processed, high_faces);
+        assert!(high_faces > low_faces * 3 / 2);
+    }
+
+    #[test]
+    fn nacar_glacial_arch_has_a_passable_opening_and_a_solid_roof() {
+        let mut space = Space::load().unwrap();
+        space.configure(2);
+        let planet = space.active_planets().find(|p| p.name == "Nacar").unwrap();
+        let scale = 96.0 / planet.model.radius;
+        let world = CollisionWorld::new(vec![PlanetCollider::new(
+            "Nacar",
+            &planet.model,
+            WorldTransform {
+                position: Vec3::zeros(),
+                radius: 96.0,
+                yaw: 0.0,
+            },
+            0.0,
+        )]);
+        let axis = Vec3::new(0.62, 0.06, 0.78).normalize();
+        let forward = (Vec3::z() - axis * axis.z).normalize();
+        let center = axis * (1.075 * scale);
+        let through = world.move_ship(
+            center - forward * (0.18 * scale),
+            forward * (0.36 * scale),
+            0.0,
+            0.1,
+        );
+        assert!(
+            through.contacts.is_empty(),
+            "La cueva debe ser un hueco real y navegable"
+        );
+        let roof = world.move_ship(axis * (1.45 * scale), -axis * (0.30 * scale), 0.0, 0.1);
+        assert!(roof.contacts.iter().any(|c| c.planet == "Nacar"));
+        assert!(roof.position.norm() > 1.20 * scale + crate::collision::SHIP_RADIUS);
     }
 
     #[test]
@@ -1753,6 +1846,16 @@ mod tests {
         let mut space = Space::load().unwrap();
         space.configure(2);
         let star = space.active_planets().find(|p| p.is_sun).unwrap();
+        assert_eq!(star.model.textures.len(), 1);
+        for face in &star.model.faces {
+            assert!(face.unlit && face.texture == Some(0));
+            let uv = face
+                .uv
+                .expect("Asterion requiere las UV exportadas en Blender");
+            let min = uv.iter().map(|p| p.x).fold(f32::INFINITY, f32::min);
+            let max = uv.iter().map(|p| p.x).fold(f32::NEG_INFINITY, f32::max);
+            assert!(max - min <= 0.5, "La costura no debe cruzar todo el atlas");
+        }
         let mut flight = Flight::new();
         flight.camera.pitch = 0.0;
         let view = FlightView::new(&flight, 256, 192);
