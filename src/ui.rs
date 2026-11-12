@@ -838,14 +838,12 @@ impl Ui {
             self.fonts
                 .text(fb, 14, 50, 120, "CAPS LOCK + WASD / SALTO LUZ", 0xff7974);
             let state = if flight.impulse.remaining > 0.0 {
-                "SALTO LUZ ACTIVO".to_owned()
-            } else if flight.impulse.cooldown > 0.00001 {
-                format!("RECARGA {:.1} s", flight.impulse.cooldown)
+                format!("SALTO LUZ ACTIVO / {:.1} s", flight.impulse.remaining)
             } else {
-                "LISTO - SIN WASD: ADELANTE".to_owned()
+                "LISTO / SIN RECARGA".to_owned()
             };
             self.fonts.text(fb, 14, 50, 146, &state, TEXT);
-            let charge = (1.0 - flight.impulse.cooldown / crate::impulse::COOLDOWN).clamp(0.0, 1.0);
+            let charge = (flight.impulse.remaining / crate::impulse::DURATION).clamp(0.0, 1.0);
             rule(fb, (50, 172), (300, 172), BORDER);
             rule(
                 fb,

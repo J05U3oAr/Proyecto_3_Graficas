@@ -115,7 +115,8 @@ desvanecen en 0.9 segundos y quedan ocultas por el casco, planetas y obstáculos
 La inspección y la pausa conservan el efecto; cambiar de nave o cancelar el salto
 lo limpia.
 
-El salto dura 0.65 segundos, con recarga de 2.5 segundos desde la activación.
+El salto dura **3 segundos y no tiene recarga**. Al terminar puedes volver a
+pulsar **Caps Lock** inmediatamente para iniciar otro salto.
 Mantiene la física y las colisiones existentes: 300 unidades/s adicionales en
 el espacio y 96 unidades/s en navegación local. «Salto luz» es el nombre de la
 habilidad del juego, sin representar la velocidad física de la luz.

@@ -726,7 +726,7 @@ mod tests {
                 let mut flight = Flight::new();
                 assert!(flight.trigger_impulse(&ships[0], movement));
                 assert!(!flight.trigger_impulse(&ships[0], movement));
-                for _ in 0..fps {
+                for _ in 0..((crate::impulse::DURATION + 0.1) * fps as f32).ceil() as usize {
                     flight.advance(1.0 / fps as f32, (0.0, 0.0), false, false);
                 }
                 flight
@@ -744,6 +744,11 @@ mod tests {
                 fast.impulse.wake.origin().is_some(),
                 "The wake must remain after the jump ends"
             );
+            let mut fast = fast;
+            assert!(
+                fast.trigger_impulse(&ships[0], movement),
+                "A completed jump must be immediately reusable"
+            );
         }
         let mut flight = Flight::new();
         assert!(!flight.trigger_impulse(&ships[1], (1.0, 0.0)));
@@ -752,8 +757,9 @@ mod tests {
         flight.advance(0.1, (0.0, 0.0), false, true);
         assert!(flight.velocity.norm() < 0.001);
         assert_eq!(flight.impulse.remaining, 0.0);
+        assert!(flight.trigger_impulse(&ships[0], (0.0, 0.0)));
         flight.respawn();
-        assert_eq!(flight.impulse.cooldown, 0.0);
+        assert!(flight.trigger_impulse(&ships[0], (0.0, 0.0)));
     }
 
     #[test]
@@ -762,7 +768,7 @@ mod tests {
         let mut local = local_flight();
         let radius = local.position.norm();
         assert!(local.trigger_impulse(&ships[0], (0.0, 1.0)));
-        for _ in 0..60 {
+        for _ in 0..((crate::impulse::DURATION + 0.1) * 60.0).ceil() as usize {
             local.advance(1.0 / 60.0, (0.0, 0.0), false, false);
         }
         assert!(local.is_local());

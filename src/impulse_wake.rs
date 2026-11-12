@@ -28,7 +28,7 @@ pub struct Wake {
 
 impl Wake {
     pub fn launch(&mut self, position: Vec3, right: Vec3, up: Vec3) {
-        self.clear();
+        // Consecutive jumps retain the previous wake until it fades naturally.
         self.wave = Some(Wave {
             center: position,
             right,
@@ -218,6 +218,12 @@ mod tests {
         fb.depth.fill(f32::INFINITY);
         wake.draw(&mut fb, &view);
         assert!(fb.pixels.iter().all(|p| *p == 0x123456));
+        wake.launch(-Vec3::z() * 34.0, Vec3::x(), Vec3::y());
+        assert_eq!(
+            wake.samples.front().unwrap().position,
+            oldest,
+            "Chained jumps must retain their previous trail"
+        );
         wake.tick(LIFETIME);
         assert!(wake.samples.is_empty() && wake.wave.is_none());
     }
