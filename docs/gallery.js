@@ -49,3 +49,23 @@ gravityTime.addEventListener("input", () => {
   gravityOutput.value = `${seconds} s`;
   gravityTime.setAttribute("aria-valuetext", `${seconds} segundos de simulación`);
 });
+
+const jumpFrames = [
+  [0.06, "Onda de salida", "Benatar inicia el salto y deja una onda roja en el punto de salida"],
+  [0.25, "Salto", "Benatar avanza con dos estelas rojas sobre su trayectoria real"],
+  [0.45, "Estela", "La estela roja se extiende detrás de Benatar mientras las estrellas conservan su forma"],
+  [0.72, "Recarga", "El salto termina y la estela roja permanece detrás de la nave durante su recarga"],
+  [1.55, "Desvanecida", "La onda y la estela se han desvanecido y Benatar continúa el vuelo normal"],
+];
+const jumpTime = document.getElementById("jump-time");
+const jumpImage = document.getElementById("jump-image");
+const jumpOutput = document.getElementById("jump-output");
+jumpTime.disabled = false;
+jumpTime.addEventListener("input", () => {
+  const index = Number(jumpTime.value);
+  const [seconds, stage, description] = jumpFrames[index];
+  jumpImage.src = `assets/benatar-estela-${index}.png`;
+  jumpImage.alt = description;
+  jumpOutput.value = `${seconds} s · ${stage}`;
+  jumpTime.setAttribute("aria-valuetext", `${seconds} segundos, ${stage}`);
+});
