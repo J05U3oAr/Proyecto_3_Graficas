@@ -475,3 +475,17 @@ El microrrelieve y el velo de nieve se evalúan a partir de un radio proyectado 
 96 píxeles. A distancia se conservan las capas principales con menos trabajo.
 Este cambio corresponde únicamente a Nivalis; los otros planetas conservan sus
 shaders.
+
+
+## Capas de material de Ónice
+
+Ónice conserva los colores y el relieve de su modelo Blender. Para reducir las
+facetas visibles, el renderizador interpola las normales y los colores de los
+materiales con corrección de perspectiva, incluyendo los vértices que introduce
+el clipping. Los cráteres, arcos y colisiones mantienen su geometría.
+
+El shader combina variación mineral de varias escalas (fBm), vetas con dominio
+deformado, detalle de roca de bajo contraste y depósitos sutiles de escarcha.
+Estas capas procedurales, como en LAB5, permanecen ancladas al modelo al rotar;
+no requieren imágenes ni generan geometría adicional. Esta interpolación se
+activa únicamente para Ónice.
