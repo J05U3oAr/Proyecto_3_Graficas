@@ -518,3 +518,21 @@ modelos en Rust, ni se alteran las colisiones o los otros soles.
 Los fenómenos toman como referencia la [descripción del Sol de NASA](https://science.nasa.gov/sun/facts/).
 Son una representación visual inspirada en actividad solar, con la paleta de
 Asterion; no una simulación física de plasma o de una estrella azul.
+
+
+## Material de Véspera: tundra barrida por el viento
+
+Véspera conserva sus mesetas, dunas y cañones de Blender. Su material propio
+combina nieve compactada, crestas de viento localizadas, costra de bajo contraste,
+depósitos minerales y estratos de pizarra en las paredes. Las capas usan el espacio
+local del modelo, por lo que acompañan su rotación; no reutilizan texturas ni
+paletas de Aurora y no crean PNG adicionales.
+
+El renderizador interpola normales y colores de material para reducir las facetas.
+Un relieve de iluminación orientado por el viento se evalúa en los vértices de
+nieve y se interpola por fragmento; no desplaza la geometría ni cambia colisiones.
+La nieve usa iluminación rugosa con reflejos débiles para conservar su aspecto
+mate. Un velo tenue de nieve suelta cambia con el tiempo, mientras el suelo
+permanece fijo. La ventisca de partículas existente se conserva para el vuelo
+cercano. La identidad de Véspera son la erosión y los cañones nevados; Nivalis
+mantiene el lago congelado y sus grandes glaciares.
