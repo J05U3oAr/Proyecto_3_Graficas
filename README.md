@@ -6,7 +6,7 @@ Los modelos se cargan desde archivos OBJ; el programa transforma y rasteriza los
 
 ## Video de demostración
 
-https://youtu.be/fpEJOXo2w8Y 
+https://youtu.be/Qt1NcDYaWVw
 
 ## Ejecutar
 
