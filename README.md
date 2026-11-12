@@ -4,6 +4,10 @@ Exploración espacial en Rust con un menú principal, un hangar con selección l
 
 Los modelos se cargan desde archivos OBJ; el programa transforma y rasteriza los triángulos en un framebuffer propio con búfer de profundidad. `minifb` se usa para la ventana y la entrada, no para dibujar modelos 3D. El menú también se dibuja en la CPU, incluidos textos, tarjetas, estrellas y plataformas luminosas.
 
+## Video de demostración
+
+**Enlace del video:** pendiente de agregar.
+
 ## Ejecutar
 
 ### Prerrequisitos
